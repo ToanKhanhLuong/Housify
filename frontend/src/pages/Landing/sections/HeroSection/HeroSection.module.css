@@ -1,0 +1,208 @@
+.boxHead {
+  position: relative;
+  width: 100%;
+  background: transparent;
+  padding-bottom: 0;
+}
+
+.boxHeadContainer {
+  position: relative;
+  min-height: 480px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  background-color: #031326;
+}
+
+/* Background image banner */
+.boxHeadBg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+.bannerImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center right;
+  display: block;
+}
+
+/* Overlay gradient on left to guarantee text readability */
+.bgOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, rgba(3, 19, 38, 0.95) 0%, rgba(3, 19, 38, 0.75) 45%, rgba(3, 19, 38, 0.1) 100%);
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* Content Frame on the left */
+.contentFrame {
+  position: relative;
+  z-index: 3;
+  max-width: 580px;
+  padding: 3rem 0 2rem 0;
+  color: #ffffff;
+}
+
+.heading {
+  font-size: 2.75rem;
+  font-weight: 800;
+  line-height: 1.2;
+  color: #ffffff;
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+  letter-spacing: -0.02em;
+}
+
+.headingHighlight {
+  display: block;
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.description {
+  font-size: 1.05rem;
+  line-height: 1.6;
+  color: #e2e8f0;
+  margin-bottom: 0;
+  max-width: 500px;
+}
+
+/* Search Box Container placed exactly on the 50/50 boundary without any excess background */
+.boxHeadSearch {
+  position: relative;
+  z-index: 10;
+  margin-top: -37px;
+}
+
+.boxSearch {
+  background: #0056d2;
+  padding: 12px;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 14px 35px rgba(0, 43, 110, 0.35);
+}
+
+.searchList {
+  display: grid;
+  grid-template-columns: 2fr 1.1fr 1.1fr 140px;
+  gap: 10px;
+  align-items: center;
+}
+
+.searchItem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: #ffffff;
+  border-radius: var(--radius-md);
+  height: 50px;
+  padding: 0 14px;
+}
+
+.searchIcon {
+  color: #0284c7;
+  font-size: 1.1rem;
+  margin-right: 10px;
+  flex-shrink: 0;
+}
+
+.inputField {
+  width: 100%;
+  border: none;
+  outline: none;
+  font-size: 0.925rem;
+  font-family: inherit;
+  color: #1e293b;
+  background: transparent;
+}
+
+.inputField::placeholder {
+  color: #94a3b8;
+}
+
+.selectField {
+  width: 100%;
+  border: none;
+  outline: none;
+  font-size: 0.925rem;
+  font-family: inherit;
+  color: #1e293b;
+  background: transparent;
+  cursor: pointer;
+}
+
+.searchBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 50px;
+  background: linear-gradient(135deg, #ff6b00 0%, #ff5000 100%);
+  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 700;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(255, 80, 0, 0.4);
+  transition: var(--transition);
+  white-space: nowrap;
+  padding: 0 16px;
+}
+
+.searchBtn:hover {
+  background: linear-gradient(135deg, #ff5000 0%, #e04400 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(255, 80, 0, 0.55);
+}
+
+@media (max-width: 992px) {
+  .boxHeadContainer {
+    min-height: 420px;
+  }
+  .heading {
+    font-size: 2.2rem;
+  }
+  .boxHeadSearch {
+    margin-top: -60px;
+  }
+  .searchList {
+    grid-template-columns: 1fr 1fr;
+  }
+  .searchBtn {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 640px) {
+  .boxHeadContainer {
+    min-height: 360px;
+  }
+  .contentFrame {
+    padding: 2rem 0 1rem 0;
+  }
+  .heading {
+    font-size: 1.75rem;
+  }
+  .description {
+    font-size: 0.9rem;
+  }
+  .boxHeadSearch {
+    margin-top: -110px;
+  }
+  .searchList {
+    grid-template-columns: 1fr;
+  }
+  .searchBtn {
+    grid-column: span 1;
+  }
+}
