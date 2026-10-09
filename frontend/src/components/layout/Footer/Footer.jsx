@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { FaFacebookF, FaTiktok, FaInstagram, FaYoutube } from 'react-icons/fa';
 import styles from './Footer.module.css';
 
@@ -12,16 +13,16 @@ const Footer = () => {
             <h4 className={styles.colTitle}>Về Housify</h4>
             <ul className={styles.linkList}>
               <li className={styles.linkItem}>
-                <a href="#about">Giới thiệu</a>
+                <Link to="/docs/gioi-thieu">Giới thiệu</Link>
               </li>
               <li className={styles.linkItem}>
-                <a href="#privacy">Chính sách bảo mật</a>
+                <Link to="/docs/chinh-sach-bao-mat">Chính sách bảo mật</Link>
               </li>
               <li className={styles.linkItem}>
-                <a href="#terms">Quy định sử dụng</a>
+                <Link to="/docs/quy-dinh-su-dung">Quy định sử dụng</Link>
               </li>
               <li className={styles.linkItem}>
-                <a href="#regulation">Quy chế hoạt động</a>
+                <Link to="/docs/quy-che-hoat-dong">Quy chế hoạt động</Link>
               </li>
             </ul>
           </div>
@@ -31,10 +32,10 @@ const Footer = () => {
             <h4 className={styles.colTitle}>Hỗ trợ</h4>
             <ul className={styles.linkList}>
               <li className={styles.linkItem}>
-                <a href="#guide">Hướng dẫn</a>
+                <Link to="/docs/huong-dan">Hướng dẫn</Link>
               </li>
               <li className={styles.linkItem}>
-                <a href="#contact">Liên hệ</a>
+                <Link to="/docs/lien-he">Liên hệ</Link>
               </li>
             </ul>
           </div>
@@ -43,16 +44,40 @@ const Footer = () => {
           <div>
             <h4 className={styles.colTitle}>Kết nối với chúng tôi</h4>
             <div className={styles.socialList}>
-              <a href="https://facebook.com" target="_blank" rel="noreferrer" className={styles.socialBtn} title="Facebook">
+              <a
+                href="https://facebook.com"
+                target="_blank"
+                rel="noreferrer"
+                className={styles.socialBtn}
+                title="Facebook"
+              >
                 <FaFacebookF size={15} />
               </a>
-              <a href="https://tiktok.com" target="_blank" rel="noreferrer" className={styles.socialBtn} title="TikTok">
+              <a
+                href="https://tiktok.com"
+                target="_blank"
+                rel="noreferrer"
+                className={styles.socialBtn}
+                title="TikTok"
+              >
                 <FaTiktok size={15} />
               </a>
-              <a href="https://instagram.com" target="_blank" rel="noreferrer" className={styles.socialBtn} title="Instagram">
+              <a
+                href="https://instagram.com"
+                target="_blank"
+                rel="noreferrer"
+                className={styles.socialBtn}
+                title="Instagram"
+              >
                 <FaInstagram size={15} />
               </a>
-              <a href="https://youtube.com" target="_blank" rel="noreferrer" className={styles.socialBtn} title="YouTube">
+              <a
+                href="https://youtube.com"
+                target="_blank"
+                rel="noreferrer"
+                className={styles.socialBtn}
+                title="YouTube"
+              >
                 <FaYoutube size={15} />
               </a>
             </div>
