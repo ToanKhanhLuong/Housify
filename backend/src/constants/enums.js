@@ -1,0 +1,1 @@
+// toàn bộ quy ước các enum của các collections

@@ -1,0 +1,1 @@
+// UC-45: Hợp đồng hết hạn tự nhiên → ENDED

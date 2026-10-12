@@ -1,0 +1,1 @@
+// UC-28/29: Đến ngày hiệu lực → ENDED, phòng trống, người thuê rời đi

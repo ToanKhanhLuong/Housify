@@ -1,0 +1,1 @@
+// activation_tokens : link mời / kích hoạt

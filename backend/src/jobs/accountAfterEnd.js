@@ -1,0 +1,1 @@
+// +24h: tài khoản đại diện → INACTIVE / LOCKED

@@ -1,0 +1,1 @@
+// UC-28 A2: Nhắc ngày 1, 3, 6; tự xác nhận sau 7 ngày

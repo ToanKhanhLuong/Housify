@@ -1,0 +1,1 @@
+// vai trò _id Number 0 ADMIN, 1 MANAGER, 2 CUSTOMER

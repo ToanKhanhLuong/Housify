@@ -1,0 +1,1 @@
+// upload ảnh chỉ nhận dưới 5 MB

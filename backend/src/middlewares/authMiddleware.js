@@ -1,0 +1,1 @@
+// Xác thực JWT + đọc lại user.status mỗi request

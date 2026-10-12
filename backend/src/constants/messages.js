@@ -1,0 +1,1 @@
+// thông báo lỗi, tiếng việt, dùng chung
