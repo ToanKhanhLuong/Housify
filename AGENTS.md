@@ -91,3 +91,5 @@ Frontend gọi `/api/...`; Vite đã chuyển tiếp sang backend nên không c�
 | Hiếu   | Frontend lead + một số module backend |
 | Hưng   | Frontend                                |
 | Mạnh   | Frontend                                |
+
+*Lưu ý nhỏ lúc làm giao diện: ghi chữ`Xác nhận điện tử` , Tuyệt đối KHÔNG ghi “Chữ ký số” hay “Signature Valid”.
