@@ -18,7 +18,7 @@ app.use(morgan('dev'));
 
 // Health check
 app.get('/', (req, res) => {
-    res.json({ message: 'Server is running!' });
+  res.json({ message: 'Server is running!' });
 });
 
 // Ảnh upload lưu ở backend/uploads (xem cảnh báo về CCCD trong ghi chú)
