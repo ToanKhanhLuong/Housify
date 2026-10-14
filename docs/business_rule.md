@@ -1,6 +1,7 @@
+
 # Cơ sở dữ liệu Housify – 18 collection
 
-Nguồn: ERD nhóm vẽ trên drawdb (bản 14-10-2026) + các field bổ sung đã chốt (đánh dấu **(bổ sung)**, xem mục cuối).
+Nguồn: ERD nhóm vẽ trên drawdb (bản 14-10-2026). Chỗ nào ERD lệch Use Case thì **theo Use Case** – field / giá trị thêm vào đánh dấu **(bổ sung)**, xem mục cuối.
 Sơ đồ: `docs/housify-erd.puml` (ảnh `docs/housify-erd.png`).
 Đây là **nguồn chuẩn** cho model. Muốn thêm collection / field / giá trị enum: hỏi nhóm và sửa file này trước, rồi mới sửa code.
 
@@ -11,8 +12,8 @@ Sơ đồ: `docs/housify-erd.puml` (ảnh `docs/housify-erd.png`).
 - Cách đọc: `tên: Kiểu – giải thích`. Dấu `?` sau tên = không bắt buộc (được để trống). `→ x` = ObjectId tham chiếu collection `x`.
 - Giá trị enum lưu **CHỮ IN HOA**, khai báo một lần trong `backend/src/constants/enums.js` (tên hằng ghi trong ngoặc, ví dụ `(USER_STATUS)`).
 - Hằng số cấu hình (STK Admin, số ngày hạn hóa đơn, mốc nhắc) để ở `.env` / `src/constants`, **không lưu DB**.
-- Xóa mềm: `buildings`, `rooms`, `room_types`, `services` có `isDeleted` (mặc định false). Mọi truy vấn danh sách phải lọc `isDeleted: false`.
-- Các giá trị **tính ra, không lưu**: quá hạn hóa đơn (từ `dueDate`), đúng hạn / quá hạn thanh toán (`paidAt` so với `dueDate`), số người đang ở, "đang chờ chấm dứt", hạn tự xác nhận đơn chấm dứt (`createdAt` + 7 ngày), lúc xóa mềm và lúc giải quyết sự cố (`updatedAt`), Manager xử lý sự cố (`buildings.managerId` của tòa chứa phòng).
+- Xóa mềm: `buildings`, `rooms` có `isDeleted` + `deletedAt` (BR-040, BR-049); `room_types`, `services` chỉ có `isDeleted`. Mọi truy vấn danh sách phải lọc `isDeleted: false`.
+- Các giá trị **tính ra, không lưu**: quá hạn hóa đơn (từ `dueDate`), đúng hạn / quá hạn thanh toán (`paidAt` so với `dueDate`), số người đang ở, "đang chờ chấm dứt", hạn tự xác nhận đơn chấm dứt (`createdAt` + 7 ngày).
 
 ---
 
@@ -68,6 +69,7 @@ Admin nhập `name`, email, `phone` (UC-08). Manager tự điền **một lần*
 - `cccd`: String – không trùng trong 1 hợp đồng; với đại diện là định danh đăng nhập
 - `cccdFrontImage?`: String – ảnh CCCD mặt trước
 - `cccdBackImage?`: String – ảnh CCCD mặt sau
+- `relationship?`: String – quan hệ với người đại diện (UC-30, UC-32) **(bổ sung)**
 - `status`: Enum `(OCCUPANT_STATUS)` – STAYED (đang ở) | LEFT (đã chuyển đi)
 - `joinDate`: Date – ngày vào ở
 - `exitDate?`: Date – ngày chuyển ra
@@ -75,6 +77,7 @@ Admin nhập `name`, email, `phone` (UC-08). Manager tự điền **một lần*
 - Khách thuê lại → bản ghi mới, cùng `cccd`, cùng `userId`.
 - **"Đang ở"** = occupant STAYED thuộc hợp đồng ACTIVE.
 - Xóa người ở cùng (UC-33) = LEFT + `exitDate`, không xóa bản ghi.
+- Hủy hợp đồng nháp (UC-46) = **xóa hẳn** người ở cùng đã nhập kèm, vì chưa từng vào ở.
 
 ### 5. otp_tokens – OTP quên mật khẩu
 
@@ -106,11 +109,15 @@ Link dùng 1 lần. Gửi lại → link cũ EXPIRED. Hủy hợp đồng DRAFT 
 
 - `name`: String, unique – tên tòa (BR-034)
 - `address`: String – địa chỉ
+- `description?`: String – mô tả (UC-12) **(bổ sung)**
 - `images`: [String] – đường dẫn ảnh
 - `floorCount`: Number – tổng số tầng, ≥ 1; danh sách "Tầng 1..n" sinh từ số này, **không có collection tầng** (UC-15)
 - `rules?`: String – nội quy, một bản, lưu đè (UC-23, BR-060)
 - `managerId?`: ObjectId → users – Manager phụ trách; unique khi có giá trị (1 Manager 1 tòa, BR-031)
 - `isDeleted`: Boolean – mặc định false
+- `deletedAt?`: Date – lúc xóa mềm (BR-040) **(bổ sung)**
+
+Tầng (UC-15): sửa `floorCount`. Không giảm xuống dưới tầng cao nhất đang có phòng (BR-042) – vì vậy "xóa tầng" (A2) chỉ làm được với tầng trên cùng và tầng đó không có phòng.
 
 ### 8. rooms
 
@@ -123,10 +130,11 @@ Link dùng 1 lần. Gửi lại → link cũ EXPIRED. Hủy hợp đồng DRAFT 
 - `capacity`: Number – sức chứa, ≥ 1
 - `rentPrice`: Number – giá thuê niêm yết hiện tại, > 0
 - `deposit`: Number – tiền cọc niêm yết hiện tại, > 0 (BR-045)
-- `status`: Enum `(ROOM_STATUS)` – AVAILABLE | OCCUPIED; mới tạo luôn AVAILABLE
+- `status`: Enum `(ROOM_STATUS)` – AVAILABLE | OCCUPIED | MAINTENANCE **(bổ sung MAINTENANCE)**; mới tạo luôn AVAILABLE
 - `isDeleted`: Boolean – mặc định false
+- `deletedAt?`: Date – lúc xóa mềm (BR-049) **(bổ sung)**
 
-`status` **chỉ hệ thống** đổi: AVAILABLE → OCCUPIED khi kích hoạt hợp đồng (UC-06); OCCUPIED → AVAILABLE khi hợp đồng kết thúc (UC-28/29/45). Admin và Manager không đổi tay.
+Đổi `status`: AVAILABLE ↔ MAINTENANCE do Admin (UC-17 A2). AVAILABLE ↔ OCCUPIED **chỉ hệ thống** đổi: kích hoạt hợp đồng (UC-06); hợp đồng kết thúc (UC-28/29/45). Admin không chọn được OCCUPIED, Manager không đổi được trạng thái (BR-052).
 
 ### 9. room_types – loại phòng dùng chung toàn hệ thống
 
@@ -182,7 +190,7 @@ Vòng đời:
 
 - **DRAFT**: chưa có hồ sơ đại diện, chỉ có `representativeCccd` / `representativeEmail`.
 - **DRAFT → ACTIVE** (UC-06): 1 transaction – tạo / mở lại user, tạo occupant đại diện, hợp đồng ACTIVE, phòng OCCUPIED, token USED (BR-015).
-- **Hủy DRAFT** (UC-46): 1 transaction – CANCELLED, token EXPIRED, người ở cùng → LEFT (không xóa), phòng giữ AVAILABLE; audit UPDATE_CONTRACT, lý do **tùy chọn**.
+- **Hủy DRAFT** (UC-46): 1 transaction – CANCELLED, token EXPIRED, **xóa** người ở cùng đã nhập kèm, phòng giữ AVAILABLE; audit UPDATE_CONTRACT, lý do **tùy chọn**. (UC-46 bước 4 "tài khoản → INACTIVE" bỏ qua: hợp đồng nháp chưa có tài khoản.)
 - **Đang có đơn chấm dứt**: hợp đồng **vẫn ACTIVE** đến ngày hiệu lực (UC-28, UC-29). Không có trạng thái "chờ chấm dứt".
 - **ACTIVE → ENDED**: (a) đến `effectiveDate` của đơn chấm dứt CONFIRMED; (b) hết `endDate` mà không có đơn chấm dứt CONFIRMED (UC-45, job cuối ngày). Cả hai: 1 transaction – hợp đồng ENDED, phòng AVAILABLE, occupant STAYED → LEFT. Sau 24h tài khoản đại diện → INACTIVE (riêng đơn phương → LOCKED).
 - **Hoàn cọc**: chỉ hợp đồng ENDED do hết hạn (không có đơn chấm dứt CONFIRMED), chỉ 1 lần (BR-130, BR-131).
@@ -199,6 +207,7 @@ Vòng đời:
 - `requestedBy`: ObjectId → users – Manager lập đơn
 - `handledBy?`: ObjectId → users – Customer xác nhận (MUTUAL) hoặc Admin duyệt / từ chối (UNILATERAL)
 - `handledAt?`: Date – lúc xác nhận / duyệt; cần để tính lại `signatureHash` (BR-077) **(bổ sung)**
+- `handledIp?`: String – địa chỉ IP lúc xác nhận (BR-077) **(bổ sung)**
 - `signatureHash?`: String – hash(nội dung đơn + người xác nhận + `handledAt`); trống khi tự xác nhận
 - `rejectReason?`: String – Admin từ chối (UNILATERAL)
 - `cancelledBy?`: ObjectId → users – Manager hủy
@@ -271,16 +280,16 @@ Thông báo không được xóa (BR-111). Tạo qua helper `notify()`, không t
 - `contractId`: ObjectId → contracts
 - `roomId`: ObjectId → rooms
 - `reportedBy`: ObjectId → users – Customer gửi
-- `type`: Enum `(INCIDENT_TYPE)` – EQUIPMENT (thiết bị) | VIOLATION (vi phạm)
+- `type`: Enum `(INCIDENT_TYPE)` – SERVICE (dịch vụ) | EQUIPMENT (thiết bị) | VIOLATION (vi phạm) | OTHER (khác) **(bổ sung SERVICE, OTHER)**
 - `title`: String
 - `description`: String
 - `images`: [String] – ảnh đính kèm
 - `status`: Enum `(INCIDENT_STATUS)` – PENDING | IN_PROGRESS | RESOLVED | REJECTED
+- `handledBy?`: ObjectId → users – Manager xử lý (BR-120) **(bổ sung)**
 - `resultNote?`: String – kết quả hoặc lý do từ chối
+- `resolvedAt?`: Date – lúc RESOLVED (BR-120) **(bổ sung)**
 
 Customer gửi → PENDING → Manager tiếp nhận IN_PROGRESS → RESOLVED / REJECTED. Mỗi lần đổi trạng thái gửi INCIDENT_UPDATE (có `refId`) – chuỗi thông báo này là lịch sử trạng thái (BR-117).
-
-BR-120 (ghi nhận Manager xử lý và lúc giải quyết) không cần field riêng: mỗi tòa chỉ có 1 Manager nên người xử lý suy từ phòng → tòa → `managerId`; lúc giải quyết lấy `updatedAt` khi chuyển RESOLVED.
 
 ### 18. audit_logs – chỉ ghi thao tác không lưu vết ở collection khác
 
@@ -304,7 +313,7 @@ Ghi qua helper `audit()`, không tự `insert`.
 | `OCCUPANT_STATUS`    | STAYED, LEFT                             | `occupants.status`                                |
 | `TOKEN_STATUS`       | USED, EXPIRED                            | `otp_tokens.status`, `activation_tokens.status` |
 | `ACTIVATION_TYPE`    | CUSTOMER_INVITE, MANAGER_ACTIVATION      | `activation_tokens.type`                          |
-| `ROOM_STATUS`        | AVAILABLE, OCCUPIED                      | `rooms.status`                                    |
+| `ROOM_STATUS`        | AVAILABLE, OCCUPIED, MAINTENANCE         | `rooms.status`                                    |
 | `CONTRACT_TYPE`      | SINGLE, GROUP                            | `contracts.contractType`                          |
 | `CONTRACT_STATUS`    | DRAFT, ACTIVE, ENDED, CANCELLED          | `contracts.status`                                |
 | `TERMINATION_TYPE`   | MUTUAL, UNILATERAL                       | `termination_requests.type`                       |
@@ -312,7 +321,7 @@ Ghi qua helper `audit()`, không tự `insert`.
 | `INVOICE_ITEM_TYPE`  | RENT, METERED, FIXED, EXTRA              | `invoices.items.type`                             |
 | `INVOICE_STATUS`     | DRAFT, PENDING, PAID, CANCELLED          | `invoices.status`                                 |
 | `NOTIFICATION_TYPE`  | xem bên dưới                          | `notifications.type`                              |
-| `INCIDENT_TYPE`      | EQUIPMENT, VIOLATION                     | `incidents.type`                                  |
+| `INCIDENT_TYPE`      | SERVICE, EQUIPMENT, VIOLATION, OTHER     | `incidents.type`                                  |
 | `INCIDENT_STATUS`    | PENDING, IN_PROGRESS, RESOLVED, REJECTED | `incidents.status`                                |
 | `AUDIT_ACTION`       | xem bên dưới                          | `audit_logs.action`                               |
 
@@ -377,28 +386,35 @@ Kiểm tra trong service (trong transaction), **không** dùng index:
 
 ## Đã chốt (14-10-2026)
 
-Nguyên tắc: **cấu trúc dữ liệu theo ERD, luồng xử lý theo UC; ERD thiếu field mà UC cần thì bổ sung tối thiểu.**
+Nguyên tắc: **ERD và Use Case lệch nhau → theo Use Case.**
 
-Field bổ sung so với ERD drawdb – **chỉ 2**, vì bỏ đi thì mất hẳn một chức năng:
+Bổ sung so với ERD drawdb:
 
-| Field                               | Bỏ thì mất gì                                                                                                                                             |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `termination_requests.handledAt?` | Không tính lại được `signatureHash` → UC-28 bước 6 ("Ký lúc…", trạng thái "Hợp lệ") không làm được, `signatureHash` thành vô dụng |
-| `notifications.refId?`            | Bấm thông báo trên chuông không mở được đơn / hóa đơn (UC-28 bước 3, UC-41)                                                                  |
+| Bổ sung                                            | Vì UC / BR nào                                            |
+| --------------------------------------------------- | ----------------------------------------------------------- |
+| `buildings.description?`                          | UC-12 – form có ô Mô tả                                |
+| `buildings.deletedAt?`, `rooms.deletedAt?`      | BR-040, BR-049 – lưu `deleted_at`                       |
+| `rooms.status` thêm MAINTENANCE                  | UC-17 A2 – Admin chuyển phòng Available ↔ Bảo trì     |
+| `occupants.relationship?`                         | UC-30, UC-32 – quan hệ với đại diện                   |
+| `termination_requests.handledAt?`, `handledIp?` | BR-077 – lưu thời điểm, địa chỉ, mã xác thực     |
+| `notifications.refId?`                            | UC-28 bước 3 – bấm thông báo mở đúng đơn         |
+| `incidents.type` thêm SERVICE, OTHER             | UC-43 – 4 loại: Dịch vụ / Thiết bị / Vi phạm / Khác |
+| `incidents.handledBy?`, `incidents.resolvedAt?` | BR-120 – ghi Manager xử lý, thời điểm giải quyết    |
 
-Những field khác UC có nhắc nhưng **không thêm**, vì suy ra được hoặc không dùng vào việc gì: mô tả tòa nhà; `deletedAt` (dùng `updatedAt`); quan hệ với người đại diện (chỉ là chữ hiển thị, không chặn gì); người xử lý và lúc giải quyết sự cố (suy ra, xem mục 17); IP lúc ký đơn chấm dứt.
+Luồng theo UC:
 
-Chỗ UC và ERD khác nhau:
+| Chỗ                       | Chốt                                                                 |
+| -------------------------- | --------------------------------------------------------------------- |
+| Hủy hợp đồng nháp     | Xóa người ở cùng đã nhập kèm (UC-46); lý do hủy tùy chọn |
+| Đang có đơn chấm dứt | Hợp đồng giữ ACTIVE (UC-28, UC-29)                                |
+| Hợp đồng hết hạn      | Tự kết thúc + hoàn cọc (UC-45)                                   |
 
-| Chỗ                                                                                  | Chốt                                                                              |
-| ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Phòng bảo trì (UC-17 A2)                                                           | ERD không có MAINTENANCE → **không làm**                                |
-| Loại sự cố: UC-43 có 4 loại                                                      | Theo ERD: EQUIPMENT, VIOLATION                                                     |
-| Mã hóa đơn: UC-34 ví dụ `HD-P101-202610`                                      | `HD2610K7QX` – một phòng có thể có nhiều hóa đơn cùng kỳ (UC-34 E02) |
-| Hủy hợp đồng nháp: UC-46 xóa người ở cùng                                   | Chuyển LEFT, không xóa                                                          |
-| Lý do hủy hợp đồng nháp                                                         | Tùy chọn (UC-46)                                                                 |
-| Đang có đơn chấm dứt                                                            | Hợp đồng giữ ACTIVE (UC-28, UC-29)                                             |
-| Hợp đồng hết hạn                                                                 | Theo UC-45: tự kết thúc + hoàn cọc                                            |
-| Không có loại thông báo riêng cho nhắc chấm dứt, sự cố mới, nội quy mới | Dùng chung TERMINATION_REQUEST, INCIDENT_UPDATE, ANNOUNCEMENT                     |
-| Không có action riêng cho gia hạn, hủy nháp                                     | Dùng UPDATE_CONTRACT                                                              |
-| Webhook SePay sai số tiền                                                           | Không xử lý – QR đã cố định số tiền                                     |
+Giữ nguyên, không trái UC:
+
+| Chỗ                                                                                                         | Lý do                                                                                                                                                                                                                 |
+| ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Mã hóa đơn `HD2610K7QX`                                                                                | UC-34 `HD-P101-202610` chỉ là ví dụ; BR-096 chỉ yêu cầu duy nhất, không dấu, không khoảng trắng. Một phòng có thể có nhiều hóa đơn cùng kỳ (UC-34 E02) nên mã theo phòng + kỳ sẽ trùng |
+| Nhắc chấm dứt, sự cố mới, nội quy mới dùng chung TERMINATION_REQUEST, INCIDENT_UPDATE, ANNOUNCEMENT | UC chỉ yêu cầu "gửi thông báo", không đặt tên loại                                                                                                                                                          |
+| Gia hạn, hủy nháp ghi log UPDATE_CONTRACT                                                                 | UC chỉ yêu cầu "ghi log"                                                                                                                                                                                            |
+| Lịch sử nhắc (BR-074, BR-128), lịch sử trạng thái sự cố (BR-117)                                    | Là các bản ghi `notifications` có `refId` – không xóa (BR-111)                                                                                                                                              |
+| Webhook SePay sai số tiền                                                                                  | Không xử lý – QR đã cố định số tiền                                                                                                                                                                         |

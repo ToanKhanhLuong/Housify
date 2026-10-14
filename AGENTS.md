@@ -79,7 +79,7 @@ Frontend gọi `/api/...`; Vite đã chuyển tiếp sang backend nên không c�
 ## Git
 
 - Branch: `main` (nộp bài), `develop` (gộp code), `be/feature/<module>`, `fe/feature/<module>`,
-- Commit: `feature(<module>: ...`, `docs: ...` – nội dung tiếng Việt, ngắn.
+- Commit: `feature/(<module>: ...`, feature/module/fix `docs: ...` – nội dung tiếng Việt, ngắn.
 - PR vào main, cần 1 người khác duyệt. Không push thẳng `main`.
 
 ## Thành viên
