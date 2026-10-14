@@ -1,1 +1,1 @@
-# Placeholder file to keep directory in Git
+// Trang chia theo role: public, common, admin, manager, customer. Bên trong chia thư mục theo module (xem docs/use-cases.md)
