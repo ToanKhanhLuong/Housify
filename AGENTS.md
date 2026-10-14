@@ -45,7 +45,7 @@ Nghiệp vụ chi tiết của từng module: `backend/src/modules/<tên>/<tên>
 React (5173) ──/api/...──► Express (8686) ──► MongoDB
 SePay ──webhook──► module payment
 node-cron ──► src/jobs/*.js (chạy chung process backend)
-nodemailer ──► email
+Brevo API ──► email (HTTPS)
 ```
 
 - **FE**: trang `pages/<role>/<module>/` → `api/<module>.api.js` → `api/axios.js` (gắn token) → `/api/...`, Vite chuyển tiếp sang backend.

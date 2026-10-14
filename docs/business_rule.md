@@ -1,4 +1,3 @@
-
 # Cơ sở dữ liệu Housify – 18 collection
 
 Nguồn: ERD nhóm vẽ trên drawdb (bản 14-10-2026). Chỗ nào ERD lệch Use Case thì **theo Use Case** – field / giá trị thêm vào đánh dấu **(bổ sung)**, xem mục cuối.
@@ -209,7 +208,7 @@ Vòng đời:
 - `handledAt?`: Date – lúc xác nhận / duyệt; cần để tính lại `signatureHash` (BR-077) **(bổ sung)**
 - `handledIp?`: String – địa chỉ IP lúc xác nhận (BR-077) **(bổ sung)**
 - `signatureHash?`: String – hash(nội dung đơn + người xác nhận + `handledAt`); trống khi tự xác nhận
-- `rejectReason?`: String – Admin từ chối (UNILATERAL)
+- `rejectReason?`: String – Admin từ chối (UNILATERAL - dành cho loại đơn phương chấm dứt hợp đồng)
 - `cancelledBy?`: ObjectId → users – Manager hủy
 - `cancelReason?`: String – bắt buộc khi hủy
 - MUTUAL: Manager gửi → PENDING → Customer xác nhận → CONFIRMED; không xác nhận → nhắc ngày 1, 3, 6 → hết 7 ngày (từ `createdAt`) tự CONFIRMED, `autoConfirmed = true`. Manager hủy khi còn PENDING → CANCELLED.
