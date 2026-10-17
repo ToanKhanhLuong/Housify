@@ -1,4 +1,3 @@
-
 # Use case → module, trang, phân công
 
 Nội dung đầy đủ từng UC nằm trong file use case (docx) của nhóm. File này để tra nhanh UC nằm ở đâu trong code, iteration nào, ai làm.
@@ -8,7 +7,7 @@ Iter 1: tuần 6 · Iter 2: tuần 7–8 · Iter 3: tuần 9 · Tuần 10: kiể
 ## Phần nền – xong trước khi chia việc
 
 Làm và đẩy lên `main` trước, cả nhóm pull về rồi mới code module:
-`enums.js` (BE + FE) · 18 model · seed role + tài khoản Admin · middleware `auth`, `requireRole`, `validate` + `utils/validators.js` · helper `sendMail` (Brevo), `notify`, `audit`, `withTransaction`.
+`enums.js` (BE + FE) · 18 model · seed role + tài khoản Admin · middleware `auth`, `requireRole`, `validate` + `utils/validators.js` · helper `sendMail` (Brevo), `notify`, `audit`, `withTransaction`. 
 
 ## Bảng UC
 

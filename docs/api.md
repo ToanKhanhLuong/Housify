@@ -1,4 +1,3 @@
-
 # Danh sách API
 
 BE chốt lại ở đầu mỗi iteration, FE code theo file này (kể cả khi dùng mock).
