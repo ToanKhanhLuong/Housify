@@ -76,6 +76,7 @@ Trong `src/utils/` hiện có `response.js`, `AppError.js`, `asyncHandler.js`. C
 ## Quy tắc dữ liệu
 
 - Enum chỉ lấy từ `src/constants/enums.js`. Không viết chuỗi `'ACTIVE'` trực tiếp trong code hoặc so sánh với chuỗi.
+- Đặt tên tham số đầy đủ: `request`, `response`, `next`, không viết tắt
 - Xóa mềm: `buildings`, `rooms` có `isDeleted` + `deletedAt`; `room_types`, `services` chỉ có `isDeleted`. Mọi truy vấn danh sách phải lọc `isDeleted: false`.
 - Không có collection tầng: tầng là `buildings.floorCount`, phòng lưu `floorNumber`. Nội quy là `buildings.rules` (một bản, lưu đè).
 - Hợp đồng chỉ có DRAFT | ACTIVE | ENDED | CANCELLED – **không có PENDING_TERMINATION**. Đang có đơn chấm dứt thì hợp đồng vẫn ACTIVE đến ngày hiệu lực.
@@ -84,6 +85,16 @@ Trong `src/utils/` hiện có `response.js`, `AppError.js`, `asyncHandler.js`. C
 - Token link mời, OTP: chỉ lưu bản hash.
 - **Transaction bắt buộc** cho: kích hoạt hợp đồng (UC-06), kết thúc hợp đồng – đến ngày hiệu lực đơn chấm dứt (UC-28, UC-29) hoặc hết hạn (UC-45), phân công / thay Manager (UC-11), xóa tòa (cascade phòng, UC-14), hủy hợp đồng nháp (UC-46), tạo Manager (UC-08).
   Transaction cần replica set. Chạy máy thì bật replica set một node và thêm `?replicaSet=rs0` vào `MONGO_URI`; dùng Atlas thì có sẵn.
+
+- Đặt tên tham số đầy đủ: `request`, `response`, `next`, không viết tắt
+
+- Đặt tên tham số đầy đủ: `request`, `response`, `next`, không viết tắt
+
+- Đặt tên tham số đầy đủ: `request`, `response`, `next`, không viết tắt
+
+- Đặt tên tham số đầy đủ: `request`, `response`, `next`, không viết tắt
+
+- Đặt tên tham số đầy đủ: `request`, `response`, `next`, không viết tắt
 
 ## Job định kỳ (`src/jobs/`)
 

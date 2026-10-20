@@ -75,6 +75,7 @@ Frontend gọi `/api/...`; Vite đã chuyển tiếp sang backend nên không c�
 5. Mỗi file mở đầu bằng một dòng comment tiếng Việt nói file làm gì, kèm số UC nếu có.
 6. Enum chỉ lấy từ `constants/enums.js` (backend và frontend giống hệt nhau).
 7. Làm đến đâu tạo file đến đó. Không dựng sẵn hàng loạt file rỗng cho module chưa tới lượt.
+8. Đặt tên tham số đầy đủ: `request`, `response`, `next`, không viết tắt
 
 ## Git
 
