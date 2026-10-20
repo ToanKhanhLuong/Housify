@@ -95,3 +95,10 @@ Mỗi job là một file `<tên>.js` export hàm `run()`. `jobs/index.js` có h�
 - Không thêm collection, field, enum mới khi chưa có trong `docs/database.md` – hỏi nhóm trước.
 - Không tự đặt quy tắc nghiệp vụ không có trong use case.
 - Không commit `.env`, không log mật khẩu / token.
+
+## Tìm tài liệu ở đâu
+
+- Nghiệp vụ từng module: `src/modules/<tên>/<tên>.md`
+- Đường dẫn API: `docs/api.md`
+- Cấu trúc dữ liệu: `docs/database.md`
+- Quy tắc nghiệp vụ gốc: `docs/business_rule.md`
