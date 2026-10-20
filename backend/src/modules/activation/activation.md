@@ -3,8 +3,6 @@
 > Xử lý mọi link kích hoạt gửi qua email. **UC-08 (bước 6–8)** cho Manager và **UC-06** cho Customer.
 > Module này chỉ **dùng** link. Việc **tạo và gửi** link nằm ở module `manager` (UC-08, UC-09) và `contract` (UC-24).
 
-**Người làm:** BE An và FE Hưng ·
-
 Iter 1 (Manager)
 
 Iter 2 (Customer)
