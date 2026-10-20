@@ -1,0 +1,214 @@
+.page {
+  padding: 3rem 0 5rem 0;
+  background-color: #f8fafc;
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin-bottom: 1.5rem;
+}
+
+.breadcrumb a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.breadcrumb a:hover {
+  text-decoration: underline;
+}
+
+.mainGrid {
+  display: grid;
+  grid-template-columns: 1.75fr 1fr;
+  gap: 2.5rem;
+  align-items: flex-start;
+}
+
+/* Gallery - Squared */
+.galleryWrap {
+  background: #ffffff;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  margin-bottom: 2rem;
+}
+
+.mainImg {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+}
+
+.thumbRow {
+  display: flex;
+  gap: 0.75rem;
+  padding: 1rem;
+  background-color: #f8fafc;
+  border-top: 1px solid var(--border-light);
+}
+
+.thumb {
+  width: 80px;
+  height: 60px;
+  border-radius: 2px;
+  object-fit: cover;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: var(--transition);
+}
+
+.thumb:hover {
+  opacity: 0.9;
+}
+
+.activeThumb {
+  border-color: var(--color-primary);
+}
+
+/* Details Card - Squared */
+.detailSection {
+  background: #ffffff;
+  border-radius: 4px;
+  padding: 2rem;
+  border: 1px solid var(--border-color);
+  margin-bottom: 2rem;
+}
+
+.title {
+  font-size: 1.65rem;
+  font-weight: 800;
+  color: var(--color-secondary);
+  line-height: 1.3;
+  margin-bottom: 0.75rem;
+}
+
+.addressRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  margin-bottom: 1.5rem;
+}
+
+.priceTag {
+  display: inline-block;
+  font-size: 1.85rem;
+  font-weight: 800;
+  color: #059669;
+  margin-bottom: 1.5rem;
+}
+
+.specsTable {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  background-color: #f8fafc;
+  padding: 1.25rem;
+  border-radius: 4px;
+  margin-bottom: 1.75rem;
+}
+
+.specItem {
+  display: flex;
+  flex-direction: column;
+}
+
+.specLabel {
+  font-size: 0.775rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.specVal {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-secondary);
+}
+
+.sectionHeading {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--color-secondary);
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.amenitiesGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.amenityItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.925rem;
+  color: #334155;
+}
+
+.utilityList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  font-size: 0.925rem;
+}
+
+.utilityRow {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px dashed var(--border-light);
+}
+
+/* Sticky Contact Card - Squared */
+.contactCard {
+  position: sticky;
+  top: 90px;
+  background: #ffffff;
+  border-radius: 4px;
+  padding: 2rem;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-md);
+}
+
+.managerInfoBox {
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.managerNameLg {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--color-secondary);
+}
+
+.managerRoleLg {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* Custom override for square badges & buttons in detail page */
+.squareElement {
+  border-radius: 4px !important;
+}
+
+@media (max-width: 992px) {
+  .mainGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .specsTable {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

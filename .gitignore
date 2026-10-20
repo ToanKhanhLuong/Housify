@@ -1,8 +1,11 @@
 # ===== Thư viện =====
 node_modules
+.pnp
+.pnp.js
 
-# ===== Biến môi trường – chỉ commit .env.example =====
+# ===== Biến môi trường =====
 .env
+.env.*
 *.local
 
 # ===== Build =====

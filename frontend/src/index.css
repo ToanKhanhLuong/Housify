@@ -1,12 +1,69 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
 /*
   Bootstrap lo component (Button, Modal, Table, Form...), Tailwind lo bố cục và khoảng cách.
   - Bootstrap nằm trong layer riêng, xếp trước utilities nên class Tailwind thắng khi trùng.
   - Không nạp preflight của Tailwind để không đè lên reboot của Bootstrap.
-  - Nếu Vite báo lỗi dòng import bootstrap: xóa dòng đó, rồi trong main.jsx thêm
-    import 'bootstrap/dist/css/bootstrap.min.css'; đặt TRƯỚC dòng import './index.css'.
 */
 @layer theme, bootstrap, components, utilities;
 
 @import 'bootstrap/dist/css/bootstrap.min.css' layer(bootstrap);
 @import 'tailwindcss/theme.css' layer(theme);
 @import 'tailwindcss/utilities.css' layer(utilities);
+
+:root {
+  --font-main: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  
+  /* Brand Colors */
+  --color-primary: #0284c7;
+  --color-primary-dark: #0369a1;
+  --color-primary-light: #e0f2fe;
+  --color-primary-gradient: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  
+  --color-secondary: #0f172a;
+  --color-accent: #10b981;
+  --color-accent-light: #d1fae5;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+  --color-zalo: #0068ff;
+  --color-zalo-dark: #0052cc;
+
+  /* Neutrals */
+  --bg-body: #f8fafc;
+  --bg-card: #ffffff;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --text-light: #94a3b8;
+  --border-color: #e2e8f0;
+  --border-light: #f1f5f9;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 10px 25px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.04);
+  --shadow-hover: 0 20px 30px -6px rgba(2, 132, 199, 0.15), 0 8px 12px -4px rgba(15, 23, 42, 0.08);
+
+  /* Radii */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+
+  /* Transitions */
+  --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body {
+  font-family: var(--font-main);
+  background-color: var(--bg-body);
+  color: var(--text-main);
+  line-height: 1.6;
+}
+
+.container-custom {
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
+}
