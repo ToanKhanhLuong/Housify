@@ -6,6 +6,7 @@ import ForbiddenPage from '../pages/public/ForbiddenPage.jsx';
 import ProtectedRoute from './ProtectedRoute.jsx';
 import MainLayout from '../layouts/MainLayout.jsx';
 import HomePage from '../pages/common/HomePage.jsx';
+import NotificationsPage from '../pages/common/NotificationsPage.jsx';
 import { ROLE } from '../constants/enums.js';
 
 export default function AppRoutes() {
@@ -25,6 +26,7 @@ export default function AppRoutes() {
         }
       >
         {/* --- common: mọi role đã đăng nhập (hồ sơ, đổi mật khẩu, thông báo) --- */}
+        <Route path="/notifications" element={<NotificationsPage />} />
 
         {/* --- admin: /admin/... --- */}
         <Route path="/admin" element={<ProtectedRoute roles={[ROLE.ADMIN]} />}>

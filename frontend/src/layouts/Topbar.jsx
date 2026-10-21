@@ -1,4 +1,4 @@
-// Thanh trên cùng: nút mở menu (điện thoại), tên + vai trò người dùng, nút đăng xuất có xác nhận (UC-02)
+// Thanh trên cùng: nút mở menu (điện thoại), chuông thông báo (UC-41), tên + vai trò, nút đăng xuất có xác nhận (UC-02)
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from 'react-bootstrap';
@@ -6,6 +6,7 @@ import { FaBars, FaSignOutAlt } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext.jsx';
 import { ROLE_LABELS } from '../constants/statusLabels.js';
 import ConfirmModal from '../components/common/ConfirmModal.jsx';
+import NotificationBell from '../components/notification/NotificationBell.jsx';
 
 export default function Topbar({ onOpenMenu }) {
   const { user, logout } = useAuth();
@@ -27,7 +28,7 @@ export default function Topbar({ onOpenMenu }) {
       </div>
 
       <div className="flex items-center gap-3">
-        {/* UC-41: chuông thông báo gắn ở đây */}
+        <NotificationBell />
         <div className="hidden text-end leading-tight sm:block">
           <div className="font-semibold">{user.name}</div>
           <div className="text-xs text-gray-500">{ROLE_LABELS[user.role]}</div>
