@@ -1,8 +1,10 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
 /*
-  Bootstrap lo component (Button, Modal, Table, Form...), Tailwind lo bố cục và khoảng cách.
-  - Bootstrap nằm trong layer riêng, xếp trước utilities nên class Tailwind thắng khi trùng.
+  Bootstrap lo component (Button, Modal, Table, Form...), Tailwind lo bố cục (flex, grid, kích thước, vị trí).
+  - Bootstrap nằm trong layer riêng, xếp trước utilities: style component của Bootstrap thua class Tailwind.
+  - NHƯNG class tiện ích của Bootstrap (p-3, m-2, gap-3, w-50, border, rounded, text-center...) có !important
+    nên khi trùng tên với Tailwind thì Bootstrap luôn thắng, kể cả md:p-6 của Tailwind. Xem frontend/AGENTS.md.
   - Không nạp preflight của Tailwind để không đè lên reboot của Bootstrap.
 */
 @layer theme, bootstrap, components, utilities;
@@ -66,4 +68,13 @@ body {
   margin-right: auto;
   padding-left: 1.25rem;
   padding-right: 1.25rem;
+}
+
+/* Góc vuông vắn cho mọi component Bootstrap (nút, ô nhập, modal, badge...) */
+:root {
+  --bs-border-radius: 2px;
+  --bs-border-radius-sm: 2px;
+  --bs-border-radius-lg: 3px;
+  --bs-border-radius-xl: 4px;
+  --bs-border-radius-xxl: 4px;
 }

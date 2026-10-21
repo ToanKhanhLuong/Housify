@@ -1,13 +1,17 @@
 // Trang Đăng nhập hệ thống (UC-01) - Phụ trách: Hưng (FE)
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { FaSignInAlt, FaInfoCircle, FaExclamationCircle, FaEye, FaEyeSlash } from 'react-icons/fa';
 import Button from '../../../components/common/Button';
 import { authApi } from '../../../api/auth.api';
 import styles from './LoginPage.module.css';
+import { useAuth } from '../../../context/AuthContext.jsx';
+import { HOME_PATH } from '../../../constants/menus.js';
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { login } = useAuth();
 
   // Form states
   const [identifier, setIdentifier] = useState('');
@@ -43,23 +47,11 @@ export default function LoginPage() {
 
       const { token, user } = res.data;
 
-      // Lưu token vào storage tương ứng với cờ ghi nhớ
-      if (remember) {
-        localStorage.setItem('token', token);
-        localStorage.setItem('user', JSON.stringify(user));
-      } else {
-        sessionStorage.setItem('token', token);
-        sessionStorage.setItem('user', JSON.stringify(user));
-      }
+      // Lưu phiên qua AuthContext (ghi nhớ → localStorage, không → sessionStorage)
+      login({ token, user, remember });
 
-      // Điều hướng theo vai trò (ROLE enum: 0 - Admin, 1 - Manager, 2 - Customer)
-      if (user.roleId === 0) {
-        navigate('/admin');
-      } else if (user.roleId === 1) {
-        navigate('/manager');
-      } else {
-        navigate('/customer');
-      }
+      // Về trang đang mở dở trước khi bị đẩy ra đăng nhập, nếu không thì về trang chủ theo role
+      navigate(location.state?.from?.pathname || HOME_PATH[user.role] || '/', { replace: true });
     } catch (err) {
       // Báo lỗi theo đúng chuẩn API & BR (không nói cụ thể sai ở tài khoản hay mật khẩu)
       setErrorMessage(err.message || 'Tài khoản hoặc mật khẩu không chính xác');

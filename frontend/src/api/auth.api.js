@@ -54,7 +54,7 @@ export const authApi = {
             name,
             email: idLower.includes('@') ? idLower : 'customer@housify.vn',
             cccd: !idLower.includes('@') ? idLower : '079203001234',
-            roleId,
+            role: roleId, // giống BE: user.role
             roleName,
             status: 'ACTIVE'
           }

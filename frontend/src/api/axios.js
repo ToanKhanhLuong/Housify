@@ -1,13 +1,12 @@
 // Instance axios dùng chung: gắn token, trả thẳng { success, data, message }, gặp 401 thì đăng xuất
 // Mỗi module một file <module>.api.js trong thư mục này. Component không gọi axios trực tiếp
 import axios from 'axios';
+import { getToken, clearSession } from '../utils/session.js';
 
 const api = axios.create({
   // dev: Vite proxy /api sang backend (xem vite.config.js)
   baseURL: import.meta.env.VITE_API_URL || '/api',
 });
-
-const getToken = () => localStorage.getItem('token') || sessionStorage.getItem('token');
 
 api.interceptors.request.use((config) => {
   const token = getToken();
@@ -21,9 +20,9 @@ api.interceptors.response.use(
   (error) => {
     const status = error.response?.status;
 
+    // Token hết hạn hoặc tài khoản bị khóa → xóa phiên, về trang đăng nhập
     if (status === 401) {
-      localStorage.removeItem('token');
-      sessionStorage.removeItem('token');
+      clearSession();
       if (window.location.pathname !== '/login') window.location.href = '/login';
     }
 
