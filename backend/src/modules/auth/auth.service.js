@@ -17,7 +17,7 @@ export const getMe = async (userId) => {
     }
 
     const userData = {
-        id: user._id,
+        _id: user._id,
         email: user.email,
         role: user.roleId,
         status: user.status,
@@ -30,8 +30,13 @@ export const getMe = async (userId) => {
         const manager = await Manager.findOne({ userId: user._id });
         userData.name = manager?.name || 'Manager';
         userData.phone = manager?.phone || '';
-        const building = await Building.findOne({ managerId: user._id, isDeleted: false }).select('_id name address');
-        userData.building = building ? { id: building._id, _id: building._id, name: building.name, address: building.address } : null;
+        const building = await Building.findOne({ managerId: user._id, isDeleted: false })
+            .select('name address')
+            .lean();
+        userData.building = building; // { _id, name, address } hoặc null
+
+        // const building = await Building.findOne({ managerId: user._id, isDeleted: false }).select('_id name address');
+        // userData.building = building ? { id: building._id, _id: building._id, name: building.name, address: building.address } : null;
     } else if (user.roleId === ROLE.CUSTOMER) {
         const occupant = await Occupant.findOne({ userId: user._id, isRepresentative: true }).sort({ createdAt: -1 });
         userData.name = occupant?.name || 'Khách hàng';
@@ -57,6 +62,7 @@ export const login = async ({ identifier, password, remember = false }) => {
     } else {
         // Còn lại hiểu là email của Admin hoặc Manager
         user = await User.findOne({ email: cleanIdentifier.toLowerCase() }).select('+password');
+        if (user?.roleId === ROLE.CUSTOMER) user = null;
     }
 
     if (!user) {

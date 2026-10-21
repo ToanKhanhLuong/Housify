@@ -27,12 +27,22 @@ Sửa endpoint thì sửa ở đây trước, báo nhóm. Field gửi lên / tr�
 
 ## Kích hoạt – `activation` (UC-06, 08)
 
-| Method | Path                            | Role | Ghi chú                                                                                    |
-| ------ | ------------------------------- | ---- | ------------------------------------------------------------------------------------------- |
-| GET    | `/activation/manager/:token`  | —   | Kiểm link còn hiệu lực                                                                  |
-| POST   | `/activation/manager`         | —   | `{ token, password }`                                                                     |
-| GET    | `/activation/contract/:token` | —   | Thông tin hợp đồng chỉ xem                                                             |
-| POST   | `/activation/contract`        | —   | `{ token, phone, dateOfBirth, address, password, cccdFrontImage, cccdBackImage, agreed }` |
+Link trong email (BE ghép link, FE khai báo route khớp theo):
+
+| Email                                               | Link BE gửi                                | Route FE                      |
+| --------------------------------------------------- | ------------------------------------------- | ----------------------------- |
+| Kích hoạt Manager (UC-08, gửi lại ở UC-09)     | `${CLIENT_URL}/activate/manager/<token>`  | `/activate/manager/:token`  |
+| Mời ký hợp đồng (UC-24, gửi lại ở UC-24 A2) | `${CLIENT_URL}/activate/contract/<token>` | `/activate/contract/:token` |
+
+- Trang công khai, không cần đăng nhập. FE lấy token bằng `useParams()` rồi gửi kèm khi gọi API bên dưới.
+- Link hết hạn, đã dùng hoặc không tồn tại → API trả lỗi, FE hiện "Link đã hết hạn" / "Link không tồn tại" (UC-08 E06, UC-06 E01, UC-46 E02).
+
+| Method | Path                            | Role | Ghi chú                                                                                                                                   |
+| ------ | ------------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| GET    | `/activation/manager/:token`  | —   | Kiểm link còn hiệu lực                                                                                                                 |
+| POST   | `/activation/manager`         | —   | `{ token, password }`                                                                                                                    |
+| GET    | `/activation/contract/:token` | —   | Thông tin hợp đồng chỉ xem                                                                                                            |
+| POST   | `/activation/contract`        | —   | **multipart/form-data**: `token, name, phone, dateOfBirth, address, password, agreed` + file `cccdFrontImage`, `cccdBackImage` |
 
 ## Manager – `manager` (UC-08..11)
 
@@ -171,3 +181,30 @@ Sửa endpoint thì sửa ở đây trước, báo nhóm. Field gửi lên / tr�
 | ------ | ----------------------- | ---- | --------------------------------------------- |
 | POST   | `/dev/jobs/:name/run` | A    | chạy job ngay, không phải đợi            |
 | POST   | `/dev/sepay-simulate` | A    | `{ invoiceCode, amount }` giả lập webhook |
+
+> Quy ước: mọi id trong response là `_id`. Lỗi 401 chỉ dùng khi phiên không hợp lệ (FE tự đăng xuất).
+
+### POST /api/auth/login — UC-01 (không cần token)
+
+Request:
+{ "identifier": "admin@housify.vn", "password": "Admin123", "remember": true }
+
+- identifier: email (Admin/Manager) hoặc đúng 12 số CCCD (Customer)
+- remember: true → token 7 ngày; false hoặc không gửi → 1 ngày
+  Response 200:
+  { "success": true, "message": "...", "data": { "token": "eyJ...", "user": <giống GET /auth/me> } }
+  Lỗi:
+- 401 Tài khoản hoặc mật khẩu không đúng
+- 403 Manager chưa kích hoạt / tài khoản bị khóa / đã ngưng hoạt động
+- 422 Thiếu hoặc sai định dạng
+
+### GET /api/auth/me — cần token, mọi role
+
+Response 200:
+{ "success": true, "data": {
+  "_id": "...", "email": "...", "role": 0 | 1 | 2, "status": "ACTIVE", "name": "...",
+  "phone": "...",                                   // Manager, Customer
+  "building": { "_id", "name", "address" } | null,  // chỉ Manager; null = chưa được phân công (BR-023)
+  "cccd": "..."                                     // chỉ Customer
+} }
+Lỗi: 401 token sai, hết hạn, hoặc tài khoản vừa bị khóa → FE tự đăng xuất

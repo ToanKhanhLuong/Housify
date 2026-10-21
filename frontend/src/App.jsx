@@ -1,11 +1,16 @@
-// Bọc Router cho toàn app. Iter 1 thêm AuthProvider, khi cần toast thì thêm ToastContainer
+// Gốc ứng dụng: router + đăng nhập + toast (ToastContainer chỉ đặt 1 lần ở đây)
 import { BrowserRouter } from 'react-router-dom';
-import AppRoutes from './routes/index.jsx';
+import { ToastContainer } from 'react-toastify';
+import { AuthProvider } from './context/AuthContext';
+import AppRoutes from './routes';
 
-export default function App() {
-  return (
-    <BrowserRouter>
+const App = () => (
+  <BrowserRouter>
+    <AuthProvider>
       <AppRoutes />
-    </BrowserRouter>
-  );
-}
+      <ToastContainer position="top-right" autoClose={5000} newestOnTop />
+    </AuthProvider>
+  </BrowserRouter>
+);
+
+export default App;
