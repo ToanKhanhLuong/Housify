@@ -1,17 +1,27 @@
-// Thanh trên cùng: nút mở menu (điện thoại), chuông thông báo, menu tài khoản
+// Thanh trên cùng: nút mở menu (điện thoại), tên mục đang mở, chuông thông báo, menu tài khoản
 import { useState } from 'react';
 import { Button, Dropdown } from 'react-bootstrap';
-import { Link, useNavigate } from 'react-router-dom';
-import { BiBell, BiKey, BiLogOut, BiMenu, BiUser, BiUserCircle } from 'react-icons/bi';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { BiBell, BiKey, BiLogOut, BiMenu, BiUser } from 'react-icons/bi';
 import { useAuth } from '../context/AuthContext';
 import { ROLE } from '../constants/enums';
+import { MENUS } from '../constants/menus';
 import { ROLE_LABEL } from '../constants/statusLabels';
 import ConfirmModal from '../components/ConfirmModal';
+
+// chữ cái đầu của tên gọi (chữ cuối trong họ tên): "Trần Văn Tùng" → "T"
+const initialOf = (name = '') => name.trim().split(/\s+/).pop()?.[0]?.toUpperCase() ?? '?';
 
 const Header = ({ onToggleMenu }) => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
+    const { pathname } = useLocation();
     const [showLogout, setShowLogout] = useState(false);
+
+    // mục menu đang mở, hiện tên ở đầu header
+    const current = (MENUS[user.role] || []).find(
+        (item) => pathname === item.path || pathname.startsWith(`${item.path}/`),
+    );
 
     // UC-02: xóa phiên rồi về trang đăng nhập; A1: bấm Hủy thì giữ nguyên phiên
     const handleLogout = () => {
@@ -20,7 +30,7 @@ const Header = ({ onToggleMenu }) => {
     };
 
     return (
-        <header className="flex items-center gap-3 px-4 py-2 bg-white border-bottom">
+        <header className="flex items-center gap-3 h-14 px-4 bg-white border-bottom">
             <Button
                 variant="secondary"
                 size="sm"
@@ -30,33 +40,45 @@ const Header = ({ onToggleMenu }) => {
             >
                 <BiMenu size={20} />
             </Button>
+            <span className="fw-semibold">{current?.label}</span>
 
             <div className="flex items-center gap-3 ms-auto">
                 {/* tạm thời: module notification (UC-41) thay bằng NotificationBell có số chưa đọc */}
-                <Link to="/notifications" className="text-secondary" aria-label="Thông báo">
-                    <BiBell size={22} />
+                <Link to="/notifications" className="text-secondary flex" aria-label="Thông báo">
+                    <BiBell size={20} />
                 </Link>
-
+                <div className="vr" />
                 <Dropdown align="end">
-                    <Dropdown.Toggle variant="secondary" size="sm">
-                        <BiUserCircle size={18} className="me-1" />
-                        {user.name}
+                    <Dropdown.Toggle
+                        variant="secondary"
+                        size="sm"
+                        className="flex items-center gap-2 bg-transparent border-0"
+                    >
+                        <span className="flex items-center justify-center w-7 h-7 rounded-circle bg-primary-subtle text-primary-emphasis fw-semibold">
+                            {initialOf(user.name)}
+                        </span>
+                        <span className="d-none d-sm-block text-start leading-tight">
+                            <span className="d-block fw-semibold">{user.name}</span>
+                            <span className="d-block small text-secondary">{ROLE_LABEL[user.role]}</span>
+                        </span>
                     </Dropdown.Toggle>
                     <Dropdown.Menu>
-                        <Dropdown.Header>{ROLE_LABEL[user.role]}</Dropdown.Header>
                         {user.role !== ROLE.ADMIN && (
-                            <Dropdown.Item as={Link} to="/profile">
-                                <BiUser className="me-2" />
+                            <Dropdown.Item as={Link} to="/profile" className="flex items-center gap-2">
+                                <BiUser />
                                 Hồ sơ cá nhân
                             </Dropdown.Item>
                         )}
-                        <Dropdown.Item as={Link} to="/change-password">
-                            <BiKey className="me-2" />
+                        <Dropdown.Item as={Link} to="/change-password" className="flex items-center gap-2">
+                            <BiKey />
                             Đổi mật khẩu
                         </Dropdown.Item>
                         <Dropdown.Divider />
-                        <Dropdown.Item onClick={() => setShowLogout(true)} className="text-danger">
-                            <BiLogOut className="me-2" />
+                        <Dropdown.Item
+                            onClick={() => setShowLogout(true)}
+                            className="flex items-center gap-2 text-danger"
+                        >
+                            <BiLogOut />
                             Đăng xuất
                         </Dropdown.Item>
                     </Dropdown.Menu>

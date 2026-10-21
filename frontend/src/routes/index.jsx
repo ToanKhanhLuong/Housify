@@ -28,7 +28,7 @@ import terminationRoutes from '../modules/termination/termination.routes';
 import dashboardRoutes from '../modules/dashboard/dashboard.routes';
 
 
-
+import UiKitPage from './UiKitPage';
 
 const allRoutes = [
     ...authRoutes,
@@ -71,6 +71,7 @@ const AppRoutes = () => (
         <Route element={<ProtectedRoute />}>
             <Route element={<MainLayout />}>
                 <Route path="/" element={<HomeRedirect />} />
+                {import.meta.env.DEV && <Route path="/ui-kit" element={<UiKitPage />} />}
                 {privateRoutes.map(({ path, element, roles }) => (
                     <Route key={path} element={<ProtectedRoute roles={roles} />}>
                         <Route path={path} element={element} />

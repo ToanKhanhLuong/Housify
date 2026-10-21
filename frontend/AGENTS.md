@@ -2,6 +2,8 @@
 
 Đọc hết file này trước khi code. Không chắc chỗ nào thì hỏi Hiếu (FE lead) hoặc bạn BE làm module đó. **Không tự đoán.**
 
+Muốn xem component trông thế nào: chạy `npm run dev` rồi mở **`/ui-kit`** (code ở `src/routes/UiKitPage.jsx`).
+
 ---
 
 ## 0. Tài liệu là nguồn sự thật
@@ -14,13 +16,17 @@ FE và BE cùng bám một bộ tài liệu. Code nào lệch tài liệu là co
 | URL, request, response, mã lỗi                                                          | `docs/api.md`                                                     |
 | Field, giá trị enum                                                                     | `docs/database.md`, `src/constants/enums.js`                    |
 | Đường dẫn trang, menu từng role                                                      | `src/constants/menus.js` + mục 7 file này                       |
+| Component trông thế nào, dùng ra sao                                                  | `/ui-kit` + `src/routes/UiKitPage.jsx`                          |
 
 Quy tắc:
 
 - Thứ tự ưu tiên khi lệch nhau: **Use Case → api.md → code**. Thấy lệch thì báo An, không tự sửa theo ý mình.
-- FE gọi **đúng** endpoint và **đúng tên field** như `docs/api.md`. Thiếu field hoặc endpoint → nhắn bạn BE của module bổ sung vào api.md trước, **không tự bịa**.
+- FE gọi **đúng** endpoint và **đúng tên field** như `docs/api.md`. Thiếu thì nhắn bạn BE của module bổ sung api.md trước, **không tự bịa**.
 - BE chưa xong → dùng dữ liệu giả **đúng hình dạng response** trong api.md (mục 8).
-- Câu thông báo, chữ trên nút, câu khi danh sách trống: lấy **đúng câu trong UC**.
+- **Giao diện học theo Odoo, nội dung bám UC.** Mọi field, cột, nút, tab, câu chữ phải có căn cứ trong UC:
+  - **Hiển thị dữ liệu đã có** (field có sẵn, dữ liệu liên quan, giá trị tính ra như "còn X ngày") → được, miễn API trả về.
+  - **Thêm tính năng, field hoặc API mới** → phải chốt với An trước.
+  - Chữ trên nút, câu thông báo, câu khi danh sách trống: dùng **đúng chữ trong UC**. Ví dụ UC-33 là "Xóa khỏi phòng", không tự đổi thành chữ khác.
 
 ---
 
@@ -28,21 +34,26 @@ Quy tắc:
 
 1. Chỉ sửa file trong `src/modules/<module của mình>/`. File chung (mục 11) chỉ Hiếu sửa.
 2. Thứ cơ bản dùng thẳng **React-Bootstrap**, thứ ghép dùng **`src/components/`**. Không tự tạo Button/Input/Card riêng. Không dùng thẻ HTML thô `<button>`, `<input>`, `<select>`, `<table>`, `<form>`.
-3. Nút chỉ có 4 variant: `primary`, `secondary`, `danger`, `success`. Không dùng `outline-*`, `link`, `light`, `dark`, `info`, `warning`.
-4. Không màu cứng (`#hex`, `rgb()`, `text-[#...]`), không `style={{}}`, không viết file CSS riêng. Màu dùng class của Bootstrap (`text-secondary`, `bg-body-tertiary`, `text-danger`…).
+3. Nút chỉ có 4 variant: `primary`, `secondary`, `danger`, `success`. **Không dùng `outline-*`**, `link`, `light`, `dark`, `info`, `warning`.
+4. Không màu cứng (`#hex`, `rgb()`, `text-[#...]`), không `style={{}}`, không viết file CSS riêng. **Không tự gắn `text-white`, `text-dark`**: nút, badge, thông báo đã tự đúng độ tương phản.
 5. Component **không gọi axios trực tiếp**. Mọi lời gọi API đi qua `<module>.api.js`.
 6. Không viết chuỗi trạng thái trần (`'AVAILABLE'`). So sánh dùng `ROOM_STATUS.AVAILABLE` trong `constants/enums.js`; hiển thị dùng `StatusBadge`.
 7. Không import file trong module của người khác. Cần dùng chung → nhờ Hiếu đưa vào phần chung.
 8. Không tự đặt đường dẫn trang. Path theo `constants/menus.js` và bảng ở mục 7.
-9. Không cài thêm thư viện khi chưa hỏi Hiếu.
+9. **Bảng ở trang danh sách không có nút trong từng dòng.** Bấm dòng để mở chi tiết (hoặc mở modal sửa với danh mục nhỏ). Sửa, xóa, khóa… nằm ở trang chi tiết hoặc trong modal.
+10. **Nút thao tác đặt bên trái**, nút chính đứng đầu: cạnh tiêu đề trang, trên tờ giấy chi tiết, ở chân modal.
+11. Trường bắt buộc, hoặc UC đánh dấu là trường quan trọng (vd CCCD, ngày sinh ở UC-31) → thêm `required` để hiện `*` đỏ, ở cả form lẫn trang chi tiết. Tiêu đề cột bảng không gắn `*`.
+12. Không cài thêm thư viện khi chưa hỏi Hiếu.
 
 ---
 
 ## 2. Công nghệ
 
-React 19 + Vite · react-router-dom 6 · React-Bootstrap 2 (Bootstrap 5.3) · Tailwind CSS v4 (chỉ utilities, không preflight) · axios · react-toastify · react-icons (**chỉ bộ `bi`**).
+React 19 + Vite · react-router-dom 6 · React-Bootstrap 2 (Bootstrap 5.3) · Tailwind CSS v4 (chỉ utilities, không preflight) · axios · react-toastify · react-icons (**chỉ bộ `bi`**). Font Inter nạp ở `index.html`.
 
-Chạy: `npm run dev` (BE phải đang chạy ở cổng 8686, Vite tự chuyển `/api` sang BE, không cần `.env`).
+Màu, cỡ chữ (14px), bo góc, kiểu nút… đặt một lần trong khối "Giao diện Housify" của `src/index.css`. Trang **không tự chỉnh giao diện chung**.
+
+Chạy: `npm run dev` (BE phải đang chạy ở cổng 8686, Vite tự chuyển `/api` sang BE).
 
 ---
 
@@ -51,11 +62,11 @@ Chạy: `npm run dev` (BE phải đang chạy ở cổng 8686, Vite tự chuyể
 ```
 src/
 ├── api/           axios.js (instance chung), upload.api.js
-├── components/    10 component dùng chung (mục 5)
+├── components/    13 component dùng chung (mục 6)
 ├── constants/     enums.js, statusLabels.js, menus.js, regex.js
 ├── context/       AuthContext.jsx (useAuth)
-├── layouts/       MainLayout, AuthLayout, Sidebar, Header
-├── routes/        index.jsx (gom route), ProtectedRoute, GuestRoute, NotFoundPage
+├── layouts/       MainLayout, AuthLayout, Sidebar, Header, Brand
+├── routes/        index.jsx (gom route), ProtectedRoute, GuestRoute, NotFoundPage, UiKitPage
 ├── utils/         session.js, format.js, formErrors.js
 └── modules/
     └── <module>/
@@ -76,44 +87,49 @@ src/
 
 ## 4. Đặt tên
 
-| Loại                  | Quy tắc                                                   | Ví dụ                                 |
-| ---------------------- | ---------------------------------------------------------- | --------------------------------------- |
-| Trang                  | `<Đối tượng><Việc>Page.jsx`                         | `RoomListPage`, `RoomDetailPage`    |
-| Modal                  | `<Đối tượng><Việc>Modal.jsx`                        | `RoomFormModal`, `LockManagerModal` |
-| Tab                    | `<Đối tượng><Nội dung>Tab.jsx`                      | `BuildingRulesTab`                    |
-| File API               | `<module>.api.js`, `export default <module>Api`        | `roomApi.list()`                      |
-| File route             | `<module>.routes.jsx`, `export default <module>Routes` | `roomRoutes`                          |
-| Component              | PascalCase, `export default`                             |                                         |
-| Hàm xử lý sự kiện | `handle<Việc>`                                          | `handleSubmit`, `handleDelete`      |
-| State bật/tắt        | `show…`, `loading`, `submitting`, `is…`          | `showForm`, `isAdmin`               |
+| Loại                  | Quy tắc                                                   | Ví dụ                                     |
+| ---------------------- | ---------------------------------------------------------- | ------------------------------------------- |
+| Trang                  | `<Đối tượng><Việc>Page.jsx`                         | `RoomListPage`, `ContractDetailPage`    |
+| Modal                  | `<Đối tượng><Việc>Modal.jsx`                        | `RoomTypeFormModal`, `LockManagerModal` |
+| Tab                    | `<Đối tượng><Nội dung>Tab.jsx`                      | `ContractOccupantsTab`                    |
+| File API               | `<module>.api.js`, `export default <module>Api`        | `roomApi.list()`                          |
+| File route             | `<module>.routes.jsx`, `export default <module>Routes` | `roomRoutes`                              |
+| Component              | PascalCase, `export default`                             |                                             |
+| Hàm xử lý sự kiện | `handle<Việc>`                                          | `handleSubmit`, `handleDelete`          |
+| State bật/tắt        | `show…`, `loading`, `submitting`, `is…`          | `showForm`, `isAdmin`                   |
 
 ---
 
 ## 5. Cần gì dùng nấy
 
-| Cần                         | Dùng                                                                                              | KHÔNG dùng                             |
-| ---------------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| Nút                         | `Button` của react-bootstrap                                                                    | `<button>`, Button tự viết           |
-| Ô nhập có nhãn + lỗi    | `Input`                                                                                          | `Form.Group` tự ghép                 |
-| Ô chọn                     | `Select` + `toOptions()`                                                                       | `<select>`                             |
-| Bảng danh sách             | `DataTable`                                                                                      | `Table` tự dựng cho trang danh sách |
-| Đầu trang                  | `PageHeader`                                                                                     | `<h1>` tự đặt                       |
-| Trạng thái                 | `StatusBadge`                                                                                    | `Badge` tự chọn màu                 |
-| Tiền                        | `MoneyText` hoặc `formatMoney()`                                                              | `toLocaleString` tự viết             |
-| Ngày                        | `formatDate`, `formatDateTime`, `formatPeriod`, `toDateInput`                              | tự cắt chuỗi ngày                    |
-| Hỏi xác nhận              | `ConfirmModal`                                                                                   | `window.confirm`                       |
-| Form thêm/sửa              | `Modal` của react-bootstrap, đặt trong `components/` của module                            | trang riêng cho form ngắn              |
-| Ảnh                         | `ImageUpload`                                                                                    | `<input type="file">`                  |
-| Đang tải                   | `Loading` (DataTable có sẵn)                                                                   | Spinner tự đặt                        |
-| Không có dữ liệu         | `EmptyState` (DataTable có sẵn)                                                                | chữ tự viết                           |
-| Báo thành công/thất bại | `toast` của react-toastify                                                                      | `alert()`, `Alert` tự bật tắt     |
-| Icon                         | `react-icons/bi`                                                                                 | bộ icon khác, emoji                    |
-| Khối nội dung              | `Card` của react-bootstrap + `className="shadow-sm"`                                          | `div` tự kẻ viền                    |
-| Chia cột form               | `Row` / `Col` của react-bootstrap                                                             |                                          |
-| Bố cục                     | Tailwind: `flex`, `grid`, `items-*`, `justify-*`, `w-*`, `max-w-*`, `md:grid-cols-*` |                                          |
-| Khoảng cách                | Bootstrap: `m-*`, `p-*`, `gap-*` từ 0 đến 5                                               | Tailwind kiểu `p-7`, `mt-[13px]`    |
+| Cần                                       | Dùng                                                                                              | KHÔNG dùng                             |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| Nút                                       | `Button` của react-bootstrap                                                                    | `<button>`, Button tự viết           |
+| Ô nhập có nhãn + lỗi                  | `Input`                                                                                          | `Form.Group` tự ghép                 |
+| Ô chọn                                   | `Select` + `toOptions()`                                                                       | `<select>`                             |
+| Đầu trang (tiêu đề + nút + bộ lọc) | `PageHeader`                                                                                     | `<h1>` tự đặt                       |
+| Bảng danh sách                           | `DataTable`                                                                                      | `Table` tự dựng cho trang danh sách |
+| Phân trang                                | `Pager` (khi API có `page`, `limit`, `total`)                                             | tự viết                                |
+| Trạng thái                               | `StatusBadge`                                                                                    | `Badge` tự chọn màu                 |
+| Thanh trạng thái ở trang chi tiết      | `StatusSteps`                                                                                    | tự vẽ                                  |
+| Nhãn – giá trị ở trang chi tiết      | `FieldRow`                                                                                       | `<dl>`, bảng tự kẻ                  |
+| Phần con trong trang chi tiết            | `Tabs` + `Tab` của react-bootstrap                                                            | tự làm tab                             |
+| Tiền                                      | `MoneyText` hoặc `formatMoney()`                                                              | `toLocaleString` tự viết             |
+| Ngày                                      | `formatDate`, `formatDateTime`, `formatPeriod`, `toDateInput`                              | tự cắt chuỗi ngày                    |
+| Hỏi xác nhận                            | `ConfirmModal`                                                                                   | `window.confirm`                       |
+| Form thêm/sửa                            | `Modal` của react-bootstrap, đặt trong `components/` của module                            | trang riêng cho form ngắn              |
+| Ảnh                                       | `ImageUpload`                                                                                    | `<input type="file">`                  |
+| Đang tải                                 | `Loading` (DataTable có sẵn)                                                                   | Spinner tự đặt                        |
+| Không có dữ liệu                       | `EmptyState` (DataTable có sẵn)                                                                | chữ tự viết                           |
+| Báo thành công/thất bại               | `toast` của react-toastify                                                                      | `alert()`, `Alert` tự bật tắt     |
+| Thông báo nằm trên trang               | `Alert` variant `warning` / `info`                                                           |                                          |
+| Icon                                       | `react-icons/bi`                                                                                 | bộ icon khác, emoji                    |
+| Khối nội dung, tờ giấy chi tiết       | `Card` của react-bootstrap (không thêm bóng)                                                 | `div` tự kẻ viền, `shadow-*`      |
+| Chia cột form                             | `Row` / `Col` của react-bootstrap                                                             |                                          |
+| Bố cục                                   | Tailwind: `flex`, `grid`, `items-*`, `justify-*`, `w-*`, `max-w-*`, `md:grid-cols-*` |                                          |
+| Khoảng cách                              | Bootstrap: `m-*`, `p-*`, `gap-*` từ 0 đến 5                                               | Tailwind kiểu `p-7`, `mt-[13px]`    |
 
-Lưu ý: `p-3`, `gap-3`, `mb-4`… có ở cả Bootstrap lẫn Tailwind, **Bootstrap thắng**. Vì vậy khoảng cách luôn tính theo thang Bootstrap (1 = 0.25rem, 2 = 0.5rem, 3 = 1rem, 4 = 1.5rem, 5 = 3rem).
+Lưu ý: `p-3`, `gap-3`, `mb-4`… có ở cả Bootstrap lẫn Tailwind, **Bootstrap thắng**. Khoảng cách luôn tính theo thang Bootstrap (1 = 0.25rem, 2 = 0.5rem, 3 = 1rem, 4 = 1.5rem, 5 = 3rem).
 
 ---
 
@@ -121,18 +137,21 @@ Lưu ý: `p-3`, `gap-3`, `mb-4`… có ở cả Bootstrap lẫn Tailwind, **Boot
 
 ### Component (`src/components/`)
 
-| Component        | Props                                                                                                                                                                                                | Ghi chú                                                                                                                                                           |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Input`        | `label`, `name`, `value`, `onChange`, `error`, `required`, `helpText`, `type`, `placeholder`, `disabled`, `className` (mặc định `mb-3`)                                   | Textarea: thêm `as="textarea" rows={4}`. `required` chỉ hiện dấu `*` đỏ. Prop khác truyền thẳng vào `Form.Control`                               |
-| `Select`       | `label`, `name`, `options` (`[{ value, label }]`), `placeholder` (mặc định `-- Chọn --`, truyền `null` để bỏ), `value`, `onChange`, `error`, `required`, `className` | Lấy options từ bảng nhãn: `toOptions(ROOM_STATUS_LABEL)`                                                                                                     |
-| `PageHeader`   | `title`, `subtitle`, `backTo`, `children`                                                                                                                                                    | `children` là các nút bên phải. Trang chi tiết thêm `backTo="/rooms"`                                                                                   |
-| `DataTable`    | `columns`, `data`, `loading`, `emptyMessage`, `rowKey` (mặc định `_id`), `onRowClick`                                                                                               | `columns = [{ key, title, render?, className? }]`. Đã bọc sẵn `Card`, có sẵn đang tải + trống                                                         |
-| `StatusBadge`  | `map`, `value`                                                                                                                                                                                   | `<StatusBadge map={INVOICE_STATUS_LABEL} value={invoice.status} />`                                                                                              |
-| `MoneyText`    | `value`, `className`                                                                                                                                                                             | `1200000` → `1.200.000 đ`                                                                                                                                    |
-| `ConfirmModal` | `show`, `title`, `message`, `children`, `confirmText`, `cancelText`, `variant`, `loading`, `onConfirm`, `onCancel`                                                               | Cần nhập lý do (UC-10, UC-37…) thì đặt `Input as="textarea"` làm `children`                                                                            |
-| `ImageUpload`  | `label`, `kind` (`PUBLIC` \| `CCCD`), `value`, `previewUrl`, `onChange`, `error`, `required`, `upload` (mặc định `true`), `disabled`                                      | Mặc định tải ngay lên `POST /uploads`: PUBLIC trả url, CCCD trả publicId. `upload={false}`: `onChange` nhận `File` để tự gửi multipart (UC-06) |
-| `Loading`      | không                                                                                                                                                                                               |                                                                                                                                                                    |
-| `EmptyState`   | `message`, `children`                                                                                                                                                                            |                                                                                                                                                                    |
+| Component        | Props                                                                                                                                                                                                | Ghi chú                                                                                                                                                             |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PageHeader`   | `title`, `subtitle`, `backTo`, `actions`, `children`                                                                                                                                       | `actions`: nút, đặt ngay sau tiêu đề. `children`: đẩy sang phải (ô tìm, bộ lọc, `Pager`, `StatusSteps`). Trang chi tiết có thể bỏ `title` |
+| `DataTable`    | `columns`, `data`, `loading`, `emptyMessage`, `rowKey` (mặc định `_id`), `onRowClick`                                                                                               | `columns = [{ key, title, render?, align?, className? }]`. `align: 'end'` cho cột số, tiền. Có sẵn khung, đang tải, trống                                |
+| `Pager`        | `page`, `limit`, `total`, `onChange`                                                                                                                                                         | Hiện "1–20 / 57" + nút trước/sau                                                                                                                                |
+| `StatusBadge`  | `map`, `value`                                                                                                                                                                                   | Badge nền nhạt, chữ đậm. `<StatusBadge map={INVOICE_STATUS_LABEL} value={invoice.status} />`                                                                  |
+| `StatusSteps`  | `map`, `steps`, `current`                                                                                                                                                                      | Thanh trạng thái hình mũi tên. Trạng thái ngoài luồng (vd `CANCELLED`) tự hiện ở cuối                                                                 |
+| `FieldRow`     | `label`, `required`, `children`                                                                                                                                                                | Nhãn đậm bên trái, giá trị bên phải. Chia 2 cột: bọc trong `<div className="grid lg:grid-cols-2 column-gap-5">`                                         |
+| `Input`        | `label`, `name`, `value`, `onChange`, `error`, `required`, `helpText`, `type`, `placeholder`, `disabled`, `readOnly`, `className` (mặc định `mb-3`)                     | Textarea: `as="textarea" rows={4}`. `required` chỉ hiện `*` đỏ. Prop khác truyền thẳng vào `Form.Control`                                            |
+| `Select`       | `label`, `name`, `options` (`[{ value, label }]`), `placeholder` (mặc định `-- Chọn --`, truyền `null` để bỏ), `value`, `onChange`, `error`, `required`, `className` | `options={toOptions(ROOM_STATUS_LABEL)}`                                                                                                                           |
+| `MoneyText`    | `value`, `className`                                                                                                                                                                             | `1200000` → `1.200.000 đ`                                                                                                                                      |
+| `ConfirmModal` | `show`, `title`, `message`, `children`, `confirmText`, `cancelText`, `variant`, `loading`, `onConfirm`, `onCancel`                                                               | Cần nhập lý do (UC-10, UC-37…) thì đặt `Input` làm `children`                                                                                            |
+| `ImageUpload`  | `label`, `kind` (`PUBLIC` \| `CCCD`), `value`, `previewUrl`, `onChange`, `error`, `required`, `upload` (mặc định `true`), `disabled`                                      | Mặc định tải ngay lên `POST /uploads`: PUBLIC trả url, CCCD trả publicId. `upload={false}`: `onChange` nhận `File` để tự gửi multipart (UC-06)   |
+| `Loading`      | không                                                                                                                                                                                               |                                                                                                                                                                      |
+| `EmptyState`   | `message`, `children`                                                                                                                                                                            |                                                                                                                                                                      |
 
 ### Đăng nhập (`useAuth()` trong `context/AuthContext.jsx`)
 
@@ -181,7 +200,7 @@ export default roomRoutes;
 | Chỉ cho người chưa đăng nhập | `{ path, element, guestOnly: true }` | `/login`, `/forgot-password` |
 | Công khai                          | `{ path, element }`                  | `/activate/manager/:token`     |
 
-`routes/index.jsx` tự gom route của 16 module, **không ai sửa file này**.
+`routes/index.jsx` tự gom route của 16 module, **không ai sửa file này**. Trang chi tiết lấy id bằng `const { id } = useParams();`.
 
 ### Bảng đường dẫn
 
@@ -204,14 +223,15 @@ Admin và Manager dùng chung path (Manager bị giới hạn theo tòa). Trang 
 | `/incidents` · `/my-incidents`                              | incident                                | Manager · Customer           |
 | `/announcements`                                               | announcement                            | Manager                       |
 
-### Ẩn/hiện theo role
+### Ẩn/hiện theo role và trạng thái
 
-- Một trang dùng chung cho nhiều role thì ẩn/hiện nút theo `user.role`, ví dụ Manager chỉ xem phòng (BR-052):
+- Trang dùng chung cho nhiều role thì ẩn/hiện nút theo `user.role`, ví dụ Manager chỉ xem phòng (BR-052):
   ```jsx
   const { user } = useAuth();
   const isAdmin = user.role === ROLE.ADMIN;
   ```
-- Ẩn nút ở FE chỉ để giao diện gọn. **BE mới là nơi chặn thật**, FE không cần tự kiểm tra quyền phức tạp.
+- Nút ở trang chi tiết hiện **theo trạng thái, đúng UC** (xem mẫu ở mục 9).
+- Ẩn nút ở FE chỉ để giao diện gọn. **BE mới là nơi chặn thật.**
 - Manager chưa được phân công tòa (BR-023): layout tự chặn, trang không cần xử lý.
 - Token hết hạn hoặc tài khoản bị khóa: `axios.js` tự đăng xuất, trang không cần xử lý.
 
@@ -223,20 +243,20 @@ Admin và Manager dùng chung path (Manager bị giới hạn theo tòa). Trang 
 - Path viết như trong api.md, **không có** tiền tố `/api` (axios đã tự thêm).
 - Mỗi hàm trả về `{ success, data, message }`. Lỗi ném ra `{ status, message, errors }`.
 - Request có file thì truyền `FormData`.
+- API danh sách có `page`, `limit`, `total` thì dùng `Pager`; không có thì thôi.
 
 ```js
-// API module room – path thật lấy trong docs/api.md, đây chỉ là ví dụ minh họa
+// API module roomType – path thật lấy trong docs/api.md, đây chỉ là ví dụ minh họa
 import api from '../../api/axios';
 
-const roomApi = {
-  list: (params) => api.get('/rooms', { params }),
-  detail: (id) => api.get(`/rooms/${id}`),
-  create: (data) => api.post('/rooms', data),
-  update: (id, data) => api.put(`/rooms/${id}`, data),
-  remove: (id) => api.delete(`/rooms/${id}`),
+const roomTypeApi = {
+  list: (params) => api.get('/room-types', { params }),
+  create: (data) => api.post('/room-types', data),
+  update: (id, data) => api.put(`/room-types/${id}`, data),
+  remove: (id) => api.delete(`/room-types/${id}`),
 };
 
-export default roomApi;
+export default roomTypeApi;
 ```
 
 ### Dữ liệu giả khi BE chưa xong
@@ -244,170 +264,115 @@ export default roomApi;
 Đặt ngay trong file api, **đúng hình dạng response trong api.md**, để trang không phải sửa khi chuyển sang API thật:
 
 ```js
-const MOCK = true; // BE xong: xóa MOCK, MOCK_ROOMS, fake và các nhánh giả
-const MOCK_ROOMS = [{ _id: '1', code: 'P101', floor: 1, price: 2500000, status: 'AVAILABLE' }];
+const MOCK = true; // BE xong: xóa MOCK, MOCK_ROOM_TYPES, fake và các nhánh giả
+const MOCK_ROOM_TYPES = [{ _id: '1', name: 'Phòng đơn' }];
 const fake = (data) => Promise.resolve({ success: true, data, message: '' });
 
-const roomApi = {
-  list: (params) => (MOCK ? fake(MOCK_ROOMS) : api.get('/rooms', { params })),
+const roomTypeApi = {
+  list: (params) => (MOCK ? fake(MOCK_ROOM_TYPES) : api.get('/room-types', { params })),
 };
 ```
 
 ---
 
-## 9. Mẫu trang danh sách + form
+## 9. Hai khuôn mẫu trang
 
-Mọi trang danh sách làm theo khuôn này: gọi API, lọc, bảng, thêm/sửa trong Modal, xóa có xác nhận.
+Mọi trang làm theo một trong hai khuôn dưới đây. Tên field trong mẫu là minh họa, **tên thật lấy theo api.md**.
 
-### `RoomListPage.jsx`
+### 9.1 Danh mục: bảng + modal (vd loại phòng UC-20, dịch vụ UC-21)
+
+Bấm dòng mở modal sửa, nút "Thêm" ở đầu trang, nút "Xóa" nằm trong modal sửa.
+
+`RoomTypeListPage.jsx`
 
 ```jsx
-// UC-19: danh sách phòng (Admin, Manager). Admin thêm/sửa/xóa (UC-16, 17, 18), Manager chỉ xem (BR-052)
+// UC-20: quản lý loại phòng (Admin). Bấm dòng để sửa, xóa nằm trong form sửa
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from 'react-bootstrap';
-import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import PageHeader from '../../components/PageHeader';
 import DataTable from '../../components/DataTable';
-import StatusBadge from '../../components/StatusBadge';
-import MoneyText from '../../components/MoneyText';
-import Select from '../../components/Select';
 import ConfirmModal from '../../components/ConfirmModal';
-import { useAuth } from '../../context/AuthContext';
-import { ROLE } from '../../constants/enums';
-import { ROOM_STATUS_LABEL, toOptions } from '../../constants/statusLabels';
-import roomApi from './room.api';
-import RoomFormModal from './components/RoomFormModal';
+import roomTypeApi from './roomType.api';
+import RoomTypeFormModal from './components/RoomTypeFormModal';
 
-const RoomListPage = () => {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const isAdmin = user.role === ROLE.ADMIN;
-
-  const [rooms, setRooms] = useState([]);
+const RoomTypeListPage = () => {
+  const [roomTypes, setRoomTypes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState('');
-  const [formRoom, setFormRoom] = useState(null); // null: đóng form · {}: thêm mới · phòng: sửa
-  const [deleting, setDeleting] = useState(null); // phòng đang chờ xác nhận xóa
+  const [editing, setEditing] = useState(null); // null: đóng form · {}: thêm mới · loại phòng: sửa
+  const [deleting, setDeleting] = useState(null); // loại phòng đang chờ xác nhận xóa
   const [submitting, setSubmitting] = useState(false);
 
-  const loadRooms = useCallback(async () => {
+  const loadRoomTypes = useCallback(async () => {
     try {
-      const res = await roomApi.list({ status: status || undefined });
-      setRooms(res.data);
+      const res = await roomTypeApi.list();
+      setRoomTypes(res.data);
     } catch (err) {
       toast.error(err.message);
     } finally {
       setLoading(false);
     }
-  }, [status]);
+  }, []);
 
   useEffect(() => {
-    loadRooms();
-  }, [loadRooms]);
+    loadRoomTypes();
+  }, [loadRoomTypes]);
 
   const handleDelete = async () => {
     setSubmitting(true);
     try {
-      await roomApi.remove(deleting._id);
-      toast.success('Xóa phòng thành công');
+      await roomTypeApi.remove(deleting._id);
+      toast.success('Xóa loại phòng thành công');
       setDeleting(null);
-      loadRooms();
+      loadRoomTypes();
     } catch (err) {
-      toast.error(err.message); // vd UC-18 E01: "Không thể xóa phòng đang có khách thuê"
+      toast.error(err.message); // vd UC-20 E02: loại phòng đang được sử dụng
     } finally {
       setSubmitting(false);
     }
   };
 
-  const columns = [
-    { key: 'code', title: 'Mã phòng' },
-    { key: 'floor', title: 'Tầng' },
-    { key: 'price', title: 'Giá thuê', render: (row) => <MoneyText value={row.price} /> },
-    {
-      key: 'status',
-      title: 'Trạng thái',
-      render: (row) => <StatusBadge map={ROOM_STATUS_LABEL} value={row.status} />,
-    },
-    ...(isAdmin
-      ? [
-          {
-            key: 'actions',
-            title: '',
-            className: 'text-end text-nowrap',
-            render: (row) => (
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation(); // không mở trang chi tiết khi bấm nút
-                    setFormRoom(row);
-                  }}
-                >
-                  Sửa
-                </Button>
-                <Button
-                  variant="danger"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setDeleting(row);
-                  }}
-                >
-                  Xóa
-                </Button>
-              </div>
-            ),
-          },
-        ]
-      : []),
-  ];
+  const columns = [{ key: 'name', title: 'Tên loại phòng', className: 'fw-semibold' }];
 
   return (
     <>
-      <PageHeader title="Danh sách phòng">
-        {isAdmin && (
-          <Button variant="primary" onClick={() => setFormRoom({})}>
-            Thêm phòng
+      <PageHeader
+        title="Loại phòng"
+        actions={
+          <Button variant="primary" onClick={() => setEditing({})}>
+            Thêm loại phòng
           </Button>
-        )}
-      </PageHeader>
-
-      <div className="grid gap-3 md:grid-cols-4">
-        <Select
-          name="status"
-          options={toOptions(ROOM_STATUS_LABEL)}
-          placeholder="Tất cả trạng thái"
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-        />
-      </div>
+        }
+      />
 
       <DataTable
         columns={columns}
-        data={rooms}
+        data={roomTypes}
         loading={loading}
-        emptyMessage="Không tìm thấy phòng phù hợp"
-        onRowClick={(row) => navigate(`/rooms/${row._id}`)}
+        emptyMessage="Chưa có loại phòng nào"
+        onRowClick={(row) => setEditing(row)}
       />
 
       {/* render có điều kiện: mỗi lần mở là một form mới, không sót dữ liệu lần trước */}
-      {formRoom && (
-        <RoomFormModal
-          room={formRoom}
-          onHide={() => setFormRoom(null)}
+      {editing && (
+        <RoomTypeFormModal
+          roomType={editing}
+          onHide={() => setEditing(null)}
           onSaved={() => {
-            setFormRoom(null);
-            loadRooms();
+            setEditing(null);
+            loadRoomTypes();
+          }}
+          onDelete={() => {
+            setDeleting(editing); // đóng form rồi mới mở hộp xác nhận, không chồng 2 modal
+            setEditing(null);
           }}
         />
       )}
 
       <ConfirmModal
         show={Boolean(deleting)}
-        title="Xóa phòng"
-        message={`Bạn chắc chắn muốn xóa phòng ${deleting?.code}?`}
+        title="Xóa loại phòng"
+        message={`Bạn chắc chắn muốn xóa loại phòng "${deleting?.name}"?`}
         confirmText="Xóa"
         variant="danger"
         loading={submitting}
@@ -418,35 +383,23 @@ const RoomListPage = () => {
   );
 };
 
-export default RoomListPage;
+export default RoomTypeListPage;
 ```
 
-### `components/RoomFormModal.jsx`
+`components/RoomTypeFormModal.jsx`
 
 ```jsx
-// UC-16 tạo phòng, UC-17 sửa phòng (Admin). room = {} là thêm mới, có _id là sửa
+// UC-20: form thêm / sửa loại phòng. roomType = {} là thêm mới, có _id là sửa
 import { useState } from 'react';
-import { Button, Col, Form, Modal, Row, Spinner } from 'react-bootstrap';
+import { Button, Form, Modal, Spinner } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import Input from '../../../components/Input';
 import { toFieldErrors } from '../../../utils/formErrors';
-import roomApi from '../room.api';
+import roomTypeApi from '../roomType.api';
 
-// kiểm tra nhanh ở FE để người dùng thấy lỗi ngay; BE vẫn kiểm tra lại
-const validate = (form) => {
-  const errors = {};
-  if (!form.code.trim()) errors.code = 'Vui lòng nhập mã phòng';
-  if (!(Number(form.price) > 0)) errors.price = 'Giá thuê phải lớn hơn 0'; // BR-045
-  return errors;
-};
-
-const RoomFormModal = ({ room, onHide, onSaved }) => {
-  const isEdit = Boolean(room._id);
-  const [form, setForm] = useState({
-    code: room.code ?? '',
-    floor: room.floor ?? '',
-    price: room.price ?? '',
-  });
+const RoomTypeFormModal = ({ roomType, onHide, onSaved, onDelete }) => {
+  const isEdit = Boolean(roomType._id);
+  const [form, setForm] = useState({ name: roomType.name ?? '' });
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
@@ -454,20 +407,21 @@ const RoomFormModal = ({ room, onHide, onSaved }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const clientErrors = validate(form);
-    setErrors(clientErrors);
-    if (Object.keys(clientErrors).length > 0) return;
+    // kiểm tra nhanh ở FE để người dùng thấy lỗi ngay; BE vẫn kiểm tra lại
+    if (!form.name.trim()) {
+      setErrors({ name: 'Vui lòng nhập tên loại phòng' });
+      return;
+    }
 
-    const payload = { ...form, floor: Number(form.floor), price: Number(form.price) };
     setSubmitting(true);
     try {
-      if (isEdit) await roomApi.update(room._id, payload);
-      else await roomApi.create(payload);
-      toast.success(isEdit ? 'Cập nhật phòng thành công' : 'Tạo phòng thành công'); // câu theo UC
+      if (isEdit) await roomTypeApi.update(roomType._id, form);
+      else await roomTypeApi.create(form);
+      toast.success(isEdit ? 'Cập nhật loại phòng thành công' : 'Thêm loại phòng thành công');
       onSaved();
     } catch (err) {
       setErrors(toFieldErrors(err.errors)); // 422: lỗi hiện dưới từng ô
-      if (!err.errors) toast.error(err.message); // lỗi khác (trùng mã, mất mạng…): toast
+      if (!err.errors) toast.error(err.message); // lỗi khác (vd UC-20 E01 trùng tên): toast
     } finally {
       setSubmitting(false);
     }
@@ -477,60 +431,170 @@ const RoomFormModal = ({ room, onHide, onSaved }) => {
     <Modal show onHide={onHide} centered backdrop="static">
       <Form onSubmit={handleSubmit} noValidate>
         <Modal.Header closeButton={!submitting}>
-          <Modal.Title className="h5">{isEdit ? 'Sửa phòng' : 'Thêm phòng'}</Modal.Title>
+          <Modal.Title className="h5">{isEdit ? 'Sửa loại phòng' : 'Thêm loại phòng'}</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <Row>
-            <Col md={6}>
-              <Input
-                label="Mã phòng"
-                name="code"
-                value={form.code}
-                onChange={handleChange}
-                error={errors.code}
-                disabled={isEdit} // BR-046: không đổi mã phòng
-                required
-              />
-            </Col>
-            <Col md={6}>
-              <Input
-                label="Tầng"
-                name="floor"
-                type="number"
-                value={form.floor}
-                onChange={handleChange}
-                error={errors.floor}
-                required
-              />
-            </Col>
-            <Col md={6}>
-              <Input
-                label="Giá thuê (đ)"
-                name="price"
-                type="number"
-                value={form.price}
-                onChange={handleChange}
-                error={errors.price}
-                required
-              />
-            </Col>
-          </Row>
+          <Input
+            label="Tên loại phòng"
+            name="name"
+            value={form.name}
+            onChange={handleChange}
+            error={errors.name}
+            required
+            className="mb-0"
+          />
         </Modal.Body>
-        <Modal.Footer>
+        <Modal.Footer className="justify-content-start">
+          <Button type="submit" variant="primary" disabled={submitting}>
+            {submitting && <Spinner animation="border" size="sm" className="me-2" />}
+            Lưu
+          </Button>
           <Button variant="secondary" onClick={onHide} disabled={submitting}>
             Hủy
           </Button>
-          <Button type="submit" variant="primary" disabled={submitting}>
-            {submitting && <Spinner animation="border" size="sm" className="me-2" />}
-            {isEdit ? 'Lưu' : 'Tạo'}
-          </Button>
+          {isEdit && (
+            <Button variant="danger" className="ms-auto" onClick={onDelete} disabled={submitting}>
+              Xóa
+            </Button>
+          )}
         </Modal.Footer>
       </Form>
     </Modal>
   );
 };
 
-export default RoomFormModal;
+export default RoomTypeFormModal;
+```
+
+Danh sách có trang chi tiết riêng (phòng, hợp đồng, hóa đơn…) thì `onRowClick={(row) => navigate(`/rooms/${row._id}`)}`, nút "Thêm" vẫn ở `actions`.
+
+### 9.2 Trang chi tiết kiểu Odoo (vd hợp đồng UC-25)
+
+Hàng nút bên trái + thanh trạng thái bên phải, bên dưới là tờ giấy (`Card`) với tiêu đề lớn, nhãn – giá trị chia 2 cột, phần con để trong `Tabs`. **Nút hiện theo trạng thái, đúng UC.**
+
+```jsx
+// UC-25: chi tiết hợp đồng (Manager). Nút theo trạng thái: UC-26 sửa, UC-27 gia hạn,
+// UC-28 / UC-29 chấm dứt, UC-46 hủy hợp đồng nháp, UC-45 hoàn cọc. Mỗi nút mở một modal trong components/
+import { useCallback, useEffect, useState } from 'react';
+import { Button, Card, Tab, Tabs } from 'react-bootstrap';
+import { useParams } from 'react-router-dom';
+import { toast } from 'react-toastify';
+import PageHeader from '../../components/PageHeader';
+import StatusSteps from '../../components/StatusSteps';
+import FieldRow from '../../components/FieldRow';
+import MoneyText from '../../components/MoneyText';
+import DataTable from '../../components/DataTable';
+import Loading from '../../components/Loading';
+import EmptyState from '../../components/EmptyState';
+import { CONTRACT_STATUS } from '../../constants/enums';
+import { CONTRACT_STATUS_LABEL, CONTRACT_TYPE_LABEL } from '../../constants/statusLabels';
+import { formatDate } from '../../utils/format';
+import contractApi from './contract.api';
+
+const STEPS = [CONTRACT_STATUS.DRAFT, CONTRACT_STATUS.ACTIVE, CONTRACT_STATUS.ENDED];
+
+const ContractDetailPage = () => {
+  const { id } = useParams();
+  const [contract, setContract] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const loadContract = useCallback(async () => {
+    try {
+      const res = await contractApi.detail(id);
+      setContract(res.data);
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    loadContract();
+  }, [loadContract]);
+
+  if (loading) return <Loading />;
+  if (!contract) return <EmptyState message="Không tìm thấy hợp đồng" />;
+
+  const { status } = contract;
+  const isDraft = status === CONTRACT_STATUS.DRAFT;
+  const isActive = status === CONTRACT_STATUS.ACTIVE;
+
+  const occupantColumns = [
+    { key: 'name', title: 'Họ tên', className: 'fw-medium' },
+    { key: 'cccd', title: 'CCCD' },
+    { key: 'phone', title: 'Số điện thoại' },
+    { key: 'role', title: 'Vai trò', render: (row) => (row.isRepresentative ? 'Đại diện' : 'Ở cùng') },
+    {
+      key: 'actions',
+      title: '',
+      align: 'end',
+      // bảng con trong trang chi tiết được có 1 nút cuối dòng; UC-33 chỉ áp dụng người ở cùng, hợp đồng ACTIVE
+      render: (row) =>
+        isActive &&
+        !row.isRepresentative && (
+          <Button variant="secondary" size="sm">
+            Xóa khỏi phòng
+          </Button>
+        ),
+    },
+  ];
+
+  return (
+    <>
+      <PageHeader
+        backTo="/contracts"
+        actions={
+          <>
+            {isActive && <Button variant="primary">Gia hạn</Button>}
+            {(isDraft || isActive) && <Button variant="secondary">Chỉnh sửa</Button>}
+            {isActive && <Button variant="secondary">Tạo đơn chấm dứt</Button>}
+            {isActive && <Button variant="secondary">Đơn phương chấm dứt</Button>}
+            {isDraft && <Button variant="secondary">Hủy hợp đồng</Button>}
+            {/* UC-45: chỉ hợp đồng kết thúc đúng hạn và chưa hoàn cọc; điều kiện lấy theo dữ liệu API trả về */}
+          </>
+        }
+      >
+        <StatusSteps map={CONTRACT_STATUS_LABEL} steps={STEPS} current={status} />
+      </PageHeader>
+
+      <Card>
+        <Card.Body className="p-4">
+          <div className="small text-secondary">Hợp đồng thuê phòng</div>
+          <h2 className="h3 fw-semibold mb-4">{contract.code}</h2>
+
+          <div className="grid lg:grid-cols-2 column-gap-5 mb-4">
+            <div>
+              <FieldRow label="Phòng" required>{contract.room?.code}</FieldRow>
+              <FieldRow label="Người đại diện" required>{contract.representative?.name}</FieldRow>
+              <FieldRow label="Loại hợp đồng" required>
+                {CONTRACT_TYPE_LABEL[contract.contractType]?.label}
+              </FieldRow>
+            </div>
+            <div>
+              <FieldRow label="Ngày bắt đầu" required>{formatDate(contract.startDate)}</FieldRow>
+              <FieldRow label="Ngày kết thúc" required>{formatDate(contract.endDate)}</FieldRow>
+              <FieldRow label="Giá thuê" required>
+                <MoneyText value={contract.rentPrice} />
+              </FieldRow>
+              <FieldRow label="Tiền cọc" required>
+                <MoneyText value={contract.deposit} />
+              </FieldRow>
+            </div>
+          </div>
+
+          <Tabs defaultActiveKey="occupants" className="mb-3">
+            <Tab eventKey="occupants" title={`Cư dân (${contract.occupants?.length ?? 0})`}>
+              <DataTable columns={occupantColumns} data={contract.occupants} />
+            </Tab>
+          </Tabs>
+        </Card.Body>
+      </Card>
+    </>
+  );
+};
+
+export default ContractDetailPage;
 ```
 
 ---
@@ -539,24 +603,27 @@ export default RoomFormModal;
 
 ### Thông báo và lỗi
 
-| Tình huống                                                | Cách hiện                                                                |
-| ----------------------------------------------------------- | -------------------------------------------------------------------------- |
-| Thành công                                                | `toast.success('…')`, câu đúng UC                                    |
-| Lỗi 422 (sai từng ô)                                     | Hiện dưới ô: `setErrors(toFieldErrors(err.errors))`                  |
-| Lỗi khác (trùng, không đủ điều kiện, mất mạng…) | `toast.error(err.message)`. BE đã trả câu tiếng Việt, hiện thẳng |
-| Danh sách trống                                           | `emptyMessage` đúng câu UC (thường ở A1)                           |
-| Cần xác nhận                                             | `ConfirmModal`, câu hỏi đúng UC                                      |
+| Tình huống                                                | Cách hiện                                                                                                 |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Thành công                                                | `toast.success('…')`, câu đúng UC                                                                     |
+| Lỗi 422 (sai từng ô)                                     | Hiện dưới ô: `setErrors(toFieldErrors(err.errors))`                                                   |
+| Lỗi khác (trùng, không đủ điều kiện, mất mạng…) | `toast.error(err.message)`. BE đã trả câu tiếng Việt, hiện thẳng                                  |
+| Danh sách trống                                           | `emptyMessage` đúng câu UC (thường ở A1). UC không ghi thì dùng "Chưa có <đối tượng> nào" |
+| Cần xác nhận                                             | `ConfirmModal`, câu hỏi đúng UC                                                                       |
+| Lưu ý cố định trên trang                              | `Alert` variant `warning` hoặc `info`                                                                |
 
 Không hiện lỗi kỹ thuật hay tiếng Anh cho người dùng.
 
 ### Giao diện
 
-- Mỗi trang: `PageHeader` → bộ lọc (nếu có) → nội dung trong `DataTable` hoặc `Card`.
-- Mỗi khu vực tối đa **1 nút `primary`**, nút đặt **bên phải**. Nút trong bảng dùng `size="sm"`.
-- Ý nghĩa màu nút: `primary` hành động chính · `secondary` phụ, Hủy, Sửa · `danger` xóa, khóa, hủy đơn · `success` xác nhận, duyệt.
-- Nút gửi dữ liệu: khi đang gửi thì `disabled` + `Spinner` như mẫu.
-- Form dài chia 2 cột bằng `Row` / `Col md={6}`. Không đặt độ rộng cố định bằng px.
-- Màu sắc, font, bo góc chung được chỉnh ở `index.css`. **Trang không tự chỉnh giao diện chung.**
+- **Trang danh sách:** `PageHeader` (tiêu đề + nút "Thêm…" + bên phải là ô tìm, bộ lọc, `Pager`) → `DataTable`. Bấm dòng để mở chi tiết.
+- **Trang chi tiết:** `PageHeader` (nút theo trạng thái + `StatusSteps`) → `Card` tờ giấy (tiêu đề lớn, `FieldRow` 2 cột, `Tabs`).
+- **Form:** trong `Modal`; form dài chia 2 cột bằng `Row` / `Col md={6}`. Chân modal: nút chính → Hủy ở bên trái, nút Xóa (nếu có) tách sang phải.
+- **Nút:** đặt bên trái, nút chính đứng đầu, mỗi khu vực tối đa **1 nút `primary`**. Nút trong bảng con dùng `size="sm"`.
+- **Màu nút:** `primary` hành động chính · `secondary` phụ, Hủy, Sửa · `danger` xóa, khóa, hủy đơn (dùng ở nút xác nhận) · `success` xác nhận, duyệt.
+- **Nút gửi dữ liệu:** khi đang gửi thì `disabled` + `Spinner` như mẫu.
+- **Số và tiền:** căn phải (`align: 'end'` trong `DataTable`).
+- Không đặt độ rộng cố định bằng px. Không thêm bóng đổ.
 
 ---
 
@@ -564,15 +631,16 @@ Không hiện lỗi kỹ thuật hay tiếng Anh cho người dùng.
 
 ### File chung: chỉ Hiếu sửa
 
-`src/api/`, `src/components/`, `src/layouts/`, `src/context/`, `src/routes/`, `src/constants/`, `src/utils/`, `App.jsx`, `main.jsx`, `index.css`, `vite.config.js`, `package.json`, `AGENTS.md`.
+`src/api/`, `src/components/`, `src/layouts/`, `src/context/`, `src/routes/`, `src/constants/`, `src/utils/`, `App.jsx`, `main.jsx`, `index.css`, `index.html`, `vite.config.js`, `package.json`, `AGENTS.md`.
 
 - Cần thêm nhãn trạng thái, component chung, thư viện… → nhắn Hiếu.
+- Thêm hoặc sửa component chung thì cập nhật luôn `UiKitPage.jsx` và mục 6 file này.
 - `constants/enums.js`: khi BE đổi thì chép đè từ `backend/src/constants/enums.js`, không sửa tay.
 
 ### Nhánh và commit
 
 - Nhánh: `fe/feature/<module>`, tạo từ `main` mới nhất.
-- Commit: `<loại>(<module>): <mô tả>`, loại gồm `feat`, `fix`, `refactor`, `style`, `docs`, `chore`. Ví dụ: `feat(room): danh sách phòng và form tạo phòng`.
+- Commit: `<loại>(<module>): <mô tả>`, loại gồm `feat`, `fix`, `refactor`, `style`, `docs`, `chore`. Ví dụ: `feat(roomType): danh sách và form loại phòng`.
 - Đầu mỗi buổi code: `git pull origin main` rồi merge vào nhánh mình để không bị lệch xa.
 - PR nhỏ, mỗi PR một module hoặc một nhóm UC.
 
@@ -580,9 +648,11 @@ Không hiện lỗi kỹ thuật hay tiếng Anh cho người dùng.
 
 - [ ] Chỉ sửa file trong module mình (`git diff --stat main`)
 - [ ] Endpoint, tên field đúng `docs/api.md`; BE xong rồi thì đã xóa dữ liệu giả
-- [ ] Đủ luồng chính + các trường hợp A*, E* trong UC; câu thông báo đúng UC
-- [ ] Không thẻ HTML thô, không `style={{}}`, không màu cứng, không chuỗi trạng thái trần
-- [ ] Nút đúng 4 variant, nút gửi có trạng thái đang gửi
+- [ ] Đủ luồng chính + các trường hợp A*, E* trong UC; chữ trên nút và câu thông báo đúng UC
+- [ ] Không thêm field, cột, nút, tab mà UC không có căn cứ
+- [ ] Bảng danh sách không có nút trong dòng; nút thao tác đặt bên trái; nút hiện theo trạng thái
+- [ ] Trường bắt buộc có `required`
+- [ ] Không thẻ HTML thô, không `style={{}}`, không màu cứng, không `outline-*`, không chuỗi trạng thái trần
 - [ ] Đã thử bằng role được vào và role không được vào
 - [ ] `npm run lint` không lỗi, đã chạy `npm run format`
 - [ ] Console trình duyệt không có lỗi đỏ
@@ -591,9 +661,10 @@ Không hiện lỗi kỹ thuật hay tiếng Anh cho người dùng.
 
 ## 12. Dành cho AI IDE
 
-- Trước khi viết code: đọc file này, `backend/src/modules/<module>/<module>.md`, mục UC tương ứng trong `docs/use_case.md` và mục module trong `docs/api.md`.
+- Trước khi viết code: đọc file này, `backend/src/modules/<module>/<module>.md`, mục UC tương ứng trong `docs/use_case.md`, mục module trong `docs/api.md`, và `src/routes/UiKitPage.jsx` để thấy cách dùng component.
 - Chỉ tạo và sửa file trong `src/modules/<module>/`. Thấy cần sửa file chung (mục 11) → **dừng lại và báo người dùng**, không tự sửa.
 - Không cài thư viện mới. Không tạo component trùng với `src/components/`.
 - Không đoán endpoint hay field. Không có trong api.md → hỏi người dùng.
-- Làm theo khuôn mẫu ở mục 9.
+- Không thêm field, cột, nút, tab, tính năng mà UC không có. Giao diện học Odoo nhưng nội dung là của Housify.
+- Làm theo một trong hai khuôn mẫu ở mục 9.
 - Đầu mỗi file viết 1 dòng comment tiếng Việt: file làm gì, thuộc UC nào.

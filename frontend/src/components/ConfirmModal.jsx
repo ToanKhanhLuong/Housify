@@ -30,13 +30,13 @@ const ConfirmModal = ({
             {message && <p className={children ? 'mb-3' : 'mb-0'}>{message}</p>}
             {children}
         </Modal.Body>
-        <Modal.Footer>
-            <Button variant="secondary" onClick={onCancel} disabled={loading}>
-                {cancelText}
-            </Button>
+        <Modal.Footer className="justify-content-start">
             <Button variant={variant} onClick={onConfirm} disabled={loading}>
                 {loading && <Spinner animation="border" size="sm" className="me-2" />}
                 {confirmText}
+            </Button>
+            <Button variant="secondary" onClick={onCancel} disabled={loading}>
+                {cancelText}
             </Button>
         </Modal.Footer>
     </Modal>

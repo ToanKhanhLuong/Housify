@@ -3,6 +3,7 @@ import { Nav, Offcanvas } from 'react-bootstrap';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { MENUS } from '../constants/menus';
+import Brand from './Brand';
 
 const Sidebar = ({ show, onHide }) => {
     const { user } = useAuth();
@@ -15,12 +16,15 @@ const Sidebar = ({ show, onHide }) => {
             responsive="lg"
             className="w-64 shrink-0 border-end bg-white lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto"
         >
-            <Offcanvas.Header closeButton>
-                <Offcanvas.Title className="fw-bold text-primary">Housify</Offcanvas.Title>
+            <Offcanvas.Header closeButton className="border-bottom">
+                <Brand />
             </Offcanvas.Header>
-            <Offcanvas.Body className="flex-column p-3">
-                <div className="d-none d-lg-block h4 fw-bold text-primary mb-4 px-2">Housify</div>
-                <Nav variant="pills" className="flex-column gap-1">
+            <Offcanvas.Body className="flex-column p-0">
+                {/* màn hình lớn ẩn Offcanvas.Header nên đặt logo ở đây, cao bằng header (h-14) */}
+                <div className="d-none d-lg-flex items-center h-14 px-3 border-bottom">
+                    <Brand />
+                </div>
+                <Nav variant="pills" className="flex-column gap-1 p-2">
                     {items.map(({ label, path, icon: Icon }) => (
                         <Nav.Link
                             key={path}
