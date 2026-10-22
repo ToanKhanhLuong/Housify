@@ -1,78 +1,69 @@
-# Upload Module – Cloudinary
+# Module upload
 
-## 1. Mô tả
+> Cổng duy nhất đưa ảnh lên Cloudinary. Không có use case riêng — đây là chức năng phục vụ cho các UC có ảnh.
+> Ảnh **lưu trên Cloudinary**, còn database chỉ lưu chuỗi đường dẫn hoặc mã ảnh.
 
-Module Upload chịu trách nhiệm tải ảnh lên Cloudinary và trả về URL hoặc `publicId` để các module khác sử dụng.
+**Người làm:** BE Toàn · FE Hiếu (một ô chọn ảnh dùng chung cho mọi màn hình) · Iter 1
 
-Module không trực tiếp lưu dữ liệu vào MongoDB.
+---
 
-## 2. Chức năng
+## Vì sao cần module này
 
-- **Upload ảnh thường:** Sử dụng cho tòa nhà, phòng và sự cố.
-- **Upload ảnh CCCD:** Sử dụng cho hồ sơ Manager và Occupant, lưu ảnh ở chế độ `authenticated`.
-- **Lấy URL xem CCCD:** Tạo đường dẫn có chữ ký để truy cập ảnh CCCD.
+Giao diện **không được** đưa ảnh thẳng lên Cloudinary. Làm vậy phải để khóa bí mật của Cloudinary trong code giao diện, ai mở trình duyệt cũng lấy được. Khi đó người lạ tải gì lên tài khoản của nhóm cũng được, và không chặn được việc xem ảnh CCCD.
 
-## 3. Cấu trúc module
+Nên mọi ảnh đều đi qua backend: **giao diện → backend kiểm tra → Cloudinary → trả kết quả về giao diện.**
 
-```text
-upload/
-├── upload.routes.js
-├── upload.controller.js
-├── upload.service.js
-└── README.md
-```
+---
 
-- `upload.routes.js`: Khai báo các API và middleware.
-- `upload.controller.js`: Nhận request, gọi service và trả response.
-- `upload.service.js`: Xử lý upload ảnh lên Cloudinary.
+## Hai loại ảnh
 
-## 4. API
+| Loại                | Dùng cho                                 | Ai xem                                 | Trả về                                     |
+| -------------------- | ----------------------------------------- | -------------------------------------- | -------------------------------------------- |
+| **Công khai** | Ảnh tòa nhà, ảnh phòng, ảnh sự cố | Ai có đường dẫn cũng xem được | **Đường dẫn ảnh**                 |
+| **Bảo vệ**   | Ảnh CCCD mặt trước, mặt sau          | Chỉ người có quyền                | **Mã ảnh**, không có đường dẫn |
 
-| Method | Endpoint                  | Chức năng              |
-| ------ | ------------------------- | ---------------------- |
-| POST   | `/api/uploads`            | Upload ảnh thường      |
-| POST   | `/api/uploads/cccd`       | Upload ảnh CCCD        |
-| GET    | `/api/uploads/signed-url` | Lấy đường dẫn xem CCCD |
+**Ai được xem ảnh CCCD**
 
-Hai API upload sử dụng `multipart/form-data`, với tên trường file là `file`.
+- **Của Manager:** chính Manager đó và Admin.
+- **Của cư dân:** người đại diện của phòng và Manager của tòa.
 
-## 5. Lưu trữ trên Cloudinary
+Khi người có quyền mở hồ sơ, hệ thống mới tạo **link xem** cho ảnh CCCD. Việc tạo link này nằm ở module trả hồ sơ (`auth`, `manager`, `occupant`), không nằm ở module upload.
 
-| Loại ảnh   | Folder            | Chế độ          |
-| ---------- | ----------------- | --------------- |
-| Ảnh thường | `housify/general` | `upload`        |
-| Ảnh CCCD   | `housify/cccd`    | `authenticated` |
+---
 
-**Ảnh thường:** Trả về `url` và `publicId`.
+## Luồng chính
 
-**Ảnh CCCD:** Chỉ trả về `publicId`, không trả URL công khai.
+1. Người dùng chọn ảnh trên form và cho biết đây là ảnh **công khai** hay ảnh **CCCD**.
+2. Giao diện gửi ảnh lên backend **ngay khi chọn**, trước khi bấm Lưu form.
+3. Backend kiểm tra ảnh hợp lệ → đẩy lên Cloudinary đúng loại.
+4. Trả về đường dẫn (ảnh công khai) hoặc mã ảnh (ảnh CCCD).
+5. Giao diện giữ lại kết quả đó, khi bấm Lưu form thì gửi kèm theo.
 
-Để lưu cả hai mặt CCCD, frontend gọi API upload CCCD hai lần, lần lượt cho mặt trước và mặt sau.
+**Ai được tải ảnh:** người **đã đăng nhập** (Admin, Manager, Customer).
 
-## 6. Lưu dữ liệu vào MongoDB
+**Ngoại lệ:** khách ở bước kích hoạt (UC-06) **chưa có tài khoản**, nên không dùng được cổng này. Ảnh CCCD của khách được **gửi kèm luôn trong form kích hoạt**.
 
-Các module sử dụng kết quả upload để lưu vào model tương ứng:
+---
 
-- `Building.images`: Lưu danh sách URL ảnh.
-- `Manager.cccdFrontImage`, `Manager.cccdBackImage`: Lưu `publicId`.
-- `Occupant.cccdFrontImage`, `Occupant.cccdBackImage`: Lưu `publicId`.
+## Các trường hợp
 
-## 7. Cấu hình môi trường
+- **Không phải file ảnh:** từ chối, báo "Chỉ chấp nhận file ảnh".
+- **Ảnh lớn hơn 5MB:** từ chối, báo vượt dung lượng, yêu cầu nén hoặc chọn ảnh khác.
+- **Ảnh CCCD mờ, không đọc được:** hệ thống **không tự nhận ra** ảnh mờ. Người duyệt hồ sơ (Manager, Admin) xem và yêu cầu tải lại nếu cần.
+- **Lỗi kết nối Cloudinary:** báo thử lại, không lưu gì.
+- **Tải ảnh lên rồi nhưng không bấm Lưu form:** ảnh nằm thừa trên Cloudinary. **Chấp nhận**, không dọn, vì gói miễn phí đủ dung lượng cho dự án.
+- **Bỏ ảnh cũ khỏi phòng hoặc tòa:** chỉ bỏ khỏi danh sách trong database, **không xóa** file trên Cloudinary.
 
-Cần khai báo trong file `backend/.env`:
+---
 
-```env
-CLOUDINARY_CLOUD_NAME=
-CLOUDINARY_API_KEY=
-CLOUDINARY_API_SECRET=
-```
+## Ai dùng module này
 
-Không commit file `.env` chứa thông tin bí mật lên GitHub.
-
-## 8. Lưu ý
-
-- Giới hạn dung lượng ảnh hiện tại: 5 MB/file.
-- API Upload sử dụng middleware xác thực theo cấu hình của dự án.
-- URL xem CCCD cần được kiểm tra và hoàn thiện cơ chế hết hạn thực tế.
-- Chưa triển khai kiểm tra độ mờ của ảnh CCCD.
-- Chưa triển khai cơ chế tự động xóa ảnh không còn sử dụng trên Cloudinary.
+| Module         | Ảnh gì                                                                             |
+| -------------- | ------------------------------------------------------------------------------------ |
+| `building`   | Ảnh tòa nhà (công khai)                                                          |
+| `room`       | Ảnh phòng (công khai)                                                             |
+| `incident`   | Ảnh đính kèm sự cố (công khai)                                                |
+| `auth`       | Manager tự tải ảnh CCCD lần đầu (bảo vệ)                                     |
+| `manager`    | Admin sửa ảnh CCCD Manager (bảo vệ)                                              |
+| `occupant`   | Cập nhật ảnh CCCD cư dân (bảo vệ)                                             |
+| `activation` | Ảnh CCCD khách lúc kích hoạt — **gửi kèm form, không qua cổng này** |

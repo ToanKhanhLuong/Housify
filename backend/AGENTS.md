@@ -76,6 +76,7 @@ Trong `src/utils/` hiện có `response.js`, `AppError.js`, `asyncHandler.js`. C
 ## Quy tắc dữ liệu
 
 - Enum chỉ lấy từ `src/constants/enums.js`. Không viết chuỗi `'ACTIVE'` trực tiếp trong code hoặc so sánh với chuỗi.
+- Đặt tên tham số đầy đủ: `request`, `response`, `next`, không viết tắt
 - Xóa mềm: `buildings`, `rooms` có `isDeleted` + `deletedAt`; `room_types`, `services` chỉ có `isDeleted`. Mọi truy vấn danh sách phải lọc `isDeleted: false`.
 - Không có collection tầng: tầng là `buildings.floorCount`, phòng lưu `floorNumber`. Nội quy là `buildings.rules` (một bản, lưu đè).
 - Hợp đồng chỉ có DRAFT | ACTIVE | ENDED | CANCELLED – **không có PENDING_TERMINATION**. Đang có đơn chấm dứt thì hợp đồng vẫn ACTIVE đến ngày hiệu lực.
@@ -84,6 +85,8 @@ Trong `src/utils/` hiện có `response.js`, `AppError.js`, `asyncHandler.js`. C
 - Token link mời, OTP: chỉ lưu bản hash.
 - **Transaction bắt buộc** cho: kích hoạt hợp đồng (UC-06), kết thúc hợp đồng – đến ngày hiệu lực đơn chấm dứt (UC-28, UC-29) hoặc hết hạn (UC-45), phân công / thay Manager (UC-11), xóa tòa (cascade phòng, UC-14), hủy hợp đồng nháp (UC-46), tạo Manager (UC-08).
   Transaction cần replica set. Chạy máy thì bật replica set một node và thêm `?replicaSet=rs0` vào `MONGO_URI`; dùng Atlas thì có sẵn.
+- Đặt tên tham số đầy đủ: `request`, `response`, `next`, không viết tắt
+- 401 chỉ dùng khi phiên không hợp lệ (middleware auth). Lỗi dữ liệu nhập, kể cả sai mật khẩu cũ ở UC-03, trả 400.
 
 ## Job định kỳ (`src/jobs/`)
 
@@ -95,3 +98,19 @@ Mỗi job là một file `<tên>.js` export hàm `run()`. `jobs/index.js` có h�
 - Không thêm collection, field, enum mới khi chưa có trong `docs/database.md` – hỏi nhóm trước.
 - Không tự đặt quy tắc nghiệp vụ không có trong use case.
 - Không commit `.env`, không log mật khẩu / token.
+
+## Tìm tài liệu ở đâu
+
+- Nghiệp vụ từng module: `src/modules/<tên>/<tên>.md`
+- Đường dẫn API: `docs/api.md`
+- Cấu trúc dữ liệu: `docs/database.md`
+- Quy tắc nghiệp vụ gốc: `docs/business_rule.md`
+
+## Tài liệu là hợp đồng giữa BE và FE
+
+- `docs/api.md` là hợp đồng với FE. Thêm hoặc sửa endpoint, field request/response, mã lỗi → sửa api.md TRONG CÙNG PR với code, và nhắn bạn FE làm module đó.
+- Ghi endpoint vào api.md trước khi code (đầu iter) để FE dựng giao diện bằng dữ liệu giả cùng hình dạng.
+- Mọi id trong response là `_id`. 401 chỉ dùng khi phiên không hợp lệ; lỗi dữ liệu nhập trả 400 hoặc 422.
+- Lỗi 422 trả `errors: [{ field, message }]`, `field` trùng tên field trong request để FE hiện lỗi dưới đúng ô.
+- `message` trả về là tiếng Việt, đúng câu trong UC. FE hiện thẳng câu này cho người dùng.
+- Nghiệp vụ theo `docs/use_case.md` và `<module>.md`. Lệch thì hỏi An, không tự đổi.

@@ -1,10 +1,7 @@
-
 # Module activation
 
 > Xử lý mọi link kích hoạt gửi qua email. **UC-08 (bước 6–8)** cho Manager và **UC-06** cho Customer.
 > Module này chỉ **dùng** link. Việc **tạo và gửi** link nằm ở module `manager` (UC-08, UC-09) và `contract` (UC-24).
-
-**Người làm:** BE An và FE Hưng · 
 
 Iter 1 (Manager)
 
@@ -86,4 +83,27 @@ Iter 2 (Customer)
 - Phòng chuyển từ **Trống** sang **Đang thuê**.
 - Link mời hết hiệu lực.
 
-Thành công cả năm việc hoặc
+Thành công cả năm việc hoặc không việc nào thay đổi. Lỗi giữa chừng thì quay lại như cũ, báo khách thử lại.
+
+**Các trường hợp**
+
+- **Khách đóng trình duyệt trước khi bấm "Xác nhận":** không lưu gì. Hợp đồng vẫn là nháp, link vẫn dùng được trong thời hạn.
+- **Link đã dùng:** báo hợp đồng đã được kích hoạt.
+- **Link hết hạn:** báo hết hạn, khách liên hệ Manager gửi lại (UC-24).
+- **Hợp đồng đã bị Manager hủy:** báo "Link không còn hiệu lực" (UC-46).
+- **Thiếu thông tin bắt buộc hoặc chưa tích đồng ý:** báo lỗi, không cho xác nhận.
+- **Mật khẩu không khớp hoặc không đủ mạnh:** báo lỗi.
+- **Ảnh CCCD mờ hoặc sai định dạng:** bắt tải lại.
+- **Số CCCD trên ảnh khác số Manager đã nhập:** từ chối, khách liên hệ Manager kiểm tra lại.
+- **Số điện thoại đã thuộc về người khác:** từ chối, báo trùng.
+- **CCCD đang có tài khoản đang hoạt động (đang thuê phòng khác) hoặc bị khóa:** từ chối.
+- **Phòng không còn trống:** từ chối, khách liên hệ Manager.
+
+**Quy tắc**
+
+- Mỗi link gắn đúng một hợp đồng và dùng một lần.
+- Tích "Đồng ý điều khoản" là **bắt buộc**. Thời điểm tích được lưu làm bằng chứng thay chữ ký. Giao diện hiển thị là **"Đã xác nhận điện tử"**, không ghi "Chữ ký số".
+- Mọi thay đổi khi bấm "Xác nhận" phải xảy ra cùng lúc như mô tả ở trên.
+- Mỗi số CCCD chỉ gắn với **một tài khoản khách**.
+- Một số điện thoại chỉ thuộc về **một người**. Một người có thể có nhiều số, nhưng số đã thuộc CCCD khác thì không dùng được.
+- Việc so số CCCD trên ảnh với số Manager đã nhập cần chức năng **đọc chữ từ ảnh (OCR)**. Nếu OCR chưa làm, bỏ qua bước so này, số CCCD lấy theo số Manager đã nhập.

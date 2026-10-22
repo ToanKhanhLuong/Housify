@@ -1,1 +1,0 @@
-// Mỗi module một file <module>.api.js (VD room.api.js), chỉ gọi qua instance api trong axios.js

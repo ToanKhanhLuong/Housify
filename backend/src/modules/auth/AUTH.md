@@ -3,8 +3,6 @@
 > Đăng nhập và mọi thứ gắn với tài khoản của chính người dùng. **UC-01 → UC-05.**
 > Hồ sơ Customer **không** ở đây mà ở module `occupant` (UC-31).
 
-**Người làm:** BE An · FE Hưng (Hiếu làm đăng xuất) · Iter 1
-
 ---
 
 ## UC-01 · Đăng nhập
