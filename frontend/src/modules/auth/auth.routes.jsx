@@ -1,5 +1,15 @@
-// Route của module auth. path gốc lấy đúng theo constants/menus.js, cách khai báo xem routes/index.jsx
-// Ví dụ: { path: '/rooms', element: <RoomListPage />, roles: [ROLE.ADMIN, ROLE.MANAGER] }
-const authRoutes = [];
+// Route của module auth: đăng nhập (UC-01), đổi mật khẩu (UC-03). Quên mật khẩu, hồ sơ thêm vào đây khi làm tới
+import { ROLE } from '../../constants/enums';
+import LoginPage from './LoginPage';
+import ChangePasswordPage from './ChangePasswordPage';
+
+const authRoutes = [
+  { path: '/login', element: <LoginPage />, guestOnly: true },
+  {
+    path: '/change-password',
+    element: <ChangePasswordPage />,
+    roles: [ROLE.ADMIN, ROLE.MANAGER, ROLE.CUSTOMER],
+  },
+];
 
 export default authRoutes;
