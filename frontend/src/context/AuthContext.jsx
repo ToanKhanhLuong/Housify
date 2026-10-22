@@ -11,11 +11,16 @@ export const AuthProvider = ({ children }) => {
     // có token thì phải hỏi BE trước khi vẽ trang, chưa có thì khỏi chờ
     const [loading, setLoading] = useState(() => Boolean(getToken()));
 
-    const loadUser = useCallback(async () => {
-        const res = await api.get('/auth/me');
-        setUser(res.data);
-        return res.data;
-    }, []);
+    // dùng .then thay vì await: setUser nằm trong callback, không chạy đồng bộ trong useEffect
+    // (luật react-hooks/set-state-in-effect)
+    const loadUser = useCallback(
+        () =>
+            api.get('/auth/me').then((res) => {
+                setUser(res.data);
+                return res.data;
+            }),
+        [],
+    );
 
     useEffect(() => {
         if (!getToken()) return;
