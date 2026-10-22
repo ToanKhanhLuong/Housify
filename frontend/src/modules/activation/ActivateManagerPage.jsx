@@ -9,7 +9,7 @@ import { PASSWORD_REGEX } from '../../constants/regex';
 import { toFieldErrors } from '../../utils/formErrors';
 import activationApi from './activation.api';
 
-const ManagerActivationPage = () => {
+const ActivateManagerPage = () => {
   const { token } = useParams();
   const navigate = useNavigate();
   const [checking, setChecking] = useState(true);
@@ -123,4 +123,4 @@ const ManagerActivationPage = () => {
   );
 };
 
-export default ManagerActivationPage;
+export default ActivateManagerPage;
