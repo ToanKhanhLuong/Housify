@@ -25,9 +25,9 @@ const validateImageQuality = async (buffer) => {
     width: 3,
     height: 3,
     kernel: [
-      0,  1,  0,
-      1, -4,  1,
-      0,  1,  0
+      0, 1, 0,
+      1, -4, 1,
+      0, 1, 0
     ]
   };
   const { data } = await sharp(buffer)
@@ -94,18 +94,19 @@ export const uploadCccd = async (file) => {
   return { publicId: result.public_id };
 };
 
-// Tạo đường dẫn có chữ ký để xem ảnh CCCD
-export const getSignedUrl = (publicId, expiresInSeconds = 600) => {
-  if (!publicId) throw new AppError('Thiếu publicId của ảnh', 400);
-  // Tính thời điểm hết hạn dự kiến (mặc định 600 giây)
-  const expiresAt = Math.floor(Date.now() / 1000) + expiresInSeconds;
-  // Tạo URL có chữ ký cho ảnh authenticated
-  const url = cloudinary.url(publicId, {
+
+// Tạo link xem ảnh CCCD (ảnh authenticated phải có link có chữ ký mới mở được)
+// KHÔNG mở route riêng cho hàm này. Service của module khác gọi SAU KHI đã kiểm người xem có quyền
+// (docs/database.md): ảnh Manager → chính Manager đó và Admin; ảnh cư dân → người đại diện phòng và Manager của tòa
+// Ví dụ trong service hồ sơ: cccdFrontUrl: getSignedUrl(manager.cccdFrontImage)
+// Chưa có ảnh thì trả null
+export const getSignedUrl = (publicId) => {
+  if (!publicId) return null;
+  const expiresAt = Math.floor(Date.now() / 1000) + 600; // 10 phút
+  return cloudinary.url(publicId, {
     type: 'authenticated',
     sign_url: true,
     expires_at: expiresAt,
     secure: true,
   });
-
-  return { url, expiresAt };
 };
