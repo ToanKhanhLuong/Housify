@@ -1,7 +1,10 @@
-// Chọn 1 ảnh, xem trước, mặc định tải lên ngay qua POST /uploads
-// Ảnh công khai: <ImageUpload label="Ảnh phòng" value={form.image} onChange={(url) => setForm({ ...form, image: url })} />
-// Ảnh CCCD:      <ImageUpload label="CCCD mặt trước" kind="CCCD" previewUrl={cccdFrontUrl} onChange={(publicId) => ...} />
-// Gửi kèm form multipart (UC-06 kích hoạt): thêm upload={false}, onChange nhận File
+// Chọn 1 ảnh, xem trước, chọn xong là tải lên ngay
+// Ảnh công khai: gửi POST /uploads → onChange(url)
+//   <ImageUpload label="Ảnh phòng" value={form.image} onChange={(url) => setForm({ ...form, image: url })} />
+// Ảnh CCCD: gửi POST /uploads/cccd → onChange(publicId). Ảnh đã có thì truyền previewUrl = cccdFrontUrl / cccdBackUrl lấy từ API hồ sơ
+//   <ImageUpload label="CCCD mặt trước" kind="CCCD" previewUrl={profile.cccdFrontUrl} onChange={(publicId) => ...} />
+// Chỉ lấy File, không tải lên (vd gửi sang OCR): thêm upload={false}, onChange nhận File
+
 import { useEffect, useRef, useState } from 'react';
 import { Button, Form, Image, Spinner } from 'react-bootstrap';
 import { toast } from 'react-toastify';
