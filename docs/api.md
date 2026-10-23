@@ -24,15 +24,15 @@ Sửa endpoint thì sửa ở đây trước, báo nhóm. Field gửi lên / tr�
 
 ## Tài khoản – `auth` (UC-01..05)
 
-| Method    | Path                      | Role  | Ghi chú                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| --------- | ------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| POST      | `/auth/login`           | —    | `{ identifier, password, remember }` – identifier là email (Admin/Manager) hoặc CCCD (Customer)                                                                                                                                                                                                                                                                                                                                  |
-| GET       | `/auth/me`              | A M C |                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| PUT       | `/auth/change-password` | A M C | `{ currentPassword, newPassword }`                                                                                                                                                                                                                                                                                                                                                                                                  |
-| POST      | `/auth/forgot-password` | —    | `{ email }` – luôn trả cùng một câu (BR-008)                                                                                                                                                                                                                                                                                                                                                                                  |
-| POST      | `/auth/verify-otp`      | —    | `{ email, otp }` → `{ resetToken }`                                                                                                                                                                                                                                                                                                                                                                                              |
-| POST      | `/auth/reset-password`  | —    | `{ resetToken, newPassword }`                                                                                                                                                                                                                                                                                                                                                                                                       |
-| GET / PUT | `/profile`              | M     | Hồ sơ Manager. Chỉ điền lần đầu các trường đang trống (BR-011). GET trả kèm `cccdFrontUrl`, `cccdBackUrl` (xem mục Upload). PUT gửi ảnh là publicId `cccdFrontImage`, `cccdBackImage` lấy từ `POST /uploads/cccd`. Customer sửa hồ sơ qua `/occupants/:id` (UC-31)Hồ sơ Manager. Chỉ điền lần đầu các trường đang trống (BR-011). Customer sửa hồ sơ qua `/occupants/:id` (UC-3 |
+| Method    | Path                      | Role  | Ghi chú                                                                                                                                                                                                                                                                                               |
+| --------- | ------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| POST      | `/auth/login`           | —    | `{ identifier, password, remember }` – identifier là email (Admin/Manager) hoặc CCCD (Customer)                                                                                                                                                                                                   |
+| GET       | `/auth/me`              | A M C |                                                                                                                                                                                                                                                                                                        |
+| PUT       | `/auth/change-password` | A M C | `{ currentPassword, newPassword }`                                                                                                                                                                                                                                                                   |
+| POST      | `/auth/forgot-password` | —    | `{ email }` – luôn trả cùng một câu (BR-008)                                                                                                                                                                                                                                                   |
+| POST      | `/auth/verify-otp`      | —    | `{ email, otp }` → `{ resetToken }`                                                                                                                                                                                                                                                               |
+| POST      | `/auth/reset-password`  | —    | `{ resetToken, newPassword }`                                                                                                                                                                                                                                                                        |
+| GET / PUT | `/profile`              | M     | Hồ sơ Manager. Chỉ điền lần đầu các trường đang trống (BR-011). GET trả kèm `cccdFrontUrl`, `cccdBackUrl` (xem mục Upload). PUT gửi ảnh là publicId `cccdFrontImage`, `cccdBackImage` lấy từ `POST /uploads/cccd`. Customer sửa hồ sơ qua `/occupants/:id` (UC-31) |
 
 ## Kích hoạt – `activation` (UC-06, 08)
 
@@ -55,7 +55,6 @@ Link trong email (BE ghép link, FE khai báo route khớp theo):
 
 ## Manager – `manager` (UC-08..11)
 
-
 | Method             | Path                                  | Role | Ghi chú                                                                                                                                                                    |
 | ------------------ | ------------------------------------- | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | POST               | `/managers`                         | A    | `{ name, email, phone }`                                                                                                                                                  |
@@ -66,8 +65,6 @@ Link trong email (BE ghép link, FE khai báo route khớp theo):
 | PUT                | `/buildings/:id/manager`            | A    | `{ managerId, confirmReplace? }` hoặc `managerId: null` để gỡ. Tòa đã có Manager mà chưa gửi `confirmReplace: true` → 409 hỏi xác nhận thay (UC-11 A1) |
 
 - `:id` ở `/managers/:id` và `managerId` ở `/buildings/:id/manager` đều là `_id` của **users** (không phải của managers).
-
-
 
 ## Tòa nhà – `building` (UC-12..15, 23)
 
@@ -215,9 +212,12 @@ Request:
   Response 200:
   { "success": true, "message": "...", "data": { "token": "eyJ...", "user": <giống GET /auth/me> } }
   Lỗi:
-- 401 Tài khoản hoặc mật khẩu không đúng
-- 403 Manager chưa kích hoạt / tài khoản bị khóa / đã ngưng hoạt động
+- 403 `Tài khoản chưa được kích hoạt. Vui lòng kiểm tra email để đặt mật khẩu và kích hoạt tài khoản` – Manager PENDING hoặc chưa có mật khẩu (kiểm trước khi so mật khẩu)
+- 403 `Tài khoản đã bị khóa` – LOCKED (sau khi đúng mật khẩu)
+- 403 `Tài khoản đã ngưng hoạt động. Vui lòng kiểm tra email kích hoạt nếu bạn vừa có hợp đồng mới` – INACTIVE (sau khi đúng mật khẩu)
+- 403 `Tài khoản không ở trạng thái hoạt động` – trạng thái khác ACTIVE (sau khi đúng mật khẩu)
 - 422 Thiếu hoặc sai định dạng
+- 401 `Tài khoản hoặc mật khẩu không đúng` – không tìm thấy tài khoản, sai mật khẩu, hoặc Customer nhập email thay vì CCCD (bị chặn theo BR-001, báo cùng một câu)
 
 ### GET /api/auth/me — cần token, mọi role
 
@@ -225,7 +225,7 @@ Response 200:
 { "success": true, "data": {
   "_id": "...", "email": "...", "role": 0 | 1 | 2, "status": "ACTIVE", "name": "...",
   "phone": "...",                                   // Manager, Customer
-  "building": { "_id", "name", "address" } | null,  // chỉ Manager; null = chưa được phân công (BR-023)
+  "building": { "_id", "name", "address" } | null,  // mọi role đều có; Admin, Customer luôn null; Manager chưa được phân công cũng null (BR-023)
   "cccd": "..."                                     // chỉ Customer
 } }
 Lỗi: 401 token sai, hết hạn, hoặc tài khoản vừa bị khóa → FE tự đăng xuất

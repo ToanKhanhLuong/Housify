@@ -22,6 +22,7 @@ export const getMe = async (userId) => {
         role: user.roleId,
         status: user.status,
         name: '',
+        building: null,
     };
 
     if (user.roleId === ROLE.ADMIN) {
@@ -34,9 +35,6 @@ export const getMe = async (userId) => {
             .select('name address')
             .lean();
         userData.building = building; // { _id, name, address } hoặc null
-
-        // const building = await Building.findOne({ managerId: user._id, isDeleted: false }).select('_id name address');
-        // userData.building = building ? { id: building._id, _id: building._id, name: building.name, address: building.address } : null;
     } else if (user.roleId === ROLE.CUSTOMER) {
         const occupant = await Occupant.findOne({ userId: user._id, isRepresentative: true }).sort({ createdAt: -1 });
         userData.name = occupant?.name || 'Khách hàng';
