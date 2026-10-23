@@ -4,9 +4,9 @@ import { Alert, Button, Card, Form, Spinner } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import Input from '../../components/Input';
-import { EMAIL_REGEX, PASSWORD_REGEX } from '../../constants/regex';
-import { toFieldErrors } from '../../utils/formErrors';
+import { hasErrors, toFieldErrors } from '../../utils/formErrors';
 import authApi from './auth.api';
+import { validateForgotEmail, validateOtp, validateResetPassword } from './auth.validate';
 
 const STEP = { EMAIL: 1, OTP: 2, PASSWORD: 3 };
 
@@ -15,8 +15,6 @@ const SUBTITLE = {
   [STEP.OTP]: 'Bước 2/3: nhập mã OTP',
   [STEP.PASSWORD]: 'Bước 3/3: đặt mật khẩu mới',
 };
-
-const OTP_REGEX = /^\d{4}$/; // OTP 4 chữ số (UC-04)
 
 const ForgotPasswordPage = () => {
   const navigate = useNavigate();
@@ -38,12 +36,10 @@ const ForgotPasswordPage = () => {
   // Bước 1: gửi OTP. Email có tồn tại hay không BE cũng trả cùng một câu, nên luôn sang bước 2
   const handleSendOtp = async (e) => {
     e.preventDefault();
+    const clientErrors = validateForgotEmail(form);
+    setErrors(clientErrors);
+    if (hasErrors(clientErrors)) return;
     const email = form.email.trim();
-    const newErrors = {};
-    if (!email) newErrors.email = 'Vui lòng nhập email';
-    else if (!EMAIL_REGEX.test(email)) newErrors.email = 'Email không đúng định dạng';
-    setErrors(newErrors);
-    if (Object.keys(newErrors).length > 0) return;
 
     setSubmitting(true);
     try {
@@ -75,11 +71,9 @@ const ForgotPasswordPage = () => {
   // Bước 2: xác thực OTP, BE trả resetToken để dùng ở bước 3
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
-    const newErrors = {};
-    if (!form.otp) newErrors.otp = 'Vui lòng nhập mã OTP';
-    else if (!OTP_REGEX.test(form.otp)) newErrors.otp = 'Mã OTP gồm 4 chữ số';
-    setErrors(newErrors);
-    if (Object.keys(newErrors).length > 0) return;
+    const clientErrors = validateOtp(form);
+    setErrors(clientErrors);
+    if (hasErrors(clientErrors)) return;
 
     setSubmitting(true);
     try {
@@ -96,15 +90,9 @@ const ForgotPasswordPage = () => {
   // Bước 3: đặt mật khẩu mới (cùng quy tắc UC-03; trùng mật khẩu cũ do BE kiểm) → về trang đăng nhập
   const handleResetPassword = async (e) => {
     e.preventDefault();
-    const newErrors = {};
-    if (!form.newPassword) newErrors.newPassword = 'Vui lòng nhập mật khẩu mới';
-    else if (!PASSWORD_REGEX.test(form.newPassword))
-      newErrors.newPassword = 'Mật khẩu tối thiểu 6 ký tự, có cả chữ và số';
-    if (!form.confirmPassword) newErrors.confirmPassword = 'Vui lòng xác nhận mật khẩu mới';
-    else if (form.confirmPassword !== form.newPassword)
-      newErrors.confirmPassword = 'Mật khẩu xác nhận không khớp';
-    setErrors(newErrors);
-    if (Object.keys(newErrors).length > 0) return;
+    const clientErrors = validateResetPassword(form);
+    setErrors(clientErrors);
+    if (hasErrors(clientErrors)) return;
 
     setSubmitting(true);
     try {

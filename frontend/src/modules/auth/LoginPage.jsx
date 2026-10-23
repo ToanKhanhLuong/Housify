@@ -5,8 +5,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import Input from '../../components/Input';
 import { useAuth } from '../../context/AuthContext';
-import { toFieldErrors } from '../../utils/formErrors';
+import { hasErrors, toFieldErrors } from '../../utils/formErrors';
 import authApi from './auth.api';
+import { validateLogin } from './auth.validate';
 
 const LoginPage = () => {
   const { login } = useAuth();
@@ -22,12 +23,9 @@ const LoginPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // kiểm tra nhanh ở FE để người dùng thấy lỗi ngay; BE vẫn kiểm tra lại
-    const newErrors = {};
-    if (!form.identifier.trim()) newErrors.identifier = 'Vui lòng nhập email hoặc số CCCD';
-    if (!form.password) newErrors.password = 'Vui lòng nhập mật khẩu';
-    setErrors(newErrors);
-    if (Object.keys(newErrors).length > 0) return;
+    const clientErrors = validateLogin(form);
+    setErrors(clientErrors);
+    if (hasErrors(clientErrors)) return;
 
     setSubmitting(true);
     try {

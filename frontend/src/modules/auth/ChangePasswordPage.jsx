@@ -5,9 +5,9 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import PageHeader from '../../components/PageHeader';
 import Input from '../../components/Input';
-import { PASSWORD_REGEX } from '../../constants/regex';
-import { toFieldErrors } from '../../utils/formErrors';
+import { hasErrors, toFieldErrors } from '../../utils/formErrors';
 import authApi from './auth.api';
+import { validateChangePassword } from './auth.validate';
 
 const EMPTY_FORM = { currentPassword: '', newPassword: '', confirmPassword: '' };
 
@@ -19,29 +19,12 @@ const ChangePasswordPage = () => {
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
-  // kiểm tra nhanh ở FE theo quy tắc UC-03; BE vẫn kiểm tra lại (kể cả mật khẩu hiện tại có đúng không)
-  const validate = () => {
-    const newErrors = {};
-    if (!form.currentPassword) newErrors.currentPassword = 'Vui lòng nhập mật khẩu hiện tại';
-
-    if (!form.newPassword) newErrors.newPassword = 'Vui lòng nhập mật khẩu mới';
-    else if (!PASSWORD_REGEX.test(form.newPassword))
-      newErrors.newPassword = 'Mật khẩu tối thiểu 6 ký tự, có cả chữ và số';
-    else if (form.newPassword === form.currentPassword)
-      newErrors.newPassword = 'Mật khẩu mới không được trùng mật khẩu hiện tại';
-
-    if (!form.confirmPassword) newErrors.confirmPassword = 'Vui lòng xác nhận mật khẩu mới';
-    else if (form.confirmPassword !== form.newPassword)
-      newErrors.confirmPassword = 'Mật khẩu xác nhận không khớp';
-
-    return newErrors;
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const newErrors = validate();
-    setErrors(newErrors);
-    if (Object.keys(newErrors).length > 0) return;
+    // mật khẩu hiện tại có đúng không thì BE mới biết
+    const clientErrors = validateChangePassword(form);
+    setErrors(clientErrors);
+    if (hasErrors(clientErrors)) return;
 
     setSubmitting(true);
     try {
