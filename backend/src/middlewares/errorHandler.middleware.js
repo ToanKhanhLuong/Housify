@@ -27,6 +27,11 @@ export const errorHandler = (err, req, res, next) => {
     message = 'Dữ liệu không hợp lệ';
     errors = Object.values(err.errors).map((e) => e.message);
   }
+  // lỗi khi nhận file (multer), VD ảnh quá 5MB, gửi sai tên field file (UC-05 E04, UC-06 E04)
+  if (err.name === 'MulterError') {
+    statusCode = 400;
+    message = err.code === 'LIMIT_FILE_SIZE' ? 'Ảnh vượt quá 5MB' : 'File tải lên không hợp lệ';
+  }
 
   // lỗi 500 thì in ra console để còn tìm, và không lộ chi tiết khi chạy thật
   if (statusCode >= 500) {

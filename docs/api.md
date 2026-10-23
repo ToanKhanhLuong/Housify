@@ -12,18 +12,27 @@ Sửa endpoint thì sửa ở đây trước, báo nhóm. Field gửi lên / tr�
 - Role viết tắt: **A** Admin · **M** Manager · **C** Customer · **—** không cần đăng nhập
 - Manager chỉ thao tác trên tòa mình phụ trách, Customer chỉ trên hợp đồng của mình – BE kiểm ở service, không tin FE.
 - Các field tiền (`totalAmount`, `amount`, `unitPrice`), trạng thái, `dueDate`, mã (`invoiceCode`, `incidentCode`) do **server tự đặt**, không nhận từ client.
+- Việc chính xong nhưng việc phụ lỗi (vd gửi mail thất bại): vẫn trả thành công, kèm `data.warning` là câu tiếng Việt.
+- Cần người dùng xác nhận thêm: trả 409, `message` là câu hỏi. Chỉ áp dụng ở API có ghi cờ xác nhận bên dưới (vd `confirmReplace`); FE gửi lại kèm cờ đó = true. 409 ở chỗ khác là trùng dữ liệ
+- Prefix: `/api`
+- Xác thực: header `Authorization: Bearer <token>`
+- Thành công: `{ success: true, data, message }` · Lỗi: `{ success: false, message, errors }`
+- Phân trang: `?page=1&limit=10` → `data: { items, total, page, limit }`
+- Role viết tắt: **A** Admin · **M** Manager · **C** Customer · **—** không cần đăng nhập
+- Manager chỉ thao tác trên tòa mình phụ trách, Customer chỉ trên hợp đồng của mình – BE kiểm ở service, không tin FE.
+- Các field tiền (`totalAmount`, `amount`, `unitPrice`), trạng thái, `dueDate`, mã (`invoiceCode`, `incidentCode`) do **server tự đặt**, không nhận từ client.
 
 ## Tài khoản – `auth` (UC-01..05)
 
-| Method    | Path                      | Role  | Ghi chú                                                                                                                          |
-| --------- | ------------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------- |
-| POST      | `/auth/login`           | —    | `{ identifier, password, remember }` – identifier là email (Admin/Manager) hoặc CCCD (Customer)                              |
-| GET       | `/auth/me`              | A M C |                                                                                                                                   |
-| PUT       | `/auth/change-password` | A M C | `{ currentPassword, newPassword }`                                                                                              |
-| POST      | `/auth/forgot-password` | —    | `{ email }` – luôn trả cùng một câu (BR-008)                                                                              |
-| POST      | `/auth/verify-otp`      | —    | `{ email, otp }` → `{ resetToken }`                                                                                          |
-| POST      | `/auth/reset-password`  | —    | `{ resetToken, newPassword }`                                                                                                   |
-| GET / PUT | `/profile`              | M     | Hồ sơ Manager. Chỉ điền lần đầu các trường đang trống (BR-011). Customer sửa hồ sơ qua `/occupants/:id` (UC-31) |
+| Method    | Path                      | Role  | Ghi chú                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| --------- | ------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST      | `/auth/login`           | —    | `{ identifier, password, remember }` – identifier là email (Admin/Manager) hoặc CCCD (Customer)                                                                                                                                                                                                                                                                                                                                  |
+| GET       | `/auth/me`              | A M C |                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| PUT       | `/auth/change-password` | A M C | `{ currentPassword, newPassword }`                                                                                                                                                                                                                                                                                                                                                                                                  |
+| POST      | `/auth/forgot-password` | —    | `{ email }` – luôn trả cùng một câu (BR-008)                                                                                                                                                                                                                                                                                                                                                                                  |
+| POST      | `/auth/verify-otp`      | —    | `{ email, otp }` → `{ resetToken }`                                                                                                                                                                                                                                                                                                                                                                                              |
+| POST      | `/auth/reset-password`  | —    | `{ resetToken, newPassword }`                                                                                                                                                                                                                                                                                                                                                                                                       |
+| GET / PUT | `/profile`              | M     | Hồ sơ Manager. Chỉ điền lần đầu các trường đang trống (BR-011). GET trả kèm `cccdFrontUrl`, `cccdBackUrl` (xem mục Upload). PUT gửi ảnh là publicId `cccdFrontImage`, `cccdBackImage` lấy từ `POST /uploads/cccd`. Customer sửa hồ sơ qua `/occupants/:id` (UC-31)Hồ sơ Manager. Chỉ điền lần đầu các trường đang trống (BR-011). Customer sửa hồ sơ qua `/occupants/:id` (UC-3 |
 
 ## Kích hoạt – `activation` (UC-06, 08)
 
@@ -37,23 +46,28 @@ Link trong email (BE ghép link, FE khai báo route khớp theo):
 - Trang công khai, không cần đăng nhập. FE lấy token bằng `useParams()` rồi gửi kèm khi gọi API bên dưới.
 - Link hết hạn, đã dùng hoặc không tồn tại → API trả lỗi, FE hiện "Link đã hết hạn" / "Link không tồn tại" (UC-08 E06, UC-06 E01, UC-46 E02).
 
-| Method | Path                            | Role | Ghi chú                                                                                                                                   |
-| ------ | ------------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| GET    | `/activation/manager/:token`  | —   | Kiểm link còn hiệu lực                                                                                                                 |
-| POST   | `/activation/manager`         | —   | `{ token, password }`                                                                                                                    |
-| GET    | `/activation/contract/:token` | —   | Thông tin hợp đồng chỉ xem                                                                                                            |
-| POST   | `/activation/contract`        | —   | **multipart/form-data**: `token, name, phone, dateOfBirth, address, password, agreed` + file `cccdFrontImage`, `cccdBackImage` |
+| Method | Path                            | Role | Ghi chú                                                                                                                                                             |
+| ------ | ------------------------------- | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/activation/manager/:token`  | —   | Kiểm link còn hiệu lực                                                                                                                                           |
+| POST   | `/activation/manager`         | —   | `{ token, password }`                                                                                                                                              |
+| GET    | `/activation/contract/:token` | —   | Thông tin hợp đồng chỉ xem                                                                                                                                      |
+| POST   | `/activation/contract`        | —   | `{ token, name, phone, dateOfBirth, address, password, agreed, cccdFrontImage, cccdBackImage }` – 2 ảnh là publicId, FE tải trước qua `POST /uploads/cccd` |
 
 ## Manager – `manager` (UC-08..11)
 
-| Method             | Path                                  | Role | Ghi chú                                          |
-| ------------------ | ------------------------------------- | ---- | ------------------------------------------------- |
-| POST               | `/managers`                         | A    | `{ name, email, phone }`                        |
-| GET                | `/managers`                         | A    | `?status=&q=`                                   |
-| GET / PUT / DELETE | `/managers/:id`                     | A    | Sửa: chỉ đã kích hoạt · Xóa: chỉ PENDING |
-| POST               | `/managers/:id/resend-activation`   | A    |                                                   |
-| PATCH              | `/managers/:id/lock` · `/unlock` | A    | lock cần `{ reason }`                          |
-| PUT                | `/buildings/:id/manager`            | A    | `{ managerId }` hoặc `null` để gỡ         |
+
+| Method             | Path                                  | Role | Ghi chú                                                                                                                                                                    |
+| ------------------ | ------------------------------------- | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST               | `/managers`                         | A    | `{ name, email, phone }`                                                                                                                                                  |
+| GET                | `/managers`                         | A    | `?status=&q=`                                                                                                                                                             |
+| GET / PUT / DELETE | `/managers/:id`                     | A    | Sửa: chỉ đã kích hoạt · Xóa: chỉ PENDING. GET trả kèm `cccdFrontUrl`, `cccdBackUrl`; PUT gửi ảnh là publicId                                              |
+| POST               | `/managers/:id/resend-activation`   | A    |                                                                                                                                                                             |
+| PATCH              | `/managers/:id/lock` · `/unlock` | A    | lock cần `{ reason }`                                                                                                                                                    |
+| PUT                | `/buildings/:id/manager`            | A    | `{ managerId, confirmReplace? }` hoặc `managerId: null` để gỡ. Tòa đã có Manager mà chưa gửi `confirmReplace: true` → 409 hỏi xác nhận thay (UC-11 A1) |
+
+- `:id` ở `/managers/:id` và `managerId` ở `/buildings/:id/manager` đều là `_id` của **users** (không phải của managers).
+
+
 
 ## Tòa nhà – `building` (UC-12..15, 23)
 
@@ -86,9 +100,16 @@ Link trong email (BE ghép link, FE khai báo route khớp theo):
 
 ## Upload – `upload`
 
-| Method | Path         | Role  | Ghi chú                                   |
-| ------ | ------------ | ----- | ------------------------------------------ |
-| POST   | `/uploads` | A M C | multipart, chỉ ảnh ≤ 5MB → `{ url }` |
+| Method | Path              | Role  | Ghi chú                                                                                                                                                                                 |
+| ------ | ----------------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST   | `/uploads`      | A M C | Ảnh công khai (tòa, phòng, sự cố). multipart, field `file`, 1 ảnh ≤ 5MB → `{ url, publicId }`. DB lưu `url`                                                              |
+| POST   | `/uploads/cccd` | —    | Ảnh CCCD. multipart, field `file`, 1 ảnh ≤ 5MB, tối thiểu 500×500, không mờ → `{ publicId }`. Không cần đăng nhập vì khách kích hoạt (UC-06) chưa có tài khoản |
+
+- Mỗi lần gửi 1 ảnh. CCCD 2 mặt thì gọi 2 lần.
+- Ảnh CCCD là ảnh bảo vệ: DB chỉ lưu publicId (`cccdFrontImage`, `cccdBackImage`). **Không có API lấy link xem ảnh riêng.** API chi tiết hồ sơ (`GET /profile`, `GET /managers/:id`, `GET /occupants/:id`) tự kiểm quyền rồi trả kèm `cccdFrontUrl`, `cccdBackUrl` (tính ra, không lưu DB; `null` nếu chưa có ảnh). API danh sách không trả link ảnh.
+- Ai được xem ảnh CCCD (theo `docs/database.md`): ảnh Manager → chính Manager đó và Admin; ảnh cư dân → người đại diện phòng và Manager của tòa.
+- FE xem trước ảnh vừa chọn bằng file trên máy, không cần link từ BE.
+- Lỗi 400: không gửi file "Vui lòng chọn file ảnh" / "Vui lòng chọn file ảnh CCCD" · không phải ảnh "Chỉ chấp nhận file ảnh" · quá 5MB "Ảnh vượt quá 5MB" · ảnh CCCD nhỏ "Độ phân giải ảnh quá thấp, vui lòng chụp ảnh rõ nét hơn" · ảnh CCCD mờ "Ảnh chụp bị mờ hoặc không đủ rõ nét, vui lòng chụp lại" (UC-05 E04, UC-06 E04).
 
 ## Thông báo – `notification`, `announcement` (UC-40, 41)
 
@@ -125,13 +146,13 @@ Link trong email (BE ghép link, FE khai báo route khớp theo):
 
 ## Cư dân – `occupant` (UC-30..33)
 
-| Method    | Path                         | Role | Ghi chú                                                                                                 |
-| --------- | ---------------------------- | ---- | -------------------------------------------------------------------------------------------------------- |
-| GET       | `/occupants`               | M    | `?roomId=&status=`                                                                                     |
-| GET / PUT | `/occupants/:id`           | M C  | Đại diện sửa được hồ sơ mình (kèm `email`, lưu ở users) và người ở cùng phòng mình |
-| GET       | `/me/room-members`         | C    |                                                                                                          |
-| POST      | `/contracts/:id/occupants` | M    | Thêm người ở cùng: `{ name, cccd, phone, dateOfBirth, joinDate, relationship }`                   |
-| PATCH     | `/occupants/:id/leave`     | M    | `{ exitDate, note }`                                                                                   |
+| Method    | Path                         | Role | Ghi chú                                                                                                                                                                                                                                                             |
+| --------- | ---------------------------- | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET       | `/occupants`               | M    | `?roomId=&status=`                                                                                                                                                                                                                                                 |
+| GET / PUT | `/occupants/:id`           | M C  | Đại diện sửa được hồ sơ mình (kèm `email`, lưu ở users) và người ở cùng phòng mình. GET trả kèm `cccdFrontUrl`, `cccdBackUrl` (chỉ Manager của tòa và người đại diện phòng gọi được API này); ảnh gửi lên là publicId |
+| GET       | `/me/room-members`         | C    |                                                                                                                                                                                                                                                                      |
+| POST      | `/contracts/:id/occupants` | M    | Thêm người ở cùng: `{ name, cccd, phone, dateOfBirth, joinDate, relationship }`                                                                                                                                                                               |
+| PATCH     | `/occupants/:id/leave`     | M    | `{ exitDate, note }`                                                                                                                                                                                                                                               |
 
 ## Hóa đơn – `invoice` (UC-34..37)
 

@@ -1,14 +1,14 @@
-// Tải ảnh lên Cloudinary qua backend (POST /uploads). Component ImageUpload gọi hàm này
-// kind = 'PUBLIC': ảnh công khai (tòa, phòng, sự cố) → trả { url }
-// kind = 'CCCD'  : ảnh bảo vệ → trả { publicId }, chỉ người có quyền mới xem được
+// Tải 1 ảnh lên BE. Thường dùng qua component ImageUpload, ít khi gọi thẳng
 import api from './axios';
 
 const uploadApi = {
+    // PUBLIC (ảnh tòa, phòng, sự cố): POST /uploads, cần đăng nhập → data: { url, publicId }
+    // CCCD: POST /uploads/cccd, không cần đăng nhập (UC-06) → data: { publicId }
+    // Tên field file phải là 'file' (khớp upload.single('file') bên BE)
     upload: (file, kind = 'PUBLIC') => {
         const formData = new FormData();
-        formData.append('image', file);
-        formData.append('kind', kind);
-        return api.post('/uploads', formData);
+        formData.append('file', file);
+        return api.post(kind === 'CCCD' ? '/uploads/cccd' : '/uploads', formData);
     },
 };
 
