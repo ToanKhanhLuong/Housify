@@ -32,6 +32,8 @@ export const MSG = Object.freeze({
     // File upload
     FILE_TOO_LARGE: 'File vượt quá dung lượng cho phép',
     INVALID_FILE_TYPE: 'Loại file không được hỗ trợ',
+    FILE_UPLOAD_SUCCESS: 'Tải ảnh lên thành công',
+    SIGNED_URL_SUCCESS: 'Lấy đường dẫn ảnh thành công',
 
     // Server
     SERVER_ERROR: 'Đã xảy ra lỗi, vui lòng thử lại sau',
