@@ -73,7 +73,9 @@ src/
         ├── <module>.api.js       gọi API của module
         ├── <module>.routes.jsx   khai báo trang của module
         ├── XxxPage.jsx           các trang
+        └── <module>.validate.js  kiểm tra dữ liệu nhập của các form trong module (tạo khi module có form)
         └── components/           modal, form, tab CHỈ module này dùng
+        
 ```
 
 Đặt file mới ở đâu:
