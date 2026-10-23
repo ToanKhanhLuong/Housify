@@ -5,9 +5,9 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import Input from '../../components/Input';
 import Loading from '../../components/Loading';
-import { PASSWORD_REGEX } from '../../constants/regex';
-import { toFieldErrors } from '../../utils/formErrors';
+import { hasErrors, toFieldErrors } from '../../utils/formErrors';
 import activationApi from './activation.api';
+import { validateActivateManager } from './activation.validate';
 
 const ActivateManagerPage = () => {
   const { token } = useParams();
@@ -35,16 +35,9 @@ const ActivateManagerPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // kiểm tra nhanh ở FE theo quy tắc mật khẩu (như UC-03); BE vẫn kiểm tra lại
-    const newErrors = {};
-    if (!form.password) newErrors.password = 'Vui lòng nhập mật khẩu';
-    else if (!PASSWORD_REGEX.test(form.password))
-      newErrors.password = 'Mật khẩu tối thiểu 6 ký tự, có cả chữ và số';
-    if (!form.confirmPassword) newErrors.confirmPassword = 'Vui lòng xác nhận mật khẩu';
-    else if (form.confirmPassword !== form.password)
-      newErrors.confirmPassword = 'Mật khẩu xác nhận không khớp';
-    setErrors(newErrors);
-    if (Object.keys(newErrors).length > 0) return;
+    const clientErrors = validateActivateManager(form);
+    setErrors(clientErrors);
+    if (hasErrors(clientErrors)) return;
 
     setSubmitting(true);
     try {
