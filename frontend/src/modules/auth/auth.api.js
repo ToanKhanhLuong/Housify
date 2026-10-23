@@ -12,6 +12,17 @@ const authApi = {
   verifyOtp: (data) => api.post('/auth/verify-otp', data),
   // UC-04 bước 3: { resetToken, newPassword }
   resetPassword: (data) => api.post('/auth/reset-password', data),
+
+  // UC-05 hồ sơ Manager → data: { name, email, phone, address, dateOfBirth, cccdFrontImage, cccdBackImage, cccdFrontUrl, cccdBackUrl }
+  getProfile: () => api.get('/profile'),
+  // UC-05: chỉ gửi các trường đang trống vừa điền; ảnh là publicId lấy từ POST /uploads/cccd
+  updateProfile: (data) => api.put('/profile', data),
+
+  // Hồ sơ Customer (UC-31): tìm bản ghi của chính mình trong thành viên phòng (isRepresentative = true)
+  getRoomMembers: () => api.get('/me/room-members'),
+  // → data: hồ sơ cư dân kèm email, cccdFrontUrl, cccdBackUrl
+  getOccupant: (id) => api.get(`/occupants/${id}`),
+  updateOccupant: (id, data) => api.put(`/occupants/${id}`, data),
 };
 
 export default authApi;
