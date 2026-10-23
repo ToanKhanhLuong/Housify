@@ -229,3 +229,41 @@ Response 200:
   "cccd": "..."                                     // chỉ Customer
 } }
 Lỗi: 401 token sai, hết hạn, hoặc tài khoản vừa bị khóa → FE tự đăng xuất
+
+
+
+## Helper dùng chung (BE gọi trong service)
+
+Tạo chuông và ghi nhật ký **chỉ qua 2 helper này**, không tự insert vào `notifications` / `audit_logs`. Đang trong `withTransaction` thì truyền `session` làm tham số thứ 2.
+
+### notify – tạo thông báo chuông (không gửi mail; cần mail thì tự gọi `sendMail` sau khi lưu xong)
+
+```js
+import { notify } from '../../helpers/notify.js';
+import { NOTIFICATION_TYPE } from '../../constants/enums.js';
+
+await notify({
+    userIds: building.managerId,          // 1 id hoặc mảng id người nhận
+    type: NOTIFICATION_TYPE.ANNOUNCEMENT, // xem bảng NOTIFICATION_TYPE trong housify-database.md
+    title: 'Nội quy mới',
+    message: `Tòa ${building.name} vừa cập nhật nội quy`,
+    refId: building._id,                  // id bản ghi liên quan để FE mở đúng trang; không có thì bỏ
+    createdBy: request.user.id,           // hệ thống tự tạo thì bỏ
+}, session);
+```
+
+### audit – ghi nhật ký thao tác
+
+```js
+import { audit } from '../../helpers/audit.js';
+import { AUDIT_ACTION } from '../../constants/enums.js';
+
+await audit({
+    actorId: request.user.id,        // hệ thống tự chạy thì bỏ
+    action: AUDIT_ACTION.LOCK_USER,  // xem bảng AUDIT_ACTION trong housify-database.md
+    targetType: 'users',             // tên collection bị tác động
+    targetId: user._id,
+    reason: 'Vi phạm quy định',      // bắt buộc khi LOCK_USER
+    metadata: { before, after },     // tùy chọn
+}, session);
+```
