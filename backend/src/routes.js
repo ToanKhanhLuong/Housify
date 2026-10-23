@@ -12,7 +12,7 @@ import authRoutes from './modules/auth/auth.routes.js';                     // A
 // import roomRoutes from './modules/room/room.routes.js';                     // Toàn  | UC-16..19
 // import roomTypeRoutes from './modules/roomType/roomType.routes.js';         // Toàn  | UC-20
 // import serviceRoutes from './modules/service/service.routes.js';            // Toàn  | UC-21, 22
-// import uploadRoutes from './modules/upload/upload.routes.js';               // Toàn  | Cloudinary
+import uploadRoutes from './modules/upload/upload.routes.js';               // Toàn  | Cloudinary
 
 // --- Iteration 2 ---
 // import contractRoutes from './modules/contract/contract.routes.js';         // An    | UC-24..27, 46 (UC-45 thêm ở iter 3)
@@ -39,7 +39,7 @@ router.use(authRoutes);
 // router.use(roomRoutes);
 // router.use(roomTypeRoutes);
 // router.use(serviceRoutes);
-// router.use(uploadRoutes);
+router.use(uploadRoutes);
 
 // --- Iteration 2 ---
 // router.use(contractRoutes);

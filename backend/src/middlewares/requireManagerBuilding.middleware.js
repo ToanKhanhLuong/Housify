@@ -1,6 +1,6 @@
 import { ROLE } from '../constants/enums.js';
 import { AppError } from '../utils/AppError.js';
-import Building from '../models/building.model.js';
+import Building from '../models/Building.js';
 
 /**
  * Chặn Manager thao tác trên tòa nhà không thuộc quyền quản lý.
