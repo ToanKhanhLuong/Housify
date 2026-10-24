@@ -4,6 +4,7 @@ import { Alert, Button, Card, Form, Spinner } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import Input from '../../components/Input';
+import PasswordInput from '../../components/PasswordInput';
 import { useAuth } from '../../context/AuthContext';
 import { hasErrors, toFieldErrors } from '../../utils/formErrors';
 import authApi from './auth.api';
@@ -65,10 +66,9 @@ const LoginPage = () => {
             autoFocus
             required
           />
-          <Input
+          <PasswordInput
             label="Mật khẩu"
             name="password"
-            type="password"
             placeholder="Nhập mật khẩu"
             value={form.password}
             onChange={handleChange}
