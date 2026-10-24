@@ -4,7 +4,7 @@ import { Button, Card, Form, Spinner } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import PageHeader from '../../components/PageHeader';
-import PasswordInput from '../../components/PasswordInput';
+import Input from '../../components/Input';
 import { hasErrors, toFieldErrors } from '../../utils/formErrors';
 import authApi from './auth.api';
 import { validateChangePassword } from './auth.validate';
@@ -50,18 +50,20 @@ const ChangePasswordPage = () => {
       <Card className="max-w-xl">
         <Card.Body className="p-4">
           <Form onSubmit={handleSubmit} noValidate>
-            <PasswordInput
+            <Input
               label="Mật khẩu hiện tại"
               name="currentPassword"
+              type="password"
               value={form.currentPassword}
               onChange={handleChange}
               error={errors.currentPassword}
               autoComplete="current-password"
               required
             />
-            <PasswordInput
+            <Input
               label="Mật khẩu mới"
               name="newPassword"
+              type="password"
               value={form.newPassword}
               onChange={handleChange}
               error={errors.newPassword}
@@ -69,9 +71,10 @@ const ChangePasswordPage = () => {
               autoComplete="new-password"
               required
             />
-            <PasswordInput
+            <Input
               label="Xác nhận mật khẩu mới"
               name="confirmPassword"
+              type="password"
               value={form.confirmPassword}
               onChange={handleChange}
               error={errors.confirmPassword}
