@@ -12,7 +12,6 @@ import FieldRow from '../components/FieldRow';
 import Pager from '../components/Pager';
 import MoneyText from '../components/MoneyText';
 import Input from '../components/Input';
-import PasswordInput from '../components/PasswordInput';
 import Select from '../components/Select';
 import ConfirmModal from '../components/ConfirmModal';
 import ImageUpload from '../components/ImageUpload';
@@ -166,7 +165,7 @@ const UiKitPage = () => {
                 </Col>
 
                 <Col lg={6}>
-                    <Section title="Ô nhập (Input, PasswordInput, Select)">
+                    <Section title="Ô nhập (Input, Select)">
                         <Row>
                             <Col md={6}>
                                 <Input label="Họ tên" name="name" placeholder="Nguyễn Văn A" required />
@@ -183,15 +182,6 @@ const UiKitPage = () => {
                             </Col>
                             <Col md={6}>
                                 <Input label="Email (chỉ xem)" name="email" value="manager@housify.vn" disabled readOnly />
-                            </Col>
-                            <Col md={6}>
-                                <PasswordInput
-                                    label="Mật khẩu"
-                                    name="password"
-                                    defaultValue="Housify123"
-                                    helpText="Bấm con mắt để ẩn/hiện"
-                                    required
-                                />
                             </Col>
                             <Col md={6}>
                                 <Select
