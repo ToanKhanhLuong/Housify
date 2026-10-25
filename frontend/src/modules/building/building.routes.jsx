@@ -1,5 +1,11 @@
-// Route của module building. path gốc lấy đúng theo constants/menus.js, cách khai báo xem routes/index.jsx
-// Ví dụ: { path: '/rooms', element: <RoomListPage />, roles: [ROLE.ADMIN, ROLE.MANAGER] }
-const buildingRoutes = [];
+// Route của module building: tòa nhà, tầng, nội quy (UC-12..15, 23) phía Admin
+import { ROLE } from '../../constants/enums';
+import BuildingListPage from './BuildingListPage';
+import BuildingDetailPage from './BuildingDetailPage';
+
+const buildingRoutes = [
+  { path: '/buildings', element: <BuildingListPage />, roles: [ROLE.ADMIN] },
+  { path: '/buildings/:id', element: <BuildingDetailPage />, roles: [ROLE.ADMIN] },
+];
 
 export default buildingRoutes;
