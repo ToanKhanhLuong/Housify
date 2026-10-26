@@ -24,4 +24,9 @@ export const changePasswordSchema = Joi.object({
         'string.pattern.base': 'Mật khẩu tối thiểu 6 ký tự, có chữ và số',
         'any.required': 'Vui lòng nhập mật khẩu mới',
     }),
+    confirmPassword: Joi.string().empty('').valid(Joi.ref('newPassword')).required().messages({
+        'string.empty': 'Vui lòng xác nhận mật khẩu',
+        'any.only': 'Xác nhận mật khẩu không khớp',
+        'any.required': 'Vui lòng xác nhận mật khẩu',
+    }),
 });

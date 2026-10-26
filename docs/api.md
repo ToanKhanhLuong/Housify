@@ -28,7 +28,7 @@ Sửa endpoint thì sửa ở đây trước, báo nhóm. Field gửi lên / tr�
 | --------- | ------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | POST      | `/auth/login`           | —    | `{ identifier, password, remember }` – identifier là email (Admin/Manager) hoặc CCCD (Customer)                                                                                                                                                                                                   |
 | GET       | `/auth/me`              | A M C |                                                                                                                                                                                                                                                                                                        |
-| PUT       | `/auth/change-password` | A M C | `{ currentPassword, newPassword }`. Lỗi: 400 "Mật khẩu hiện tại không đúng"; 400 "Mật khẩu mới không được trùng mật khẩu hiện tại"; 422 sai định dạng                                                                                                                                                                                                                                                           |
+| PUT       | `/auth/change-password` | A M C | `{ currentPassword, newPassword, confirmPassword }` – `confirmPassword` phải khớp `newPassword`. Lỗi: 400 "Mật khẩu hiện tại không đúng"; 400 "Mật khẩu mới không được trùng mật khẩu hiện tại"; 422 "Xác nhận mật khẩu không khớp"; 422 sai định dạng           |
 | POST      | `/auth/forgot-password` | —    | `{ email }` – luôn trả cùng một câu (BR-008)                                                                                                                                                                                                                                                   |
 | POST      | `/auth/verify-otp`      | —    | `{ email, otp }` → `{ resetToken }`                                                                                                                                                                                                                                                               |
 | POST      | `/auth/reset-password`  | —    | `{ resetToken, newPassword }`                                                                                                                                                                                                                                                                        |
@@ -229,8 +229,6 @@ Response 200:
   "cccd": "..."                                     // chỉ Customer
 } }
 Lỗi: 401 token sai, hết hạn, hoặc tài khoản vừa bị khóa → FE tự đăng xuất
-
-
 
 ## Helper dùng chung (BE gọi trong service)
 
