@@ -20,7 +20,6 @@ const ForgotPasswordPage = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(STEP.EMAIL);
   const [form, setForm] = useState({ email: '', otp: '', newPassword: '', confirmPassword: '' });
-  const [resetToken, setResetToken] = useState('');
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [resending, setResending] = useState(false);
@@ -68,7 +67,7 @@ const ForgotPasswordPage = () => {
     }
   };
 
-  // Bước 2: xác thực OTP, BE trả resetToken để dùng ở bước 3
+  // Bước 2: xác thực OTP. Đúng thì sang bước 3, BE không trả token; FE giữ email + otp để gửi ở bước 3
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
     const clientErrors = validateOtp(form);
@@ -77,8 +76,7 @@ const ForgotPasswordPage = () => {
 
     setSubmitting(true);
     try {
-      const res = await authApi.verifyOtp({ email: form.email, otp: form.otp });
-      setResetToken(res.data.resetToken);
+      await authApi.verifyOtp({ email: form.email, otp: form.otp });
       setStep(STEP.PASSWORD);
     } catch (err) {
       showError(err);
@@ -96,7 +94,13 @@ const ForgotPasswordPage = () => {
 
     setSubmitting(true);
     try {
-      await authApi.resetPassword({ resetToken, newPassword: form.newPassword });
+      // BE kiểm lại email + OTP rồi mới đổi mật khẩu
+      await authApi.resetPassword({
+        email: form.email,
+        otp: form.otp,
+        newPassword: form.newPassword,
+        confirmPassword: form.confirmPassword,
+      });
       toast.success('Đặt lại mật khẩu thành công. Vui lòng đăng nhập lại');
       navigate('/login', { replace: true });
     } catch (err) {
@@ -186,7 +190,7 @@ const ForgotPasswordPage = () => {
               value={form.newPassword}
               onChange={handleChange}
               error={errors.newPassword}
-              helpText="Tối thiểu 6 ký tự, có cả chữ và số"
+              helpText="Tối thiểu 6 ký tự, có chữ và số"
               size="lg"
               autoComplete="new-password"
               autoFocus

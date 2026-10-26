@@ -28,10 +28,11 @@ const ChangePasswordPage = () => {
 
     setSubmitting(true);
     try {
-      // ô xác nhận chỉ kiểm ở FE, không gửi lên
+      // BE kiểm lại cả 3 ô, kể cả xác nhận phải khớp mật khẩu mới
       await authApi.changePassword({
         currentPassword: form.currentPassword,
         newPassword: form.newPassword,
+        confirmPassword: form.confirmPassword,
       });
       toast.success('Đổi mật khẩu thành công');
       setForm(EMPTY_FORM);
@@ -67,7 +68,7 @@ const ChangePasswordPage = () => {
               value={form.newPassword}
               onChange={handleChange}
               error={errors.newPassword}
-              helpText="Tối thiểu 6 ký tự, có cả chữ và số"
+              helpText="Tối thiểu 6 ký tự, có chữ và số"
               autoComplete="new-password"
               required
             />

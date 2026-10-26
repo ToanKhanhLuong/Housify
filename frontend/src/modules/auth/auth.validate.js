@@ -6,15 +6,16 @@ const OTP_REGEX = /^\d{4}$/; // OTP 4 chữ số (UC-04)
 
 const isFutureDate = (value) => new Date(value) > new Date();
 
-// Mật khẩu mới + ô xác nhận: tối thiểu 6 ký tự, có cả chữ và số (UC-03), dùng chung cho UC-03 và UC-04
+// Mật khẩu mới + ô xác nhận: tối thiểu 6 ký tự, có chữ và số (UC-03), dùng chung cho UC-03 và UC-04
+// Câu lỗi giống hệt Joi bên BE (auth.validation.js) để FE hay BE bắt thì người dùng cũng thấy cùng một câu
 const validateNewPassword = ({ newPassword, confirmPassword }) => {
   const errors = {};
   if (!newPassword) errors.newPassword = 'Vui lòng nhập mật khẩu mới';
   else if (!PASSWORD_REGEX.test(newPassword))
-    errors.newPassword = 'Mật khẩu tối thiểu 6 ký tự, có cả chữ và số';
+    errors.newPassword = 'Mật khẩu tối thiểu 6 ký tự, có chữ và số';
 
-  if (!confirmPassword) errors.confirmPassword = 'Vui lòng xác nhận mật khẩu mới';
-  else if (confirmPassword !== newPassword) errors.confirmPassword = 'Mật khẩu xác nhận không khớp';
+  if (!confirmPassword) errors.confirmPassword = 'Vui lòng xác nhận mật khẩu';
+  else if (confirmPassword !== newPassword) errors.confirmPassword = 'Xác nhận mật khẩu không khớp';
   return errors;
 };
 

@@ -4,13 +4,13 @@ import api from '../../api/axios';
 const authApi = {
   // UC-01: { identifier, password, remember } → data: { token, user }
   login: (data) => api.post('/auth/login', data),
-  // UC-03: { currentPassword, newPassword }
+  // UC-03: { currentPassword, newPassword, confirmPassword } – sai mật khẩu hiện tại trả 400
   changePassword: (data) => api.put('/auth/change-password', data),
   // UC-04 bước 1: { email } – email có tồn tại hay không cũng trả cùng một câu
   forgotPassword: (data) => api.post('/auth/forgot-password', data),
-  // UC-04 bước 2: { email, otp } → data: { resetToken }
+  // UC-04 bước 2: { email, otp } – đúng thì chuyển bước, không trả token
   verifyOtp: (data) => api.post('/auth/verify-otp', data),
-  // UC-04 bước 3: { resetToken, newPassword }
+  // UC-04 bước 3: { email, otp, newPassword, confirmPassword }
   resetPassword: (data) => api.post('/auth/reset-password', data),
 
   // UC-05 hồ sơ Manager → data: { name, email, phone, address, dateOfBirth, cccdFrontImage, cccdBackImage, cccdFrontUrl, cccdBackUrl }
