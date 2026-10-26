@@ -156,4 +156,4 @@
 
 **Cách làm:** mỗi yêu cầu gửi lên, hệ thống đọc lại trạng thái tài khoản. Thấy không còn hoạt động thì từ chối và bắt đăng nhập lại.
 
-**Đánh đổi:** tốn thêm một lần đọc cơ sở dữ liệu cho mỗi
+**Đánh đổi:** tốn thêm một lần đọc cơ sở dữ liệu cho mỗi yêu cầu, chấp nhận được với quy mô dự án.
