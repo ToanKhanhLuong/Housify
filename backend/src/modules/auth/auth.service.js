@@ -1,14 +1,17 @@
-// Nghiệp vụ cho module auth: đăng nhập, lấy thông tin tài khoản, đổi mật khẩu (UC-01, UC-03)
+// Nghiệp vụ cho module auth: đăng nhập, lấy thông tin tài khoản, đổi mật khẩu, quên mật khẩu (UC-01, UC-03, UC-04)
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { env } from '../../config/env.js';
-import { ROLE, USER_STATUS } from '../../constants/enums.js';
+import { ROLE, USER_STATUS, TOKEN_STATUS } from '../../constants/enums.js';
 import { MSG } from '../../constants/messages.js';
 import { AppError } from '../../utils/AppError.js';
+import { sendMail } from '../../config/mail.js';
 import User from '../../models/User.js';
 import Manager from '../../models/Manager.js';
 import Occupant from '../../models/Occupant.js';
 import Building from '../../models/Building.js';
+import OtpToken from '../../models/OtpToken.js';
 
 export const getMe = async (userId) => {
     const user = await User.findById(userId);
@@ -133,4 +136,76 @@ export const changePassword = async (userId, { currentPassword, newPassword }) =
 
     user.password = await bcrypt.hash(newPassword, 10);
     await user.save();
+};
+
+// OTP chưa dùng: status trống (null hoặc không có field)
+const UNUSED_OTP = { $in: [null] };
+
+export const forgotPassword = async ({ email }) => {
+    const user = await User.findOne({ email: email.trim().toLowerCase() }).select('+password');
+
+    // BR-008, BR-021: không lộ email có tồn tại hay không; Manager chưa kích hoạt / chưa có mật khẩu thì không gửi OTP
+    const canSend = user && user.password && !(user.roleId === ROLE.MANAGER && user.status === USER_STATUS.PENDING);
+    if (canSend) {
+        // Gửi lại thì OTP cũ chưa dùng mất hiệu lực
+        await OtpToken.updateMany({ userId: user._id, status: UNUSED_OTP }, { status: TOKEN_STATUS.EXPIRED });
+
+        const otp = crypto.randomInt(0, 1000000).toString().padStart(6, '0');
+        await OtpToken.create({
+            userId: user._id,
+            otp: await bcrypt.hash(otp, 10),
+            expiresAt: new Date(Date.now() + 5 * 60 * 1000), // BR-007
+        });
+
+        const sent = await sendMail(
+            user.email,
+            'Housify - Mã OTP đặt lại mật khẩu',
+            `<p>Mã OTP đặt lại mật khẩu của bạn là: <b>${otp}</b></p>
+<p>Mã có hiệu lực trong 5 phút.</p>
+<p>Nếu không phải bạn yêu cầu, vui lòng bỏ qua email này.</p>`,
+        );
+        if (!sent) {
+            throw new AppError('Gửi email thất bại, vui lòng thử lại sau', 500);
+        }
+    }
+};
+
+const findValidOtp = async (email, otp) => {
+    const user = await User.findOne({ email: email.trim().toLowerCase() });
+    if (!user) {
+        throw new AppError('Mã OTP không đúng hoặc đã hết hạn', 400);
+    }
+
+    const otpDoc = await OtpToken.findOne({
+        userId: user._id,
+        status: UNUSED_OTP,
+        expiresAt: { $gt: new Date() },
+    }).sort({ createdAt: -1 });
+
+    const isMatch = otpDoc ? await bcrypt.compare(otp, otpDoc.otp) : false;
+    if (!isMatch) {
+        throw new AppError('Mã OTP không đúng hoặc đã hết hạn', 400);
+    }
+
+    return { user, otpDoc };
+};
+
+export const verifyOtp = async ({ email, otp }) => {
+    await findValidOtp(email, otp);
+};
+
+export const resetPassword = async ({ email, otp, newPassword }) => {
+    const { user, otpDoc } = await findValidOtp(email, otp);
+
+    const userWithPassword = await User.findById(user._id).select('+password');
+    const isSame = userWithPassword.password ? await bcrypt.compare(newPassword, userWithPassword.password) : false;
+    if (isSame) {
+        throw new AppError('Mật khẩu mới không được trùng mật khẩu hiện tại', 400);
+    }
+
+    userWithPassword.password = await bcrypt.hash(newPassword, 10);
+    await userWithPassword.save();
+
+    otpDoc.status = TOKEN_STATUS.USED;
+    await otpDoc.save();
 };

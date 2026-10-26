@@ -1,4 +1,4 @@
-// Controller cho module auth: xử lý đăng nhập và thông tin tài khoản, đổi mật khẩu (UC-01, UC-03)
+// Controller cho module auth: xử lý đăng nhập và thông tin tài khoản, đổi mật khẩu, quên mật khẩu (UC-01, UC-03, UC-04)
 import asyncHandler from '../../utils/asyncHandler.js';
 import { ok } from '../../utils/response.js';
 import { MSG } from '../../constants/messages.js';
@@ -17,4 +17,19 @@ export const getMe = asyncHandler(async (request, response) => {
 export const changePassword = asyncHandler(async (request, response) => {
     await authService.changePassword(request.user.id, request.body);
     return ok(response, null, 'Đổi mật khẩu thành công');
+});
+
+export const forgotPassword = asyncHandler(async (request, response) => {
+    await authService.forgotPassword(request.body);
+    return ok(response, null, 'Nếu email tồn tại trong hệ thống, mã OTP đã được gửi. Vui lòng kiểm tra hộp thư');
+});
+
+export const verifyOtp = asyncHandler(async (request, response) => {
+    await authService.verifyOtp(request.body);
+    return ok(response, null, 'Mã OTP hợp lệ');
+});
+
+export const resetPassword = asyncHandler(async (request, response) => {
+    await authService.resetPassword(request.body);
+    return ok(response, null, 'Đặt lại mật khẩu thành công');
 });
