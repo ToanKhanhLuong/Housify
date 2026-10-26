@@ -18,10 +18,10 @@ export const NO_BUILDING_PATHS = ['/profile', '/change-password', '/notification
 export const MENUS = {
     [ROLE.ADMIN]: [
         { label: 'Tổng quan', path: '/dashboard', icon: BiGridAlt }, // UC-07
-        { label: 'Tòa nhà', path: '/buildings', icon: BiBuildings }, // UC-12→15, 22, 23
+        { label: 'Tòa nhà', path: '/buildings', icon: BiBuildings }, // UC-12→15, 23
         { label: 'Phòng', path: '/rooms', icon: BiDoorOpen }, // UC-16→19
         { label: 'Loại phòng', path: '/room-types', icon: BiCategory }, // UC-20
-        { label: 'Dịch vụ', path: '/services', icon: BiPlug }, // UC-21
+        { label: 'Dịch vụ', path: '/services', icon: BiPlug }, // UC-21, 22 (/services/prices)
         { label: 'Quản lý Manager', path: '/managers', icon: BiIdCard }, // UC-08→11
         { label: 'Đơn chấm dứt', path: '/terminations', icon: BiXCircle }, // UC-29
         { label: 'Báo cáo', path: '/reports', icon: BiBarChartAlt2 }, // UC-48
