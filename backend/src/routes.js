@@ -1,14 +1,14 @@
 // Mount TOÀN BỘ module vào /api
 // Mỗi module tự khai báo đường dẫn đầy đủ trong <ten>.routes.js
 // Khi làm xong một module: bỏ comment ĐÚNG HAI DÒNG của module đó (import + router.use)
-import { Router } from 'express';
+import { Router } from "express";
 
 // --- Iteration 1 ---
-import authRoutes from './modules/auth/auth.routes.js';                     // An    | UC-01..05
+import authRoutes from "./modules/auth/auth.routes.js"; // An    | UC-01..05
 // import managerRoutes from './modules/manager/manager.routes.js';            // An    | UC-08..11
 // import activationRoutes from './modules/activation/activation.routes.js';   // An    | iter 1: link kích hoạt Manager (UC-08), iter 2: thêm Customer (UC-06)
 // import notificationRoutes from './modules/notification/notification.routes.js'; // An | UC-41
-// import buildingRoutes from './modules/building/building.routes.js';         // Toàn  | UC-12..15, 23
+import buildingRoutes from "./modules/building/building.routes.js"; // Toàn  | UC-12..15, 23
 // import roomRoutes from './modules/room/room.routes.js';                     // Toàn  | UC-16..19
 // import roomTypeRoutes from './modules/roomType/roomType.routes.js';         // Toàn  | UC-20
 // import serviceRoutes from './modules/service/service.routes.js';            // Toàn  | UC-21, 22
@@ -35,7 +35,7 @@ router.use(authRoutes);
 // router.use(managerRoutes);
 // router.use(activationRoutes);
 // router.use(notificationRoutes);
-// router.use(buildingRoutes);
+router.use(buildingRoutes);
 // router.use(roomRoutes);
 // router.use(roomTypeRoutes);
 // router.use(serviceRoutes);
@@ -56,5 +56,3 @@ router.use(authRoutes);
 // router.use(ocrRoutes);
 
 export default router;
-
-
