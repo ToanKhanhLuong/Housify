@@ -4,8 +4,9 @@ import { Button, Form, Modal, Spinner } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import Input from '../../../components/Input';
 import Select from '../../../components/Select';
-import { toFieldErrors } from '../../../utils/formErrors';
+import { hasErrors, toFieldErrors } from '../../../utils/formErrors';
 import serviceApi from '../service.api';
+import { validateService } from '../service.validate';
 
 // isFixed là Boolean, Select chỉ giữ chuỗi nên đổi qua lại 'true' / 'false'
 const CALC_OPTIONS = [
@@ -25,20 +26,12 @@ const ServiceFormModal = ({ service, onHide, onSaved, onDelete }) => {
 
     const handleChange = (event) => setForm({ ...form, [event.target.name]: event.target.value });
 
-    const validate = () => {
-        const nextErrors = {};
-        if (!form.name.trim()) nextErrors.name = 'Vui lòng nhập tên dịch vụ';
-        if (!form.unit.trim()) nextErrors.unit = 'Vui lòng nhập đơn vị tính';
-        if (!form.isFixed) nextErrors.isFixed = 'Vui lòng chọn cách tính';
-        return nextErrors;
-    };
-
     const handleSubmit = async (event) => {
         event.preventDefault();
         // kiểm tra nhanh ở FE để người dùng thấy lỗi ngay; BE vẫn kiểm tra lại
-        const nextErrors = validate();
-        setErrors(nextErrors);
-        if (Object.keys(nextErrors).length > 0) return;
+        const clientErrors = validateService(form);
+        setErrors(clientErrors);
+        if (hasErrors(clientErrors)) return;
 
         const data = {
             name: form.name.trim(),
