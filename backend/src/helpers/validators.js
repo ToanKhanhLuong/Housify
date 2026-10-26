@@ -6,5 +6,8 @@ export const PHONE_REGEX = /^0[0-9]{9}$/;
 // CCCD: 12 chữ số
 export const CCCD_REGEX = /^[0-9]{12}$/;
 
+// Mật khẩu: tối thiểu 6 ký tự, có ít nhất 1 chữ cái và 1 chữ số (BR-005)
+export const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).{6,}$/;
+
 export const isPhone = (v) => PHONE_REGEX.test(v);
 export const isCccd = (v) => CCCD_REGEX.test(v);

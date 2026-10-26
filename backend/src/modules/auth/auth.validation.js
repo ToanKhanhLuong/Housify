@@ -1,5 +1,6 @@
-// Validation schema cho module auth (UC-01)
+// Validation schema cho module auth (UC-01, UC-03)
 import Joi from 'joi';
+import { PASSWORD_REGEX } from '../../helpers/validators.js';
 
 export const loginSchema = Joi.object({
     identifier: Joi.string().trim().required().messages({
@@ -11,4 +12,16 @@ export const loginSchema = Joi.object({
         'any.required': 'Vui lòng nhập mật khẩu',
     }),
     remember: Joi.boolean().default(false),
+});
+
+export const changePasswordSchema = Joi.object({
+    currentPassword: Joi.string().required().messages({
+        'string.empty': 'Vui lòng nhập mật khẩu hiện tại',
+        'any.required': 'Vui lòng nhập mật khẩu hiện tại',
+    }),
+    newPassword: Joi.string().pattern(PASSWORD_REGEX).required().messages({
+        'string.empty': 'Vui lòng nhập mật khẩu mới',
+        'string.pattern.base': 'Mật khẩu tối thiểu 6 ký tự, có chữ và số',
+        'any.required': 'Vui lòng nhập mật khẩu mới',
+    }),
 });

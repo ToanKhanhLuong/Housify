@@ -1,4 +1,4 @@
-// Nghiệp vụ cho module auth: đăng nhập và lấy thông tin tài khoản (UC-01)
+// Nghiệp vụ cho module auth: đăng nhập, lấy thông tin tài khoản, đổi mật khẩu (UC-01, UC-03)
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { env } from '../../config/env.js';
@@ -112,4 +112,25 @@ export const login = async ({ identifier, password, remember = false }) => {
         token,
         user: me,
     };
+};
+
+export const changePassword = async (userId, { currentPassword, newPassword }) => {
+    const user = await User.findById(userId).select('+password');
+    if (!user) {
+        throw new AppError(MSG.NOT_FOUND('Tài khoản'), 404);
+    }
+
+    const isMatch = user.password ? await bcrypt.compare(currentPassword, user.password) : false;
+    if (!isMatch) {
+        throw new AppError('Mật khẩu hiện tại không đúng', 400);
+    }
+
+    // BR-006: mật khẩu mới không được trùng mật khẩu hiện tại
+    const isSame = await bcrypt.compare(newPassword, user.password);
+    if (isSame) {
+        throw new AppError('Mật khẩu mới không được trùng mật khẩu hiện tại', 400);
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
 };
