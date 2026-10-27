@@ -1,4 +1,4 @@
-// Tạo dữ liệu khởi tạo: 3 vai trò, tài khoản admin và 1 Manager test. Chạy: npm run seed
+// Tạo dữ liệu khởi tạo: 3 vai trò, tài khoản admin, 1 Manager test và thông báo mẫu (UC-41). Chạy: npm run seed
 // Chạy lại nhiều lần an toàn, thứ gì đã có thì bỏ qua.
 // Quy ước: chỉ leader chạy seed lên DB chung, cả nhóm dùng chung dữ liệu này. Thành viên khác không tự chạy.
 import 'dotenv/config';
@@ -7,14 +7,17 @@ import crypto from 'crypto';
 
 import { CONNECT_DB, CLOSE_DB } from '../config/db.js';
 import { env } from '../config/env.js';
-import { ROLE, USER_STATUS, ACTIVATION_TYPE, TOKEN_STATUS, AUDIT_ACTION } from '../constants/enums.js';
+import { ROLE, USER_STATUS, ACTIVATION_TYPE, TOKEN_STATUS, AUDIT_ACTION, NOTIFICATION_TYPE } from '../constants/enums.js';
 import { withTransaction } from '../helpers/withTransaction.js';
+import { notify } from '../helpers/notify.js';
 import Role from '../models/Role.js';
 import User from '../models/User.js';
 import Manager from '../models/Manager.js';
 import Building from '../models/Building.js';
 import ActivationToken from '../models/ActivationToken.js';
 import AuditLog from '../models/AuditLog.js';
+import Occupant from '../models/Occupant.js';
+import Notification from '../models/Notification.js';
 
 const seedRoles = async () => {
     const roles = [
@@ -154,12 +157,157 @@ const seedManager = async () => {
     });
 };
 
+// Thông báo mẫu cho chuông (UC-41): tạo qua notify(), lần lượt từng cái để createdAt khác nhau (cũ → mới)
+const NOTIFY_ADMIN_EMAIL = 'admin@housify.vn';
+const NOTIFY_CUSTOMER_CCCD = '031204005476';
+
+const CUSTOMER_NOTIFICATIONS = [
+    {
+        type: NOTIFICATION_TYPE.ANNOUNCEMENT,
+        title: 'Chào mừng đến Tòa Test',
+        message: 'Chào mừng bạn nhận phòng 101. Vui lòng đọc kỹ nội quy tòa nhà trước khi vào ở.',
+    },
+    {
+        type: NOTIFICATION_TYPE.ANNOUNCEMENT,
+        title: 'Lịch thu gom rác',
+        message: 'Rác sinh hoạt được thu gom lúc 19h hằng ngày tại khu vực tầng 1. Vui lòng phân loại rác trước khi bỏ.',
+    },
+    {
+        type: NOTIFICATION_TYPE.INCIDENT_UPDATE,
+        title: 'Sự cố đã được tiếp nhận',
+        message: 'Báo cáo "Vòi nước bồn rửa bị rò rỉ" của phòng 101 đã được quản lý tiếp nhận.',
+    },
+    {
+        type: NOTIFICATION_TYPE.INCIDENT_UPDATE,
+        title: 'Sự cố đang được xử lý',
+        message: 'Kỹ thuật viên sẽ đến kiểm tra vòi nước phòng 101 trong hôm nay.',
+    },
+    {
+        type: NOTIFICATION_TYPE.INCIDENT_UPDATE,
+        title: 'Sự cố đã được giải quyết',
+        message: 'Sự cố "Vòi nước bồn rửa bị rò rỉ" của phòng 101 đã được giải quyết. Nếu còn vấn đề, vui lòng báo lại.',
+    },
+    {
+        type: NOTIFICATION_TYPE.INVOICE_SENT,
+        title: 'Có hóa đơn mới',
+        message: 'Hóa đơn tiền phòng và dịch vụ của phòng 101 đã được gửi. Vui lòng thanh toán trước hạn.',
+    },
+    {
+        type: NOTIFICATION_TYPE.PAYMENT_REMINDER,
+        title: 'Nhắc thanh toán hóa đơn',
+        message: 'Hóa đơn của phòng 101 còn 3 ngày nữa là đến hạn thanh toán.',
+    },
+    {
+        type: NOTIFICATION_TYPE.ANNOUNCEMENT,
+        title: 'Tạm ngưng cấp nước',
+        message: 'Tòa Test tạm ngưng cấp nước từ 8h đến 11h sáng Chủ nhật để vệ sinh bể chứa.',
+    },
+    {
+        type: NOTIFICATION_TYPE.PAYMENT_REMINDER,
+        title: 'Hóa đơn sắp đến hạn',
+        message: 'Hóa đơn của phòng 101 sẽ đến hạn thanh toán vào ngày mai.',
+    },
+    {
+        type: NOTIFICATION_TYPE.CONTRACT_RENEWED,
+        title: 'Hợp đồng đã được gia hạn',
+        message: 'Hợp đồng thuê phòng 101 của bạn đã được gia hạn. Xem chi tiết trong mục Hợp đồng.',
+    },
+    {
+        type: NOTIFICATION_TYPE.ANNOUNCEMENT,
+        title: 'Phun thuốc diệt muỗi',
+        message: 'Tòa Test phun thuốc diệt muỗi vào chiều thứ Bảy. Vui lòng đóng cửa sổ và cất đồ ăn.',
+    },
+    {
+        type: NOTIFICATION_TYPE.INVOICE_SENT,
+        title: 'Có hóa đơn mới',
+        message: 'Hóa đơn phát sinh sửa chữa của phòng 101 đã được gửi. Vui lòng thanh toán trước hạn.',
+    },
+];
+
+const seedNotificationsFor = async (label, userId, notifications) => {
+    if (!userId) {
+        console.warn(`Cảnh báo: không tìm thấy ${label}, bỏ qua thông báo mẫu`);
+        return false;
+    }
+
+    const existed = await Notification.exists({ userId });
+    if (existed) {
+        console.log(`${label} đã có thông báo, bỏ qua`);
+        return false;
+    }
+
+    for (const notification of notifications) {
+        await notify({ userIds: userId, ...notification });
+    }
+    console.log(`Đã tạo ${notifications.length} thông báo cho ${label}`);
+    return true;
+};
+
+const seedNotifications = async () => {
+    const admin = await User.findOne({ email: NOTIFY_ADMIN_EMAIL, roleId: ROLE.ADMIN });
+    const manager = await User.findOne({ email: MANAGER_EMAIL, roleId: ROLE.MANAGER });
+    const representative = await Occupant.findOne({ cccd: NOTIFY_CUSTOMER_CCCD, isRepresentative: true }).sort({ createdAt: -1 });
+    const building = await Building.findOne({ name: MANAGER_BUILDING, isDeleted: false });
+    if (!building) {
+        console.warn(`Cảnh báo: không tìm thấy ${MANAGER_BUILDING}, thông báo của Manager để trống refId`);
+    }
+
+    // Customer: 12 cái để test trang 2, sau đó 4 cái cũ nhất là đã đọc
+    const customerCreated = await seedNotificationsFor(
+        `Customer (CCCD ${NOTIFY_CUSTOMER_CCCD})`,
+        representative?.userId,
+        CUSTOMER_NOTIFICATIONS,
+    );
+    if (customerCreated) {
+        const oldest = await Notification.find({ userId: representative.userId })
+            .sort({ createdAt: 1 })
+            .limit(4)
+            .select('_id');
+        await Notification.updateMany({ _id: { $in: oldest.map((item) => item._id) } }, { isRead: true });
+        console.log('Đã đánh dấu 4 thông báo cũ nhất của Customer là đã đọc');
+    }
+
+    await seedNotificationsFor(`Manager (${MANAGER_EMAIL})`, manager?._id, [
+        {
+            type: NOTIFICATION_TYPE.MANAGER_ASSIGNED,
+            title: 'Bạn được phân công quản lý tòa',
+            message: `Admin đã phân công bạn quản lý ${MANAGER_BUILDING}.`,
+            refId: building?._id,
+        },
+        {
+            type: NOTIFICATION_TYPE.ANNOUNCEMENT,
+            title: 'Nội quy mới',
+            message: `Tòa ${MANAGER_BUILDING} vừa cập nhật nội quy`,
+            refId: building?._id,
+        },
+        {
+            type: NOTIFICATION_TYPE.INCIDENT_UPDATE,
+            title: 'Có sự cố mới',
+            message: 'Phòng 101 vừa báo sự cố "Vòi nước bồn rửa bị rò rỉ".',
+        },
+    ]);
+
+    await seedNotificationsFor(`Admin (${NOTIFY_ADMIN_EMAIL})`, admin?._id, [
+        {
+            type: NOTIFICATION_TYPE.PAYMENT_SUCCESS,
+            title: 'Thanh toán thành công',
+            message: `Phòng 101 - ${MANAGER_BUILDING} vừa thanh toán hóa đơn qua chuyển khoản.`,
+        },
+        {
+            type: NOTIFICATION_TYPE.TERMINATION_REQUEST,
+            title: 'Có đơn chấm dứt hợp đồng chờ duyệt',
+            message: 'Có một đơn chấm dứt hợp đồng đơn phương đang chờ bạn duyệt.',
+        },
+    ]);
+};
+
 CONNECT_DB()
     .then(async () => {
         console.log('Connected to MongoDB');
         await seedRoles();
         await seedAdmin();
         await seedManager();
+        await seedNotifications();
         await CLOSE_DB();
         process.exit(0);
     })

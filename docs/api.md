@@ -105,10 +105,17 @@ Link trong email (BE ghép link, FE khai báo route khớp theo):
 
 | Method | Path                                                       | Role  | Ghi chú                                          |
 | ------ | ---------------------------------------------------------- | ----- | ------------------------------------------------- |
-| GET    | `/notifications`                                         | A M C | `?unread=true`                                  |
-| GET    | `/notifications/unread-count`                            | A M C |                                                   |
-| PATCH  | `/notifications/:id/read` · `/notifications/read-all` | A M C |                                                   |
+| GET    | `/notifications`                                         | A M C | Chỉ thông báo của chính mình, mới nhất trước. `?page=1&limit=10&unread=true` – `page` số nguyên ≥ 1 (mặc định 1), `limit` 1–50 (mặc định 10), `unread=true` chỉ lấy chưa đọc (mặc định lấy tất cả). Trả `{ items, total, page, limit }`, mỗi item `{ _id, type, title, message, refId, isRead, createdAt }` (`refId` null nếu không gắn bản ghi). Không có thông báo → `items` rỗng, `total` 0. Lỗi: 422 sai query |
+| GET    | `/notifications/unread-count`                            | A M C | → `{ count }` số thông báo chưa đọc của mình |
+| PATCH  | `/notifications/:id/read` · `/notifications/read-all` | A M C | `:id/read` → data là thông báo đó (cùng dạng 1 item ở danh sách); đã đọc rồi gọi lại vẫn 200. Lỗi: 404 "Không tìm thấy thông báo" (không tồn tại, sai id hoặc của người khác). `read-all` → `{ updated }` số thông báo vừa đánh dấu, không còn cái nào chưa đọc thì `updated` = 0 |
 | POST   | `/announcements`                                         | M     | `{ title, message, target: 'ALL' \| roomIds[] }` |
+
+**Gợi ý cho FE (chuông):**
+
+- Chỉ gọi `unread-count` mỗi 30 giây để cập nhật số đỏ.
+- Tạm dừng khi tab trình duyệt bị ẩn, gọi ngay khi người dùng quay lại tab.
+- Chỉ tải danh sách khi người dùng mở chuông (dropdown dùng `?limit=5`).
+- Bấm 1 thông báo: gọi `:id/read` rồi chuyển trang theo `type` + `refId`.
 
 ## Hợp đồng – `contract` (UC-24..27, 45, 46)
 
