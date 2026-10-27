@@ -38,11 +38,54 @@ const mockRemove = (id) => {
     return fake(null);
 };
 
+// UC-22. Hình dạng response chưa ghi trong api.md, đang tạm theo docs/database.md:
+//   tòa: mảng buildings (giống dữ liệu giả của module building)
+//   mức giá: [{ _id, serviceId, buildingId, unitPrice, effectiveFrom }]
+const mockBuildings = [
+    { _id: 'b1', name: 'Housify Cầu Giấy' },
+    { _id: 'b2', name: 'Housify Thanh Xuân' },
+];
+let mockPrices = [
+    { _id: 'p1', serviceId: '1', buildingId: 'b1', unitPrice: 3500, effectiveFrom: '2026-01-01' },
+    { _id: 'p2', serviceId: '1', buildingId: 'b1', unitPrice: 4000, effectiveFrom: '2026-11-01' },
+    { _id: 'p3', serviceId: '2', buildingId: 'b1', unitPrice: 25000, effectiveFrom: '2026-01-01' },
+    { _id: 'p4', serviceId: '3', buildingId: 'b1', unitPrice: 100000, effectiveFrom: '2026-01-01' },
+];
+
+// giả lập BE: trùng ngày bắt đầu với mức đã có thì sửa mức đó, không tạo mới (UC-22 A1)
+const mockSavePrice = (buildingId, data) => {
+    const existed = mockPrices.find(
+        (price) =>
+            price.buildingId === buildingId &&
+            price.serviceId === data.serviceId &&
+            price.effectiveFrom === data.effectiveFrom,
+    );
+    if (existed) {
+        const updated = { ...existed, unitPrice: data.unitPrice };
+        mockPrices = mockPrices.map((price) => (price === existed ? updated : price));
+        return fake(updated);
+    }
+    const price = { _id: String(Date.now()), buildingId, ...data };
+    mockPrices = [...mockPrices, price];
+    return fake(price);
+};
+
 const serviceApi = {
     list: () => (MOCK ? fake(mockServices) : api.get('/services')),
     create: (data) => (MOCK ? mockCreate(data) : api.post('/services', data)),
     update: (id, data) => (MOCK ? mockUpdate(id, data) : api.put(`/services/${id}`, data)),
     remove: (id) => (MOCK ? mockRemove(id) : api.delete(`/services/${id}`)),
+
+    // UC-22: danh sách tòa để chọn, lịch sử giá của một tòa, thêm / sửa một mức giá
+    listBuildings: () => (MOCK ? fake(mockBuildings) : api.get('/buildings')),
+    listPrices: (buildingId) =>
+        MOCK
+            ? fake(mockPrices.filter((price) => price.buildingId === buildingId))
+            : api.get(`/buildings/${buildingId}/service-prices`),
+    savePrice: (buildingId, data) =>
+        MOCK
+            ? mockSavePrice(buildingId, data)
+            : api.post(`/buildings/${buildingId}/service-prices`, data),
 };
 
 export default serviceApi;

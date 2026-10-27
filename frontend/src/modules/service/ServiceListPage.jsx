@@ -1,6 +1,7 @@
 // UC-21: quản lý dịch vụ (Admin). Bấm dòng để sửa, xóa (xóa mềm) nằm trong form sửa
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from 'react-bootstrap';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import PageHeader from '../../components/PageHeader';
 import DataTable from '../../components/DataTable';
@@ -9,6 +10,7 @@ import serviceApi from './service.api';
 import ServiceFormModal from './components/ServiceFormModal';
 
 const ServiceListPage = () => {
+    const navigate = useNavigate();
     const [services, setServices] = useState([]);
     const [loading, setLoading] = useState(true);
     const [editing, setEditing] = useState(null); // null: đóng form · {}: thêm mới · dịch vụ: sửa
@@ -60,9 +62,15 @@ const ServiceListPage = () => {
             <PageHeader
                 title="Dịch vụ"
                 actions={
-                    <Button variant="primary" onClick={() => setEditing({})}>
-                        Thêm dịch vụ
-                    </Button>
+                    <>
+                        <Button variant="primary" onClick={() => setEditing({})}>
+                            Thêm dịch vụ
+                        </Button>
+                        {/* UC-22 */}
+                        <Button variant="secondary" onClick={() => navigate('/services/prices')}>
+                            Giá dịch vụ
+                        </Button>
+                    </>
                 }
             />
 
