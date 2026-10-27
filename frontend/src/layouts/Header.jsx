@@ -2,12 +2,13 @@
 import { useState } from 'react';
 import { Button, Dropdown } from 'react-bootstrap';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { BiBell, BiKey, BiLogOut, BiMenu, BiUser } from 'react-icons/bi';
+import { BiKey, BiLogOut, BiMenu, BiUser } from 'react-icons/bi';
 import { useAuth } from '../context/AuthContext';
 import { ROLE } from '../constants/enums';
 import { MENUS } from '../constants/menus';
 import { ROLE_LABEL } from '../constants/statusLabels';
 import ConfirmModal from '../components/ConfirmModal';
+import NotificationBell from '../modules/notification/components/NotificationBell';
 
 // chữ cái đầu của tên gọi (chữ cuối trong họ tên): "Trần Văn Tùng" → "T"
 const initialOf = (name = '') => name.trim().split(/\s+/).pop()?.[0]?.toUpperCase() ?? '?';
@@ -43,10 +44,8 @@ const Header = ({ onToggleMenu }) => {
             <span className="fw-semibold">{current?.label}</span>
 
             <div className="flex items-center gap-3 ms-auto">
-                {/* tạm thời: module notification (UC-41) thay bằng NotificationBell có số chưa đọc */}
-                <Link to="/notifications" className="text-secondary flex" aria-label="Thông báo">
-                    <BiBell size={20} />
-                </Link>
+                {/* UC-41: chuông có số thông báo chưa đọc */}
+                <NotificationBell />
                 <div className="vr" />
                 <Dropdown align="end">
                     <Dropdown.Toggle

@@ -1,5 +1,13 @@
-// Route của module notification. path gốc lấy đúng theo constants/menus.js, cách khai báo xem routes/index.jsx
-// Ví dụ: { path: '/rooms', element: <RoomListPage />, roles: [ROLE.ADMIN, ROLE.MANAGER] }
-const notificationRoutes = [];
+// Route của module notification: UC-41 xem thông báo (cả 3 role)
+import { ROLE } from '../../constants/enums';
+import NotificationsPage from './NotificationsPage';
+
+const notificationRoutes = [
+    {
+        path: '/notifications',
+        element: <NotificationsPage />,
+        roles: [ROLE.ADMIN, ROLE.MANAGER, ROLE.CUSTOMER],
+    },
+];
 
 export default notificationRoutes;
