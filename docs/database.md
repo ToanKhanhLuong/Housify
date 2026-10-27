@@ -1,8 +1,8 @@
 # Cơ sở dữ liệu Housify – 18 collection
 
-Nguồn: ERD nhóm vẽ trên drawdb (bản 14-10-2026). Chỗ nào ERD lệch Use Case thì **theo Use Case** – field / giá trị thêm vào đánh dấu **(bổ sung)**, xem mục cuối.
+Nguồn: ERD nhóm vẽ trên drawdb (bản 14-10-2026), cập nhật 20-10-2026. Chỗ nào ERD lệch Use Case thì **theo Use Case** – field / giá trị thêm vào đánh dấu **(bổ sung)**, xem mục cuối.
 Sơ đồ: `docs/housify-erd.puml` (ảnh `docs/housify-erd.png`).
-Đây là **nguồn chuẩn** cho model. Muốn thêm collection / field / giá trị enum: hỏi nhóm và sửa file này trước, rồi mới sửa code.
+Đây là **nguồn chuẩn** cho model. Muốn thêm collection / field / giá trị enum: hỏi nhóm và sửa file này trước, rồi mới sửa code. **Hạn chế thêm field** – collection đã gần như chốt.
 
 ## Quy ước
 
@@ -11,7 +11,8 @@ Sơ đồ: `docs/housify-erd.puml` (ảnh `docs/housify-erd.png`).
 - Cách đọc: `tên: Kiểu – giải thích`. Dấu `?` sau tên = không bắt buộc (được để trống). `→ x` = ObjectId tham chiếu collection `x`.
 - Giá trị enum lưu **CHỮ IN HOA**, khai báo một lần trong `backend/src/constants/enums.js` (tên hằng ghi trong ngoặc, ví dụ `(USER_STATUS)`).
 - Hằng số cấu hình (STK Admin, số ngày hạn hóa đơn, mốc nhắc) để ở `.env` / `src/constants`, **không lưu DB**.
-- Xóa mềm: `buildings`, `rooms` có `isDeleted` + `deletedAt` (BR-040, BR-049); `room_types`, `services` chỉ có `isDeleted`. Mọi truy vấn danh sách phải lọc `isDeleted: false`.
+- Xóa mềm: `buildings`, `rooms` có `isDeleted` + `deletedAt` (BR-040, BR-049); `room_types`, `services` chỉ có `isDeleted`. Mọi truy vấn danh sách phải lọc `isDeleted: false`. Tên / mã của bản ghi đã xóa mềm **được dùng lại** (unique dạng partial).
+- Ảnh lưu trên **Cloudinary**, DB chỉ lưu chuỗi. Ảnh công khai (tòa, phòng, sự cố) lưu **đường dẫn**. Ảnh CCCD là ảnh **bảo vệ**, lưu **mã ảnh (publicId)**, chỉ tạo link xem khi người có quyền mở hồ sơ.
 - Các giá trị **tính ra, không lưu**: quá hạn hóa đơn (từ `dueDate`), đúng hạn / quá hạn thanh toán (`paidAt` so với `dueDate`), số người đang ở, "đang chờ chấm dứt", hạn tự xác nhận đơn chấm dứt (`createdAt` + 7 ngày).
 
 ---
@@ -47,27 +48,27 @@ Thuê lại (UC-24, UC-06) – CCCD đã có tài khoản: ACTIVE / LOCKED → c
 
 - `userId`: ObjectId → users, unique
 - `name`: String – họ tên
-- `phone`: String, unique – số điện thoại (BR-010)
-- `cccd?`: String, unique sparse – trống thì **không ghi field** (đừng lưu `null`, sẽ trùng unique)
-- `cccdFrontImage?`: String – đường dẫn ảnh CCCD mặt trước
-- `cccdBackImage?`: String – đường dẫn ảnh CCCD mặt sau
+- `phone`: String, unique – số điện thoại (BR-010); một số chỉ thuộc một người, kiểm tra chéo với `occupants.phone` (xem mục Chỉ mục)
+- `cccd?`: String, unique sparse – **hiện không dùng**: Manager chỉ tải ảnh CCCD, không nhập số (UC-05, UC-09). Trống thì **không ghi field** (đừng lưu `null`, sẽ trùng unique)
+- `cccdFrontImage?`: String – mã ảnh CCCD mặt trước (ảnh bảo vệ)
+- `cccdBackImage?`: String – mã ảnh CCCD mặt sau (ảnh bảo vệ)
 - `dateOfBirth?`: Date – ngày sinh
 - `address?`: String – địa chỉ
 
-Admin nhập `name`, email, `phone` (UC-08). Manager tự điền **một lần** `cccd`, 2 ảnh, `dateOfBirth`, `address` (BR-011); sau đó chỉ Admin sửa (UC-09).
+Admin nhập `name`, email, `phone` (UC-08). Manager tự điền **một lần** 2 ảnh CCCD, `dateOfBirth`, `address` (BR-011); sau đó chỉ Admin sửa (UC-09). Ảnh CCCD của Manager chỉ chính Manager đó và Admin xem được.
 
 ### 4. occupants – cư dân theo hợp đồng, mỗi người 1 hồ sơ
 
 - `contractId`: ObjectId → contracts
 - `userId?`: ObjectId → users – người đại diện có; người ở cùng để trống (BR-088)
 - `isRepresentative`: Boolean – true = người đại diện; service luôn gán rõ
-- `name`: String – họ tên
-- `phone`: String – số điện thoại
+- `name`: String – họ tên; người đại diện **tự nhập lúc kích hoạt** (UC-06), người ở cùng do Manager nhập (UC-24, UC-32)
+- `phone`: String – số điện thoại; một số chỉ thuộc một người (so theo `cccd`), cùng người thuê lại thì dùng lại được
 - `dateOfBirth`: Date – ngày sinh
 - `address?`: String – địa chỉ
 - `cccd`: String – không trùng trong 1 hợp đồng; với đại diện là định danh đăng nhập
-- `cccdFrontImage?`: String – ảnh CCCD mặt trước
-- `cccdBackImage?`: String – ảnh CCCD mặt sau
+- `cccdFrontImage?`: String – mã ảnh CCCD mặt trước (ảnh bảo vệ)
+- `cccdBackImage?`: String – mã ảnh CCCD mặt sau (ảnh bảo vệ)
 - `relationship?`: String – quan hệ với người đại diện (UC-30, UC-32) **(bổ sung)**
 - `status`: Enum `(OCCUPANT_STATUS)` – STAYED (đang ở) | LEFT (đã chuyển đi)
 - `joinDate`: Date – ngày vào ở
@@ -76,7 +77,8 @@ Admin nhập `name`, email, `phone` (UC-08). Manager tự điền **một lần*
 - Khách thuê lại → bản ghi mới, cùng `cccd`, cùng `userId`.
 - **"Đang ở"** = occupant STAYED thuộc hợp đồng ACTIVE.
 - Xóa người ở cùng (UC-33) = LEFT + `exitDate`, không xóa bản ghi.
-- Hủy hợp đồng nháp (UC-46) = **xóa hẳn** người ở cùng đã nhập kèm, vì chưa từng vào ở.
+- Hủy hợp đồng nháp (UC-46) = người ở cùng đã nhập kèm → **LEFT, giữ lại, không xóa**. Không hiện trong danh sách cư dân vì hợp đồng đã hủy.
+- Ảnh CCCD của cư dân chỉ người đại diện của phòng và Manager của tòa xem được.
 
 ### 5. otp_tokens – OTP quên mật khẩu
 
@@ -106,17 +108,19 @@ Link dùng 1 lần. Gửi lại → link cũ EXPIRED. Hủy hợp đồng DRAFT 
 
 ### 7. buildings
 
-- `name`: String, unique – tên tòa (BR-034)
+- `name`: String, unique trong các tòa chưa xóa (partial) – tên tòa (BR-034); tòa đã xóa thì tên được dùng lại
 - `address`: String – địa chỉ
 - `description?`: String – mô tả (UC-12) **(bổ sung)**
-- `images`: [String] – đường dẫn ảnh
-- `floorCount`: Number – tổng số tầng, ≥ 1; danh sách "Tầng 1..n" sinh từ số này, **không có collection tầng** (UC-15)
+- `images`: [String] – đường dẫn ảnh công khai
+- `floorCount`: Number – tổng số tầng, ≥ 1, Admin nhập lúc tạo (UC-12); danh sách "Tầng 1..n" sinh từ số này, **không có collection tầng** (UC-15)
 - `rules?`: String – nội quy, một bản, lưu đè (UC-23, BR-060)
-- `managerId?`: ObjectId → users – Manager phụ trách; unique khi có giá trị (1 Manager 1 tòa, BR-031)
+- `managerId?`: ObjectId → users – Manager phụ trách, **chỉ gán Manager ACTIVE** (UC-11); unique khi có giá trị (1 Manager 1 tòa, BR-031)
 - `isDeleted`: Boolean – mặc định false
 - `deletedAt?`: Date – lúc xóa mềm (BR-040) **(bổ sung)**
 
 Tầng (UC-15): sửa `floorCount`. Không giảm xuống dưới tầng cao nhất đang có phòng (BR-042) – vì vậy "xóa tầng" (A2) chỉ làm được với tầng trên cùng và tầng đó không có phòng.
+
+Xóa tòa (UC-14): chặn khi còn phòng có hợp đồng ACTIVE **hoặc DRAFT**, hoặc còn Manager phụ trách.
 
 ### 8. rooms
 
@@ -125,7 +129,7 @@ Tầng (UC-15): sửa `floorCount`. Không giảm xuống dưới tầng cao nh�
 - `roomTypeId`: ObjectId → room_types
 - `roomNumber`: String – mã phòng; duy nhất trong tòa (BR-043), **không sửa sau khi tạo** (BR-046)
 - `area`: Number – diện tích m²
-- `images`: [String] – đường dẫn ảnh
+- `images`: [String] – đường dẫn ảnh công khai
 - `capacity`: Number – sức chứa, ≥ 1
 - `rentPrice`: Number – giá thuê niêm yết hiện tại, > 0
 - `deposit`: Number – tiền cọc niêm yết hiện tại, > 0 (BR-045)
@@ -133,12 +137,16 @@ Tầng (UC-15): sửa `floorCount`. Không giảm xuống dưới tầng cao nh�
 - `isDeleted`: Boolean – mặc định false
 - `deletedAt?`: Date – lúc xóa mềm (BR-049) **(bổ sung)**
 
-Đổi `status`: AVAILABLE ↔ MAINTENANCE do Admin (UC-17 A2). AVAILABLE ↔ OCCUPIED **chỉ hệ thống** đổi: kích hoạt hợp đồng (UC-06); hợp đồng kết thúc (UC-28/29/45). Admin không chọn được OCCUPIED, Manager không đổi được trạng thái (BR-052).
+Đổi `status`: AVAILABLE ↔ MAINTENANCE do Admin (UC-17 A2), **không chuyển sang MAINTENANCE khi phòng đang có hợp đồng DRAFT** (Manager hủy nháp trước, UC-46). AVAILABLE ↔ OCCUPIED **chỉ hệ thống** đổi: kích hoạt hợp đồng (UC-06); hợp đồng kết thúc (UC-28/29/45). Admin không chọn được OCCUPIED, Manager không đổi được trạng thái (BR-052).
+
+Xóa phòng (UC-18): chặn khi còn hợp đồng ACTIVE **hoặc DRAFT**.
 
 ### 9. room_types – loại phòng dùng chung toàn hệ thống
 
-- `name`: String, unique – BR-053
+- `name`: String, unique trong các loại chưa xóa (partial) – BR-053; loại đã xóa thì tên được dùng lại
 - `isDeleted`: Boolean – mặc định false
+
+Xóa (UC-20): chặn khi loại đang gán cho phòng còn hoạt động (BR-054).
 
 ---
 
@@ -146,12 +154,14 @@ Tầng (UC-15): sửa `floorCount`. Không giảm xuống dưới tầng cao nh�
 
 ### 10. services – danh mục dịch vụ dùng chung
 
-- `name`: String, unique – BR-055
+- `name`: String, unique trong các dịch vụ chưa xóa (partial) – BR-055; dịch vụ đã xóa thì tên được dùng lại
 - `unit`: String – đơn vị, chỉ để hiển thị (kWh, m³, tháng, người…)
-- `isFixed`: Boolean – true: phí cố định (gửi xe, máy giặt…); false: tính theo chỉ số (điện, nước)
+- `isFixed`: Boolean – true: phí cố định (gửi xe, máy giặt…); false: tính theo chỉ số (điện, nước). Admin chọn lúc tạo (UC-21)
 - `isDeleted`: Boolean – mặc định false
 
 Trên hóa đơn: `isFixed = false` → dòng METERED, `quantity = newReading − oldReading`. `isFixed = true` → dòng FIXED, `quantity` mặc định 1, Manager sửa được khi hóa đơn còn DRAFT.
+
+Xóa (UC-21): luôn xóa mềm (BR-056). Hóa đơn đã lập giữ nguyên vì dòng tiền đã chép tên và đơn giá.
 
 ### 11. service_prices – đơn giá theo tòa, có lịch sử
 
@@ -161,7 +171,9 @@ Trên hóa đơn: `isFixed = false` → dòng METERED, `quantity = newReading �
 - `effectiveFrom`: Date – ngày bắt đầu áp dụng
 - `createdBy`: ObjectId → users – Admin đặt giá
 
-Lập hóa đơn → lấy bản ghi có `effectiveFrom` gần nhất và ≤ ngày lập (BR-057, helper `getCurrentPrice`). Cùng `effectiveFrom` → sửa bản ghi cũ, không tạo mới (UC-22 A1). Đổi giá không ảnh hưởng hóa đơn PENDING / PAID (BR-058).
+**Dịch vụ của một tòa** = các dịch vụ (chưa xóa) đã được đặt **ít nhất một mức giá** ở tòa đó. Mỗi tòa có bộ dịch vụ riêng; tòa chưa từng đặt giá cho dịch vụ nào thì hóa đơn của tòa không có dòng đó.
+
+Lập hóa đơn → lấy bản ghi có `effectiveFrom` gần nhất và ≤ ngày lập (BR-057, helper `getCurrentPrice`). Có đặt giá nhưng chưa tới ngày áp dụng → cảnh báo, cho tiếp tục với giá 0 (UC-34 E03). Cùng `effectiveFrom` → sửa bản ghi cũ, không tạo mới (UC-22 A1). Đổi giá không ảnh hưởng hóa đơn đã lập (BR-058).
 
 ---
 
@@ -185,11 +197,13 @@ Lập hóa đơn → lấy bản ghi có `effectiveFrom` gần nhất và ≤ ng
 - `depositRefundedAt?`: Date – lúc ghi nhận đã hoàn cọc (UC-45)
 - `depositRefundedBy?`: ObjectId → users – Manager ghi nhận hoàn cọc (UC-45)
 
+Hợp đồng **không lưu họ tên người đại diện**. Manager và khách đã gặp trực tiếp, đối chiếu CCCD ngoài đời; hệ thống chỉ cần CCCD và email để gửi link mời. Họ tên do chính khách nhập lúc kích hoạt (UC-06), vào thẳng hồ sơ cư dân.
+
 Vòng đời:
 
-- **DRAFT**: chưa có hồ sơ đại diện, chỉ có `representativeCccd` / `representativeEmail`.
-- **DRAFT → ACTIVE** (UC-06): 1 transaction – tạo / mở lại user, tạo occupant đại diện, hợp đồng ACTIVE, phòng OCCUPIED, token USED (BR-015).
-- **Hủy DRAFT** (UC-46): 1 transaction – CANCELLED, token EXPIRED, **xóa** người ở cùng đã nhập kèm, phòng giữ AVAILABLE; audit UPDATE_CONTRACT, lý do **tùy chọn**. (UC-46 bước 4 "tài khoản → INACTIVE" bỏ qua: hợp đồng nháp chưa có tài khoản.)
+- **DRAFT**: chưa có hồ sơ đại diện, chỉ có `representativeCccd` / `representativeEmail`. Gõ sai CCCD, email, ngày bắt đầu thì Manager sửa ở UC-26 rồi gửi lại lời mời (UC-46 A2).
+- **DRAFT → ACTIVE** (UC-06): 1 transaction – tạo / mở lại user, tạo occupant đại diện (họ tên khách tự nhập), hợp đồng ACTIVE, phòng OCCUPIED, token USED (BR-015).
+- **Hủy DRAFT** (UC-46): 1 transaction – CANCELLED, token EXPIRED, người ở cùng đã nhập kèm → **LEFT (giữ lại)**, phòng giữ AVAILABLE; audit UPDATE_CONTRACT, lý do **tùy chọn**.
 - **Đang có đơn chấm dứt**: hợp đồng **vẫn ACTIVE** đến ngày hiệu lực (UC-28, UC-29). Không có trạng thái "chờ chấm dứt".
 - **ACTIVE → ENDED**: (a) đến `effectiveDate` của đơn chấm dứt CONFIRMED; (b) hết `endDate` mà không có đơn chấm dứt CONFIRMED (UC-45, job cuối ngày). Cả hai: 1 transaction – hợp đồng ENDED, phòng AVAILABLE, occupant STAYED → LEFT. Sau 24h tài khoản đại diện → INACTIVE (riêng đơn phương → LOCKED).
 - **Hoàn cọc**: chỉ hợp đồng ENDED do hết hạn (không có đơn chấm dứt CONFIRMED), chỉ 1 lần (BR-130, BR-131).
@@ -273,6 +287,8 @@ Webhook: xác thực chữ ký → `sepayTxnId` đã có thì bỏ qua → tìm 
 
 Thông báo không được xóa (BR-111). Tạo qua helper `notify()`, không tự `insert`.
 
+Admin chỉ nhận 2 loại: TERMINATION_REQUEST (đơn đơn phương chờ duyệt) và PAYMENT_SUCCESS (tiền về tài khoản). Việc của Manager thì Admin không nhận chuông.
+
 ### 17. incidents – báo cáo sự cố
 
 - `incidentCode`: String, unique – mã đơn (BR-117)
@@ -282,7 +298,7 @@ Thông báo không được xóa (BR-111). Tạo qua helper `notify()`, không t
 - `type`: Enum `(INCIDENT_TYPE)` – SERVICE (dịch vụ) | EQUIPMENT (thiết bị) | VIOLATION (vi phạm) | OTHER (khác) **(bổ sung SERVICE, OTHER)**
 - `title`: String
 - `description`: String
-- `images`: [String] – ảnh đính kèm
+- `images`: [String] – đường dẫn ảnh công khai
 - `status`: Enum `(INCIDENT_STATUS)` – PENDING | IN_PROGRESS | RESOLVED | REJECTED
 - `handledBy?`: ObjectId → users – Manager xử lý (BR-120) **(bổ sung)**
 - `resultNote?`: String – kết quả hoặc lý do từ chối
@@ -361,25 +377,31 @@ Ghi qua helper `audit()`, không tự `insert`.
 
 Unique, khai báo trong Mongoose schema (`partial` = chỉ áp dụng khi `isDeleted: false`):
 
-| Collection        | Field                                        | Ghi chú                                       |
-| ----------------- | -------------------------------------------- | ---------------------------------------------- |
-| users             | `email`                                    | BR-010, BR-019                                 |
-| managers          | `userId`; `phone`; `cccd` (sparse)     |                                                |
-| activation_tokens | `token`                                    |                                                |
-| buildings         | `name`; `managerId`                      | `managerId`: chỉ khi có giá trị (BR-031) |
-| rooms             | `{ buildingId, roomNumber }`               | partial (BR-043, BR-050)                       |
-| room_types        | `name`                                     |                                                |
-| services          | `name`                                     |                                                |
-| service_prices    | `{ serviceId, buildingId, effectiveFrom }` |                                                |
-| occupants         | `{ contractId, cccd }`                     |                                                |
-| invoices          | `invoiceCode`                              |                                                |
-| payments          | `sepayTxnId`                               | BR-105                                         |
-| incidents         | `incidentCode`                             |                                                |
+| Collection        | Field                                        | Ghi chú                                                          |
+| ----------------- | -------------------------------------------- | ----------------------------------------------------------------- |
+| users             | `email`                                    | BR-010, BR-019                                                    |
+| managers          | `userId`; `phone`; `cccd` (sparse)     |                                                                   |
+| activation_tokens | `token`                                    |                                                                   |
+| buildings         | `name`; `managerId`                      | `name`: partial; `managerId`: chỉ khi có giá trị (BR-031) |
+| rooms             | `{ buildingId, roomNumber }`               | partial (BR-043, BR-050)                                          |
+| room_types        | `name`                                     | partial (BR-053)                                                  |
+| services          | `name`                                     | partial (BR-055)                                                  |
+| service_prices    | `{ serviceId, buildingId, effectiveFrom }` |                                                                   |
+| occupants         | `{ contractId, cccd }`                     |                                                                   |
+| invoices          | `invoiceCode`                              |                                                                   |
+| payments          | `sepayTxnId`                               | BR-105                                                            |
+| incidents         | `incidentCode`                             |                                                                   |
 
 Kiểm tra trong service (trong transaction), **không** dùng index:
 
 - BR-061: 1 phòng tối đa 1 hợp đồng DRAFT hoặc ACTIVE.
 - BR-016: 1 CCCD chỉ gắn 1 tài khoản Customer.
+- BR-087: tổng cư dân (gồm người đại diện) không vượt sức chứa phòng.
+- BR-010: 1 số điện thoại chỉ thuộc 1 người – kiểm tra chéo `managers.phone` và `occupants.phone` (hai collection nên index không ép được). Cư dân so theo `cccd`, Manager so theo `userId`. Một người có nhiều số thì được.
+- UC-11: chỉ Manager ACTIVE được gán tòa.
+- UC-14, UC-18: không xóa tòa / phòng khi còn hợp đồng ACTIVE hoặc DRAFT.
+- UC-17: không chuyển phòng sang MAINTENANCE khi còn hợp đồng DRAFT.
+- BR-054: không xóa loại phòng đang gán cho phòng còn hoạt động.
 
 ---
 
@@ -402,11 +424,11 @@ Bổ sung so với ERD drawdb:
 
 Luồng theo UC:
 
-| Chỗ                       | Chốt                                                                 |
-| -------------------------- | --------------------------------------------------------------------- |
-| Hủy hợp đồng nháp     | Xóa người ở cùng đã nhập kèm (UC-46); lý do hủy tùy chọn |
-| Đang có đơn chấm dứt | Hợp đồng giữ ACTIVE (UC-28, UC-29)                                |
-| Hợp đồng hết hạn      | Tự kết thúc + hoàn cọc (UC-45)                                   |
+| Chỗ                       | Chốt                                                                               |
+| -------------------------- | ----------------------------------------------------------------------------------- |
+| Hủy hợp đồng nháp     | Người ở cùng đã nhập kèm → LEFT, giữ lại (UC-46); lý do hủy tùy chọn |
+| Đang có đơn chấm dứt | Hợp đồng giữ ACTIVE (UC-28, UC-29)                                              |
+| Hợp đồng hết hạn      | Tự kết thúc + hoàn cọc (UC-45)                                                 |
 
 Giữ nguyên, không trái UC:
 
@@ -417,3 +439,23 @@ Giữ nguyên, không trái UC:
 | Gia hạn, hủy nháp ghi log UPDATE_CONTRACT                                                                 | UC chỉ yêu cầu "ghi log"                                                                                                                                                                                            |
 | Lịch sử nhắc (BR-074, BR-128), lịch sử trạng thái sự cố (BR-117)                                    | Là các bản ghi `notifications` có `refId` – không xóa (BR-111)                                                                                                                                              |
 | Webhook SePay sai số tiền                                                                                  | Không xử lý – QR đã cố định số tiền                                                                                                                                                                         |
+
+## Đã chốt (19 – 20/10/2026)
+
+**Không thêm collection hay field nào.** Toàn bộ là làm rõ hoặc đổi ràng buộc trên field đã có. Từ module `contract` trở đi **bám đúng Use Case**, không đổi thêm.
+
+| Chỗ                                         | Chốt                                                                                                                                                                                                                              | Sửa ở đâu                                                |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Họ tên người đại diện                 | **Khách tự nhập lúc kích hoạt**, vào thẳng `occupants.name`. Hợp đồng không lưu tên: Manager và khách gặp trực tiếp, đối chiếu CCCD ngoài đời, hệ thống chỉ cần CCCD và email để gửi link | UC-06 bước 2 thêm "Họ tên"                              |
+| Tên tòa, tên loại phòng, tên dịch vụ | Unique dạng partial – bản ghi đã xóa thì tên được dùng lại, giống mã phòng (BR-050)                                                                                                                                | Chỉ mục                                                    |
+| `managers.cccd`                            | Không dùng – Manager chỉ tải ảnh CCCD (UC-05, UC-09)                                                                                                                                                                         | Ghi chú field                                               |
+| Số điện thoại                            | 1 số chỉ thuộc 1 người, 1 người được nhiều số; kiểm tra chéo Manager và cư dân (BR-010)                                                                                                                           | Chỉ mục                                                    |
+| Phân công tòa                             | Chỉ Manager ACTIVE                                                                                                                                                                                                                | UC-09 bước 3, UC-11 Preconditions / bước 2 / E01         |
+| Tạo tòa                                    | Nhập số tầng ngay lúc tạo                                                                                                                                                                                                     | UC-12 bước 1, E02                                          |
+| Xóa tòa / phòng                           | Chặn cả khi còn hợp đồng DRAFT                                                                                                                                                                                               | UC-14 bước 1 / E01 / BR-038, UC-18 bước 1 / E01 / BR-048 |
+| Phòng sang Bảo trì                        | Chặn khi phòng đang có hợp đồng DRAFT; Manager hủy nháp trước (UC-46)                                                                                                                                                   | UC-17 A2                                                     |
+| Giá thuê, tiền cọc                       | Phải **> 0**; sửa câu ngoại lệ cho khớp BR-045                                                                                                                                                                         | UC-16 E03, UC-17 E01                                         |
+| Cách tính dịch vụ                        | Form tạo dịch vụ có chọn **theo chỉ số / cố định** – field `isFixed` đã có, chỉ thiếu trong UC                                                                                                             | UC-21 bước 1                                               |
+| Dịch vụ của tòa                          | Chỉ các dịch vụ đã được đặt giá ở tòa đó; mỗi tòa một bộ riêng                                                                                                                                                | Không sửa UC                                               |
+| Ảnh CCCD                                    | Lưu mã ảnh bảo vệ, chỉ người có quyền xem: Manager → chính họ + Admin; cư dân → người đại diện phòng + Manager tòa                                                                                          | Không sửa UC                                               |
+| Chuông của Admin                           | Admin có chuông, chỉ nhận đơn đơn phương chờ duyệt và tiền về tài khoản                                                                                                                                           | UC-41 Actor                                                  |
