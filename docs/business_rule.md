@@ -24,20 +24,21 @@ Bản tóm tắt để code. Chi tiết đầy đủ nằm trong file use case (
 
 ## Bắt buộc dùng transaction
 
-| Thao tác                                     | Ghi vào                                                          |
-| --------------------------------------------- | ----------------------------------------------------------------- |
-| Khách kích hoạt hợp đồng (UC-06)        | users, occupants, contracts, rooms, activation_tokens             |
-| Đến ngày hiệu lực chấm dứt / hết hạn | contracts, rooms, occupants                                       |
-| Phân công / thay Manager (UC-11)            | buildings                                                         |
-| Xóa tòa (UC-14)                             | buildings + toàn bộ rooms                                       |
-| Hủy hợp đồng nháp (UC-46)                | contracts, activation_tokens, occupants (xóa người ở cùng)   |
-| Tạo Manager (UC-08)                          | users, managers, activation_tokens                                |
-| Xóa Manager PENDING (UC-09)                  | users, managers, activation_tokens, buildings (gỡ `managerId`) |
+| Thao tác                                     | Ghi vào                                                                      |
+| --------------------------------------------- | ----------------------------------------------------------------------------- |
+| Khách kích hoạt hợp đồng (UC-06)        | users, occupants, contracts, rooms, activation_tokens                         |
+| Đến ngày hiệu lực chấm dứt / hết hạn | contracts, rooms, occupants                                                   |
+| Phân công / thay Manager (UC-11)            | buildings                                                                     |
+| Xóa tòa (UC-14)                             | buildings + toàn bộ rooms                                                   |
+| Hủy hợp đồng nháp (UC-46)                | contracts, activation_tokens, occupants (người ở cùng → LEFT, giữ lại) |
+| Tạo Manager (UC-08)                          | users, managers, activation_tokens                                            |
+| Xóa Manager PENDING (UC-09)                  | users, managers, activation_tokens, buildings (gỡ `managerId`)             |
 
 ## Snapshot – không đọc lại giá mới
 
 - Hợp đồng chụp `rentPrice`, `deposit` từ phòng lúc tạo (BR-062).
-- Hóa đơn chụp `description`, `unitPrice` từng dòng lúc lập. Đổi giá dịch vụ không ảnh hưởng hóa đơn PENDING / PAID (BR-058).
+- Hóa đơn chụp `description`, `unitPrice` từng dòng lúc lập. Đổi giá dịch vụ không ảnh hưởng hóa đơn đã lập (BR-058).
+- Hợp đồng giữ nguyên CCCD, email người đại diện lúc tạo. Khách đổi email, SĐT trong hồ sơ thì hợp đồng không đổi.
 
 ## Tiền
 
@@ -63,9 +64,8 @@ Ai bị ảnh hưởng thì phải được báo (chuông, kèm mail khi UC yêu
 ## Xóa
 
 - Xóa mềm: `buildings`, `rooms` (có `deletedAt`), `room_types`, `services`. Mọi danh sách lọc `isDeleted: false`.
-- Xóa cứng: chỉ tài khoản Manager PENDING (UC-09) và người ở cùng nhập kèm hợp đồng nháp bị hủy (UC-46).
+- Xóa cứng: chỉ tài khoản Manager PENDING (UC-09). Người ở cùng của hợp đồng nháp bị hủy chuyển LEFT, giữ lại (UC-46).
 - Lịch sử (hợp đồng, hóa đơn, đơn chấm dứt, thông báo) **không bao giờ xóa**.
-
 
 ## Luồng chính
 

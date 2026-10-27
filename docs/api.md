@@ -13,26 +13,19 @@ Sửa endpoint thì sửa ở đây trước, báo nhóm. Field gửi lên / tr�
 - Manager chỉ thao tác trên tòa mình phụ trách, Customer chỉ trên hợp đồng của mình – BE kiểm ở service, không tin FE.
 - Các field tiền (`totalAmount`, `amount`, `unitPrice`), trạng thái, `dueDate`, mã (`invoiceCode`, `incidentCode`) do **server tự đặt**, không nhận từ client.
 - Việc chính xong nhưng việc phụ lỗi (vd gửi mail thất bại): vẫn trả thành công, kèm `data.warning` là câu tiếng Việt.
-- Cần người dùng xác nhận thêm: trả 409, `message` là câu hỏi. Chỉ áp dụng ở API có ghi cờ xác nhận bên dưới (vd `confirmReplace`); FE gửi lại kèm cờ đó = true. 409 ở chỗ khác là trùng dữ liệ
-- Prefix: `/api`
-- Xác thực: header `Authorization: Bearer <token>`
-- Thành công: `{ success: true, data, message }` · Lỗi: `{ success: false, message, errors }`
-- Phân trang: `?page=1&limit=10` → `data: { items, total, page, limit }`
-- Role viết tắt: **A** Admin · **M** Manager · **C** Customer · **—** không cần đăng nhập
-- Manager chỉ thao tác trên tòa mình phụ trách, Customer chỉ trên hợp đồng của mình – BE kiểm ở service, không tin FE.
-- Các field tiền (`totalAmount`, `amount`, `unitPrice`), trạng thái, `dueDate`, mã (`invoiceCode`, `incidentCode`) do **server tự đặt**, không nhận từ client.
+- Cần người dùng xác nhận thêm: trả 409, `message` là câu hỏi. Chỉ áp dụng ở API có ghi cờ xác nhận bên dưới (vd `confirmReplace`); FE gửi lại kèm cờ đó = true. 409 ở chỗ khác là trùng dữ liệu.
 
 ## Tài khoản – `auth` (UC-01..05)
 
-| Method    | Path                      | Role  | Ghi chú                                                                                                                                                                                                                                                                                               |
-| --------- | ------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| POST      | `/auth/login`           | —    | `{ identifier, password, remember }` – identifier là email (Admin/Manager) hoặc CCCD (Customer)                                                                                                                                                                                                   |
-| GET       | `/auth/me`              | A M C |                                                                                                                                                                                                                                                                                                        |
-| PUT       | `/auth/change-password` | A M C | `{ currentPassword, newPassword }`                                                                                                                                                                                                                                                                   |
-| POST      | `/auth/forgot-password` | —    | `{ email }` – luôn trả cùng một câu (BR-008)                                                                                                                                                                                                                                                   |
-| POST      | `/auth/verify-otp`      | —    | `{ email, otp }` → `{ resetToken }`                                                                                                                                                                                                                                                               |
-| POST      | `/auth/reset-password`  | —    | `{ resetToken, newPassword }`                                                                                                                                                                                                                                                                        |
-| GET / PUT | `/profile`              | M     | Hồ sơ Manager. Chỉ điền lần đầu các trường đang trống (BR-011). GET trả kèm `cccdFrontUrl`, `cccdBackUrl` (xem mục Upload). PUT gửi ảnh là publicId `cccdFrontImage`, `cccdBackImage` lấy từ `POST /uploads/cccd`. Customer sửa hồ sơ qua `/occupants/:id` (UC-31) |
+| Method    | Path                      | Role  | Ghi chú                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| --------- | ------------------------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST      | `/auth/login`           | —    | `{ identifier, password, remember }` – identifier là email (Admin/Manager) hoặc CCCD (Customer)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| GET       | `/auth/me`              | A M C |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| PUT       | `/auth/change-password` | A M C | `{ currentPassword, newPassword, confirmPassword }` – `confirmPassword` phải khớp `newPassword`. Lỗi: 400 "Mật khẩu hiện tại không đúng"; 400 "Mật khẩu mới không được trùng mật khẩu hiện tại"; 422 "Xác nhận mật khẩu không khớp"; 422 sai định dạng                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| POST      | `/auth/forgot-password` | —    | `{ email }` – luôn trả cùng một câu dù email có tồn tại hay không (BR-008); Manager chưa kích hoạt không nhận OTP (BR-021). OTP 4 số, sống 5 phút, gửi lại thì OTP cũ hết hiệu lực. Lỗi: 500 "Gửi email thất bại, vui lòng thử lại sau" (E04)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| POST      | `/auth/verify-otp`      | —    | `{ email, otp }` – chỉ kiểm OTP, đúng thì FE chuyển sang trang đặt mật khẩu mới (giữ lại email + otp để gửi ở bước sau). Lỗi: 400 "Mã OTP không đúng hoặc đã hết hạn"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| POST      | `/auth/reset-password`  | —    | `{ email, otp, newPassword, confirmPassword }` – kiểm lại OTP, đúng thì đổi mật khẩu và đánh dấu OTP đã dùng. Lỗi: 400 "Mã OTP không đúng hoặc đã hết hạn"; 400 "Mật khẩu mới không được trùng mật khẩu hiện tại"; 422 "Xác nhận mật khẩu không khớp"; 422 sai định dạng                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| GET / PUT | `/profile`              | M C   | Hồ sơ của chính mình (UC-05). Admin gọi → 403. GET trả `{ _id, email, role, name, phone, dateOfBirth, address, cccdFrontUrl, cccdBackUrl }` (link ảnh null nếu chưa có ảnh); Customer có thêm `cccd` (chỉ xem); Manager không trả số CCCD. PUT gửi các field muốn đổi, sửa nhiều lần được; ảnh là publicId `cccdFrontImage`, `cccdBackImage` lấy từ `POST /uploads/cccd`; giá trị giống cũ thì bỏ qua, không đổi gì → 200 "Không có thông tin nào thay đổi". Manager sửa `phone`, `dateOfBirth`, `address`, ảnh CCCD; `name`, `email` chỉ Admin sửa (UC-09). Customer sửa `email`, `phone`, `dateOfBirth`, `address`, ảnh CCCD; `name`, `cccd` chỉ Manager sửa (UC-31). Lỗi: 400 "Họ tên, email chỉ Admin được chỉnh sửa"; 400 "Họ tên, số CCCD chỉ Manager được chỉnh sửa"; 404 "Không tìm thấy hồ sơ"; 409 "Email đã tồn tại trong hệ thống"; 409 "Số điện thoại đã tồn tại trong hệ thống"; 422 sai định dạng hoặc body rỗng |
 
 ## Kích hoạt – `activation` (UC-06, 08)
 
@@ -46,12 +39,12 @@ Link trong email (BE ghép link, FE khai báo route khớp theo):
 - Trang công khai, không cần đăng nhập. FE lấy token bằng `useParams()` rồi gửi kèm khi gọi API bên dưới.
 - Link hết hạn, đã dùng hoặc không tồn tại → API trả lỗi, FE hiện "Link đã hết hạn" / "Link không tồn tại" (UC-08 E06, UC-06 E01, UC-46 E02).
 
-| Method | Path                            | Role | Ghi chú                                                                                                                                                             |
-| ------ | ------------------------------- | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/activation/manager/:token`  | —   | Kiểm link còn hiệu lực                                                                                                                                           |
-| POST   | `/activation/manager`         | —   | `{ token, password }`                                                                                                                                              |
-| GET    | `/activation/contract/:token` | —   | Thông tin hợp đồng chỉ xem                                                                                                                                      |
-| POST   | `/activation/contract`        | —   | `{ token, name, phone, dateOfBirth, address, password, agreed, cccdFrontImage, cccdBackImage }` – 2 ảnh là publicId, FE tải trước qua `POST /uploads/cccd` |
+| Method | Path                            | Role | Ghi chú                                                                                                                                                                              |
+| ------ | ------------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/activation/manager/:token`  | —   | Kiểm link còn hiệu lực                                                                                                                                                            |
+| POST   | `/activation/manager`         | —   | `{ token, password, confirmPassword }` – `confirmPassword` phải khớp `password`                                                                                              |
+| GET    | `/activation/contract/:token` | —   | Thông tin hợp đồng chỉ xem                                                                                                                                                       |
+| POST   | `/activation/contract`        | —   | `{ token, name, phone, dateOfBirth, address, password, confirmPassword, agreed, cccdFrontImage, cccdBackImage }` – 2 ảnh là publicId, FE tải trước qua `POST /uploads/cccd` |
 
 ## Manager – `manager` (UC-08..11)
 
@@ -209,15 +202,18 @@ Request:
 
 - identifier: email (Admin/Manager) hoặc đúng 12 số CCCD (Customer)
 - remember: true → token 7 ngày; false hoặc không gửi → 1 ngày
-  Response 200:
-  { "success": true, "message": "...", "data": { "token": "eyJ...", "user": <giống GET /auth/me> } }
-  Lỗi:
+
+Response 200:
+{ "success": true, "message": "...", "data": { "token": "eyJ...", "user": <giống GET /auth/me> } }
+
+Lỗi:
+
+- 401 `Tài khoản hoặc mật khẩu không đúng` – không tìm thấy tài khoản, sai mật khẩu, hoặc Customer nhập email thay vì CCCD (bị chặn theo BR-001, báo cùng một câu)
 - 403 `Tài khoản chưa được kích hoạt. Vui lòng kiểm tra email để đặt mật khẩu và kích hoạt tài khoản` – Manager PENDING hoặc chưa có mật khẩu (kiểm trước khi so mật khẩu)
 - 403 `Tài khoản đã bị khóa` – LOCKED (sau khi đúng mật khẩu)
 - 403 `Tài khoản đã ngưng hoạt động. Vui lòng kiểm tra email kích hoạt nếu bạn vừa có hợp đồng mới` – INACTIVE (sau khi đúng mật khẩu)
 - 403 `Tài khoản không ở trạng thái hoạt động` – trạng thái khác ACTIVE (sau khi đúng mật khẩu)
 - 422 Thiếu hoặc sai định dạng
-- 401 `Tài khoản hoặc mật khẩu không đúng` – không tìm thấy tài khoản, sai mật khẩu, hoặc Customer nhập email thay vì CCCD (bị chặn theo BR-001, báo cùng một câu)
 
 ### GET /api/auth/me — cần token, mọi role
 
@@ -228,9 +224,8 @@ Response 200:
   "building": { "_id", "name", "address" } | null,  // mọi role đều có; Admin, Customer luôn null; Manager chưa được phân công cũng null (BR-023)
   "cccd": "..."                                     // chỉ Customer
 } }
+
 Lỗi: 401 token sai, hết hạn, hoặc tài khoản vừa bị khóa → FE tự đăng xuất
-
-
 
 ## Helper dùng chung (BE gọi trong service)
 
@@ -244,7 +239,7 @@ import { NOTIFICATION_TYPE } from '../../constants/enums.js';
 
 await notify({
     userIds: building.managerId,          // 1 id hoặc mảng id người nhận
-    type: NOTIFICATION_TYPE.ANNOUNCEMENT, // xem bảng NOTIFICATION_TYPE trong housify-database.md
+    type: NOTIFICATION_TYPE.ANNOUNCEMENT, // xem bảng NOTIFICATION_TYPE trong docs/database.md
     title: 'Nội quy mới',
     message: `Tòa ${building.name} vừa cập nhật nội quy`,
     refId: building._id,                  // id bản ghi liên quan để FE mở đúng trang; không có thì bỏ
@@ -260,7 +255,7 @@ import { AUDIT_ACTION } from '../../constants/enums.js';
 
 await audit({
     actorId: request.user.id,        // hệ thống tự chạy thì bỏ
-    action: AUDIT_ACTION.LOCK_USER,  // xem bảng AUDIT_ACTION trong housify-database.md
+    action: AUDIT_ACTION.LOCK_USER,  // xem bảng AUDIT_ACTION trong docs/database.md
     targetType: 'users',             // tên collection bị tác động
     targetId: user._id,
     reason: 'Vi phạm quy định',      // bắt buộc khi LOCK_USER

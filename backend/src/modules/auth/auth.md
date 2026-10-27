@@ -1,7 +1,7 @@
 # Module auth
 
 > Đăng nhập và mọi thứ gắn với tài khoản của chính người dùng. **UC-01 → UC-05.**
-> Hồ sơ Customer **không** ở đây mà ở module `occupant` (UC-31).
+> Hồ sơ cá nhân (UC-05) dùng cho cả Manager và Customer. Việc Manager sửa thông tin cư dân nằm ở module `occupant` (UC-31).
 
 ---
 
@@ -110,35 +110,44 @@
 
 ---
 
-## UC-05 · Hồ sơ cá nhân (chỉ Manager)
+## UC-05 · Hồ sơ cá nhân
 
-**Ai dùng:** Manager
-
-**Tình trạng ban đầu**
-
-- **Đã có:** họ tên, email, số điện thoại, do Admin nhập lúc tạo.
-- **Còn trống:** địa chỉ, ngày sinh, ảnh CCCD hai mặt.
+**Ai dùng:** Manager, Customer. Mỗi người chỉ xem và sửa hồ sơ của chính mình.
 
 **Luồng chính**
 
 1. Mở hồ sơ → xem thông tin hiện tại.
-2. Điền các trường còn trống, tải ảnh CCCD.
-3. Lưu → các trường vừa điền chuyển sang **chỉ xem**.
+2. Bấm "Chỉnh sửa" → chỉ các trường được phép mới cho sửa.
+3. Nhập thông tin mới → hệ thống kiểm tra hợp lệ.
+4. Lưu → cập nhật và hiển thị thông tin mới.
+
+**Manager**
+
+- Họ tên, email: do Admin nhập lúc tạo, Manager **chỉ xem**. Muốn đổi thì nhờ Admin (UC-09).
+- Số điện thoại, ngày sinh, địa chỉ, ảnh CCCD hai mặt: Manager **tự sửa**, sửa nhiều lần được.
+- Chỉ tải ảnh CCCD, **không nhập số CCCD**. Cơ sở dữ liệu có chỗ lưu số nhưng hiện không dùng.
+
+**Customer**
+
+- Thông tin lấy từ bản ghi **người đại diện** của chính Customer trong danh sách cư dân.
+- Họ tên, số CCCD: **chỉ xem**. Cần sửa thì Manager sửa ở UC-31.
+- Email, số điện thoại, ngày sinh, địa chỉ, ảnh CCCD hai mặt: Customer **tự sửa**, sửa nhiều lần được.
+- Sửa hồ sơ không làm thay đổi hợp đồng: hợp đồng giữ nguyên CCCD, email lúc tạo.
 
 **Các trường hợp**
 
 - **Chỉ xem, không sửa:** hiển thị thông tin.
 - **Hủy khi đang sửa:** không lưu.
+- **Dữ liệu sai định dạng:** báo lỗi, nhập lại.
+- **Email hoặc số điện thoại đã có người dùng:** báo trùng, không lưu.
 - **Ảnh CCCD mờ hoặc sai định dạng:** bắt tải lại, chưa đạt thì không cho lưu.
-- **Muốn sửa sau khi đã lưu:** không tự sửa được, nhờ Admin làm ở UC-09.
+- **Lỗi lưu:** báo lỗi, giữ thông tin cũ.
 
 **Quy tắc**
 
-- Họ tên, email, số điện thoại: Manager **chỉ xem**, không sửa được lúc nào.
-- Địa chỉ, ngày sinh, ảnh CCCD: Manager tự điền **một lần**.
-- Chỉ tải ảnh CCCD, **không nhập số CCCD**. Cơ sở dữ liệu có chỗ lưu số nhưng hiện không dùng.
-- Ảnh CCCD lưu ở chế độ bảo vệ, chỉ người có quyền mới xem được, giống ảnh CCCD của khách thuê.
-- Manager không sửa được email và số điện thoại ở đây, nên trường hợp trùng chỉ xảy ra khi Admin sửa hộ ở UC-09.
+- Email và số điện thoại không được trùng trong toàn hệ thống.
+- Ảnh CCCD lưu ở chế độ bảo vệ, chỉ người có quyền mới xem được.
+- Chức năng tải ảnh CCCD dùng chung cho Manager và Customer, chỉ khác nhau ở quyền sửa.
 
 ---
 
@@ -148,8 +157,4 @@
 
 **Cách làm:** mỗi yêu cầu gửi lên, hệ thống đọc lại trạng thái tài khoản. Thấy không còn hoạt động thì từ chối và bắt đăng nhập lại.
 
-**Đánh đổi:** tốn thêm một lần đọc cơ sở dữ liệu cho mỗi yêu cầu. Đổi lại, cả ba trường hợp dưới đây đều có hiệu lực tức thì mà không phải xử lý riêng:
-
-- Admin khóa Manager
-- Khách bị ngưng hoạt động sau khi trả phòng.
-- Khách bị khóa sau khi bị chấm dứt hợp đồng đơn phương.
+**Đánh đổi:** tốn thêm một lần đọc cơ sở dữ liệu cho mỗi yêu cầu, chấp nhận được với quy mô dự án.
