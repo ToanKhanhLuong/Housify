@@ -37,8 +37,9 @@ const ManagerProfileModal = ({ emptyFields, onHide, onSaved }) => {
 
     setSubmitting(true);
     try {
-      await authApi.updateProfile(data);
-      toast.success('Cập nhật hồ sơ thành công');
+      // BE trả "Cập nhật hồ sơ thành công" hoặc "Không có thông tin nào thay đổi"
+      const response = await authApi.updateProfile(data);
+      toast.success(response.message);
       onSaved();
     } catch (error) {
       setErrors(toFieldErrors(error.errors)); // 422: lỗi hiện dưới từng ô

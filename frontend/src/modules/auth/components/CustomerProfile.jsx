@@ -14,33 +14,28 @@ import CustomerProfileModal from './CustomerProfileModal';
 
 const CustomerProfile = () => {
   const { reloadUser } = useAuth();
-  const [occupant, setOccupant] = useState(null);
+  const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
 
-  // hồ sơ khách nằm ở occupants: lấy bản ghi người đại diện trong thành viên phòng mình rồi mở chi tiết
+  // GET /profile: BE tự lấy bản ghi người đại diện mới nhất của khách (hồ sơ nằm ở occupants)
   // dùng .then thay vì await: setState nằm trong callback (luật react-hooks/set-state-in-effect)
-  const loadOccupant = useCallback(
+  const loadProfile = useCallback(
     () =>
       authApi
-        .getRoomMembers()
-        .then((response) => {
-          const members = response.data?.items ?? response.data ?? [];
-          const me = members.find((member) => member.isRepresentative);
-          if (!me) return null;
-          return authApi.getOccupant(me._id).then((detail) => setOccupant(detail.data));
-        })
+        .getProfile()
+        .then((response) => setProfile(response.data))
         .catch((error) => toast.error(error.message))
         .finally(() => setLoading(false)),
     [],
   );
 
   useEffect(() => {
-    loadOccupant();
-  }, [loadOccupant]);
+    loadProfile();
+  }, [loadProfile]);
 
   if (loading) return <Loading />;
-  if (!occupant) return <EmptyState message="Không tìm thấy hồ sơ của bạn" />;
+  if (!profile) return <EmptyState message="Không tìm thấy hồ sơ của bạn" />;
 
   return (
     <>
@@ -59,36 +54,36 @@ const CustomerProfile = () => {
           <div className="grid lg:grid-cols-2 column-gap-5 mb-4">
             <div>
               <FieldRow label="Họ tên" required>
-                {occupant.name}
+                {profile.name}
               </FieldRow>
               <FieldRow label="Số CCCD" required>
-                {occupant.cccd}
+                {profile.cccd}
               </FieldRow>
               <FieldRow label="Ngày sinh" required>
-                {formatDate(occupant.dateOfBirth)}
+                {formatDate(profile.dateOfBirth)}
               </FieldRow>
             </div>
             <div>
               <FieldRow label="Số điện thoại" required>
-                {occupant.phone}
+                {profile.phone}
               </FieldRow>
               <FieldRow label="Email" required>
-                {occupant.email}
+                {profile.email}
               </FieldRow>
-              <FieldRow label="Địa chỉ">{occupant.address || null}</FieldRow>
+              <FieldRow label="Địa chỉ">{profile.address || null}</FieldRow>
             </div>
           </div>
-          <CccdImages frontUrl={occupant.cccdFrontUrl} backUrl={occupant.cccdBackUrl} />
+          <CccdImages frontUrl={profile.cccdFrontUrl} backUrl={profile.cccdBackUrl} />
         </Card.Body>
       </Card>
 
       {editing && (
         <CustomerProfileModal
-          occupant={occupant}
+          profile={profile}
           onHide={() => setEditing(false)}
           onSaved={() => {
             setEditing(false);
-            loadOccupant();
+            loadProfile();
             reloadUser(); // đổi họ tên thì header cập nhật theo
           }}
         />

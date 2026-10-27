@@ -38,7 +38,13 @@ const ManagerProfile = () => {
   if (loading) return <Loading />;
   if (!profile) return <EmptyState message="Không tải được hồ sơ" />;
 
-  const emptyFields = FILL_ONCE_FIELDS.filter((field) => !profile[field]);
+  // GET /profile không trả publicId ảnh: có link xem (cccdFrontUrl / cccdBackUrl) tức là ảnh đã lưu
+  const savedValues = {
+    ...profile,
+    cccdFrontImage: profile.cccdFrontUrl,
+    cccdBackImage: profile.cccdBackUrl,
+  };
+  const emptyFields = FILL_ONCE_FIELDS.filter((field) => !savedValues[field]);
 
   return (
     <>
