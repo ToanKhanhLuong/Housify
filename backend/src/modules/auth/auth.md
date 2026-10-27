@@ -123,15 +123,16 @@
 
 **Manager**
 
-- **Đã có từ đầu:** họ tên, email, số điện thoại, do Admin nhập lúc tạo. Manager **chỉ xem**, không sửa được lúc nào.
-- **Còn trống lúc đầu:** địa chỉ, ngày sinh, ảnh CCCD hai mặt. Manager tự điền **một lần**, lưu xong chuyển sang **chỉ xem**.
-- Muốn sửa sau khi đã lưu: không tự sửa được, nhờ Admin làm ở UC-09.
+- Họ tên, email: do Admin nhập lúc tạo, Manager **chỉ xem**. Muốn đổi thì nhờ Admin (UC-09).
+- Số điện thoại, ngày sinh, địa chỉ, ảnh CCCD hai mặt: Manager **tự sửa**, sửa nhiều lần được.
 - Chỉ tải ảnh CCCD, **không nhập số CCCD**. Cơ sở dữ liệu có chỗ lưu số nhưng hiện không dùng.
 
 **Customer**
 
 - Thông tin lấy từ bản ghi **người đại diện** của chính Customer trong danh sách cư dân.
-- Sửa được thông tin cá nhân của mình, **trừ số CCCD**. Số CCCD gắn với hợp đồng nên Customer không tự sửa; cần sửa thì Manager sửa ở UC-31.
+- Họ tên, số CCCD: **chỉ xem**. Cần sửa thì Manager sửa ở UC-31.
+- Email, số điện thoại, ngày sinh, địa chỉ, ảnh CCCD hai mặt: Customer **tự sửa**, sửa nhiều lần được.
+- Sửa hồ sơ không làm thay đổi hợp đồng: hợp đồng giữ nguyên CCCD, email lúc tạo.
 
 **Các trường hợp**
 

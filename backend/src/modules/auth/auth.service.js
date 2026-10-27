@@ -264,14 +264,6 @@ export const getProfile = async (userId) => {
 // Các ô lưu ở managers / occupants
 const PROFILE_FIELDS = ['name', 'phone', 'dateOfBirth', 'address', 'cccdFrontImage', 'cccdBackImage'];
 
-// BR-011: các ô Manager chỉ được điền khi đang trống
-const MANAGER_FILL_ONCE = {
-    address: 'Địa chỉ',
-    dateOfBirth: 'Ngày sinh',
-    cccdFrontImage: 'Ảnh CCCD mặt trước',
-    cccdBackImage: 'Ảnh CCCD mặt sau',
-};
-
 const isSameValue = (field, newValue, oldValue) => {
     if (field === 'dateOfBirth') {
         return Boolean(oldValue) && new Date(newValue).getTime() === new Date(oldValue).getTime();
@@ -293,20 +285,23 @@ export const updateProfile = async (userId, body) => {
     const emailChanged = body.email !== undefined && body.email !== user.email;
 
     if (user.roleId === ROLE.MANAGER) {
-        if (emailChanged || changes.name !== undefined || changes.phone !== undefined) {
-            throw new AppError('Họ tên, email, số điện thoại chỉ Admin được chỉnh sửa', 400);
+        // Họ tên, email của Manager chỉ Admin sửa (UC-09)
+        if (emailChanged || changes.name !== undefined) {
+            throw new AppError('Họ tên, email chỉ Admin được chỉnh sửa', 400);
         }
-        for (const [field, label] of Object.entries(MANAGER_FILL_ONCE)) {
-            if (changes[field] !== undefined && profile[field]) {
-                throw new AppError(`${label} đã được lưu, vui lòng liên hệ Admin để chỉnh sửa`, 400);
+        // BR-010: số điện thoại không trùng người khác
+        if (changes.phone !== undefined) {
+            const phoneUsed = await Manager.findOne({ phone: changes.phone, userId: { $ne: user._id } })
+                || await Occupant.findOne({ phone: changes.phone });
+            if (phoneUsed) {
+                throw new AppError('Số điện thoại đã tồn tại trong hệ thống', 409);
             }
         }
     } else {
-        // BR-009: Customer không tự sửa số CCCD
-        if (body.cccd !== undefined && body.cccd !== profile.cccd) {
-            throw new AppError('Không được tự chỉnh sửa số CCCD', 400);
+        // Họ tên, số CCCD của Customer chỉ Manager sửa (UC-31)
+        if (changes.name !== undefined || (body.cccd !== undefined && body.cccd !== profile.cccd)) {
+            throw new AppError('Họ tên, số CCCD chỉ Manager được chỉnh sửa', 400);
         }
-
         // BR-010: email, số điện thoại không trùng người khác
         if (emailChanged) {
             const emailUsed = await User.findOne({ email: body.email, _id: { $ne: user._id } });
