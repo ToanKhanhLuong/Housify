@@ -1,4 +1,4 @@
-// Hồ sơ Customer (người đại diện, UC-31): xem và sửa thông tin của mình. CCCD chỉ xem (nhóm chốt)
+// UC-05: hồ sơ Customer (người đại diện). Họ tên, số CCCD chỉ xem (Manager sửa ở UC-31); email, SĐT, ngày sinh, địa chỉ, ảnh CCCD tự sửa
 import { useCallback, useEffect, useState } from 'react';
 import { Button, Card } from 'react-bootstrap';
 import { toast } from 'react-toastify';
@@ -6,14 +6,12 @@ import PageHeader from '../../../components/PageHeader';
 import FieldRow from '../../../components/FieldRow';
 import Loading from '../../../components/Loading';
 import EmptyState from '../../../components/EmptyState';
-import { useAuth } from '../../../context/AuthContext';
 import { formatDate } from '../../../utils/format';
 import authApi from '../auth.api';
 import CccdImages from './CccdImages';
 import CustomerProfileModal from './CustomerProfileModal';
 
 const CustomerProfile = () => {
-  const { reloadUser } = useAuth();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -43,14 +41,14 @@ const CustomerProfile = () => {
         title="Hồ sơ cá nhân"
         actions={
           <Button variant="primary" onClick={() => setEditing(true)}>
-            Cập nhật hồ sơ
+            Chỉnh sửa
           </Button>
         }
       />
 
       <Card>
         <Card.Body className="p-4">
-          {/* UC-31: CCCD và ngày sinh là trường quan trọng → dấu * đỏ */}
+          {/* CCCD và ngày sinh là trường quan trọng (UC-31) → dấu * đỏ */}
           <div className="grid lg:grid-cols-2 column-gap-5 mb-4">
             <div>
               <FieldRow label="Họ tên" required>
@@ -84,7 +82,6 @@ const CustomerProfile = () => {
           onSaved={() => {
             setEditing(false);
             loadProfile();
-            reloadUser(); // đổi họ tên thì header cập nhật theo
           }}
         />
       )}

@@ -1,6 +1,6 @@
-// UC-05: hồ sơ Manager. Họ tên, email, SĐT chỉ xem; địa chỉ, ngày sinh, ảnh CCCD điền một lần rồi khóa (sửa sau nhờ Admin, UC-09)
+// UC-05: hồ sơ Manager. Họ tên, email chỉ xem (Admin sửa ở UC-09); SĐT, ngày sinh, địa chỉ, ảnh CCCD tự sửa nhiều lần
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Button, Card } from 'react-bootstrap';
+import { Button, Card } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import PageHeader from '../../../components/PageHeader';
 import FieldRow from '../../../components/FieldRow';
@@ -10,9 +10,6 @@ import { formatDate } from '../../../utils/format';
 import authApi from '../auth.api';
 import CccdImages from './CccdImages';
 import ManagerProfileModal from './ManagerProfileModal';
-
-// các trường Manager tự điền một lần (BR-011); không có ô số CCCD (UC-05)
-const FILL_ONCE_FIELDS = ['dateOfBirth', 'address', 'cccdFrontImage', 'cccdBackImage'];
 
 const ManagerProfile = () => {
   const [profile, setProfile] = useState(null);
@@ -38,30 +35,16 @@ const ManagerProfile = () => {
   if (loading) return <Loading />;
   if (!profile) return <EmptyState message="Không tải được hồ sơ" />;
 
-  // GET /profile không trả publicId ảnh: có link xem (cccdFrontUrl / cccdBackUrl) tức là ảnh đã lưu
-  const savedValues = {
-    ...profile,
-    cccdFrontImage: profile.cccdFrontUrl,
-    cccdBackImage: profile.cccdBackUrl,
-  };
-  const emptyFields = FILL_ONCE_FIELDS.filter((field) => !savedValues[field]);
-
   return (
     <>
       <PageHeader
         title="Hồ sơ cá nhân"
         actions={
-          emptyFields.length > 0 && (
-            <Button variant="primary" onClick={() => setEditing(true)}>
-              Cập nhật hồ sơ
-            </Button>
-          )
+          <Button variant="primary" onClick={() => setEditing(true)}>
+            Chỉnh sửa
+          </Button>
         }
       />
-
-      {emptyFields.length === 0 && (
-        <Alert variant="info">Muốn thay đổi thông tin hồ sơ, vui lòng liên hệ Admin.</Alert>
-      )}
 
       <Card>
         <Card.Body className="p-4">
@@ -82,6 +65,7 @@ const ManagerProfile = () => {
               <FieldRow label="Địa chỉ">{profile.address || null}</FieldRow>
             </div>
           </div>
+          {/* UC-05: Manager chỉ tải ảnh CCCD, không nhập số CCCD */}
           <CccdImages frontUrl={profile.cccdFrontUrl} backUrl={profile.cccdBackUrl} />
         </Card.Body>
       </Card>
@@ -89,7 +73,7 @@ const ManagerProfile = () => {
       {/* render có điều kiện: mỗi lần mở là form mới */}
       {editing && (
         <ManagerProfileModal
-          emptyFields={emptyFields}
+          profile={profile}
           onHide={() => setEditing(false)}
           onSaved={() => {
             setEditing(false);

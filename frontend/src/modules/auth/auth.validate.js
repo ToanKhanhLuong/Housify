@@ -55,32 +55,25 @@ export const validateOtp = ({ otp }) => {
 // UC-04 bước 3: trùng mật khẩu cũ do BE kiểm (FE không biết mật khẩu cũ)
 export const validateResetPassword = validateNewPassword;
 
-// UC-05: Manager điền lần đầu các trường đang trống (fields). Điền một phần cũng được, nhưng phải có ít nhất một
-export const validateManagerProfile = (form, fields) => {
+// UC-05 Manager: tự sửa SĐT, ngày sinh, địa chỉ, ảnh CCCD (họ tên, email chỉ Admin sửa nên không kiểm)
+export const validateManagerProfile = (form) => {
   const errors = {};
-  if (!fields.some((field) => form[field]))
-    errors[fields[0]] = 'Vui lòng điền thông tin trước khi lưu';
+  if (!form.phone.trim()) errors.phone = 'Vui lòng nhập số điện thoại';
+  else if (!PHONE_REGEX.test(form.phone.trim()))
+    errors.phone = 'Số điện thoại gồm 10 số, bắt đầu bằng 0';
+
   if (form.dateOfBirth && isFutureDate(form.dateOfBirth))
     errors.dateOfBirth = 'Ngày sinh không hợp lệ';
   return errors;
 };
 
-// UC-31 (người đại diện sửa hồ sơ mình): CCCD chỉ xem nên không kiểm; đổi ảnh CCCD thì phải tích đã đối chiếu
-export const validateCustomerProfile = (form, imageChanged) => {
-  const errors = {};
-  if (!form.name.trim()) errors.name = 'Vui lòng nhập họ tên';
-
-  if (!form.phone.trim()) errors.phone = 'Vui lòng nhập số điện thoại';
-  else if (!PHONE_REGEX.test(form.phone.trim()))
-    errors.phone = 'Số điện thoại gồm 10 số, bắt đầu bằng 0';
+// UC-05 Customer: tự sửa email, SĐT, ngày sinh, địa chỉ, ảnh CCCD (họ tên, số CCCD chỉ Manager sửa nên không kiểm)
+export const validateCustomerProfile = (form) => {
+  const errors = validateManagerProfile(form);
 
   if (!form.email.trim()) errors.email = 'Vui lòng nhập email';
   else if (!EMAIL_REGEX.test(form.email.trim())) errors.email = 'Email không đúng định dạng';
 
   if (!form.dateOfBirth) errors.dateOfBirth = 'Vui lòng nhập ngày sinh';
-  else if (isFutureDate(form.dateOfBirth)) errors.dateOfBirth = 'Ngày sinh không hợp lệ';
-
-  if (imageChanged && !form.verified)
-    errors.verified = 'Vui lòng xác nhận đã đối chiếu với thẻ gốc';
   return errors;
 };
