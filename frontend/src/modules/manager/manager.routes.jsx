@@ -1,5 +1,11 @@
-// Route của module manager. path gốc lấy đúng theo constants/menus.js, cách khai báo xem routes/index.jsx
-// Ví dụ: { path: '/rooms', element: <RoomListPage />, roles: [ROLE.ADMIN, ROLE.MANAGER] }
-const managerRoutes = [];
+// Route của module manager: quản lý tài khoản Manager (UC-08..11), chỉ Admin
+import { ROLE } from '../../constants/enums';
+import ManagerListPage from './ManagerListPage';
+import ManagerDetailPage from './ManagerDetailPage';
+
+const managerRoutes = [
+  { path: '/managers', element: <ManagerListPage />, roles: [ROLE.ADMIN] },
+  { path: '/managers/:id', element: <ManagerDetailPage />, roles: [ROLE.ADMIN] },
+];
 
 export default managerRoutes;
