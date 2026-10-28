@@ -1,4 +1,4 @@
-// Tạo dữ liệu khởi tạo: 3 vai trò, tài khoản admin, 1 Manager test và thông báo mẫu (UC-41). Chạy: npm run seed
+// Tạo dữ liệu khởi tạo: 3 vai trò, tài khoản admin, Manager test (đã có tòa, chưa có tòa, chưa kích hoạt), tòa thứ 2 và thông báo mẫu (UC-41). Chạy: npm run seed
 // Chạy lại nhiều lần an toàn, thứ gì đã có thì bỏ qua.
 // Quy ước: chỉ leader chạy seed lên DB chung, cả nhóm dùng chung dữ liệu này. Thành viên khác không tự chạy.
 import 'dotenv/config';
@@ -10,6 +10,7 @@ import { env } from '../config/env.js';
 import { ROLE, USER_STATUS, ACTIVATION_TYPE, TOKEN_STATUS, AUDIT_ACTION, NOTIFICATION_TYPE } from '../constants/enums.js';
 import { withTransaction } from '../helpers/withTransaction.js';
 import { notify } from '../helpers/notify.js';
+import { generateActivationToken, ACTIVATION_TOKEN_TTL_MS } from '../helpers/activationToken.js';
 import Role from '../models/Role.js';
 import User from '../models/User.js';
 import Manager from '../models/Manager.js';
@@ -155,6 +156,134 @@ const seedManager = async () => {
 
         console.log(`Đã tạo Manager: ${MANAGER_EMAIL} / ${MANAGER_PASSWORD}`);
     });
+};
+
+// Dữ liệu test cho Quản lý Manager (UC-09..11). Email để dạng biến, đổi thành email thật trước khi chạy
+const MANAGER2_EMAIL = 'annbhe182167@fpt.edu.vn';
+const MANAGER2_PASSWORD = 'Manager123';
+const MANAGER2_PHONE = '0912000002';
+const PENDING_MANAGER_EMAIL = 'lanphuong104204@gmail.com';
+const PENDING_MANAGER_PHONE = '0912000003';
+const BUILDING2_NAME = 'Tòa Test 2';
+
+// Manager ACTIVE thứ 2: đã kích hoạt, CHƯA có tòa – để test danh sách chọn và phân công (UC-11)
+const seedManager2 = async (admin) => {
+    if (await User.exists({ email: MANAGER2_EMAIL })) {
+        console.log(`Manager đã tồn tại: ${MANAGER2_EMAIL}, bỏ qua`);
+        return;
+    }
+
+    await withTransaction(async (session) => {
+        const [user] = await User.create(
+            [
+                {
+                    email: MANAGER2_EMAIL,
+                    password: await bcrypt.hash(MANAGER2_PASSWORD, 10),
+                    roleId: ROLE.MANAGER,
+                    status: USER_STATUS.ACTIVE,
+                },
+            ],
+            { session },
+        );
+        await Manager.create(
+            [
+                {
+                    userId: user._id,
+                    name: 'Quản lý Test 2',
+                    phone: MANAGER2_PHONE,
+                },
+            ],
+            { session },
+        );
+        // Link kích hoạt đã dùng
+        await ActivationToken.create(
+            [
+                {
+                    type: ACTIVATION_TYPE.MANAGER_ACTIVATION,
+                    userId: user._id,
+                    token: generateActivationToken().tokenHash,
+                    sentTo: MANAGER2_EMAIL,
+                    status: TOKEN_STATUS.USED,
+                    expiresAt: new Date(Date.now() + ACTIVATION_TOKEN_TTL_MS),
+                    createdBy: admin._id,
+                },
+            ],
+            { session },
+        );
+    });
+    console.log(`Đã tạo Manager chưa có tòa: ${MANAGER2_EMAIL} / ${MANAGER2_PASSWORD}`);
+};
+
+// Manager PENDING: chưa có mật khẩu, link kích hoạt còn hạn – để test gửi lại link, xóa, chặn phân công
+const seedPendingManager = async (admin) => {
+    if (await User.exists({ email: PENDING_MANAGER_EMAIL })) {
+        console.log(`Manager đã tồn tại: ${PENDING_MANAGER_EMAIL}, bỏ qua`);
+        return;
+    }
+
+    await withTransaction(async (session) => {
+        const [user] = await User.create(
+            [
+                {
+                    email: PENDING_MANAGER_EMAIL,
+                    roleId: ROLE.MANAGER,
+                    status: USER_STATUS.PENDING,
+                },
+            ],
+            { session },
+        );
+        await Manager.create(
+            [
+                {
+                    userId: user._id,
+                    name: 'Quản lý Chưa Kích Hoạt',
+                    phone: PENDING_MANAGER_PHONE,
+                },
+            ],
+            { session },
+        );
+        await ActivationToken.create(
+            [
+                {
+                    type: ACTIVATION_TYPE.MANAGER_ACTIVATION,
+                    userId: user._id,
+                    token: generateActivationToken().tokenHash,
+                    sentTo: PENDING_MANAGER_EMAIL,
+                    expiresAt: new Date(Date.now() + ACTIVATION_TOKEN_TTL_MS),
+                    createdBy: admin._id,
+                },
+            ],
+            { session },
+        );
+    });
+    // Token gốc không in ra; cần link thật thì gọi POST /api/managers/:id/resend-activation
+    console.log(`Đã tạo Manager chưa kích hoạt: ${PENDING_MANAGER_EMAIL}`);
+};
+
+// Tòa thứ 2 chưa có Manager – để test phân công
+const seedBuilding2 = async () => {
+    if (await Building.exists({ name: BUILDING2_NAME, isDeleted: false })) {
+        console.log(`Tòa đã tồn tại: ${BUILDING2_NAME}, bỏ qua`);
+        return;
+    }
+
+    await Building.create({
+        name: BUILDING2_NAME,
+        address: 'Hải Phòng',
+        floorCount: 3,
+    });
+    console.log(`Đã tạo tòa chưa có Manager: ${BUILDING2_NAME}`);
+};
+
+const seedManagerTestData = async () => {
+    const admin = await User.findOne({ roleId: ROLE.ADMIN });
+    if (!admin) {
+        throw new Error('Chưa có admin để làm người tạo Manager');
+    }
+
+    await seedManager2(admin);
+    await seedPendingManager(admin);
+    await seedBuilding2();
 };
 
 // Thông báo mẫu cho chuông (UC-41): tạo qua notify(), lần lượt từng cái để createdAt khác nhau (cũ → mới)
@@ -307,6 +436,7 @@ CONNECT_DB()
         await seedRoles();
         await seedAdmin();
         await seedManager();
+        await seedManagerTestData();
         await seedNotifications();
         await CLOSE_DB();
         process.exit(0);
