@@ -4,6 +4,7 @@ import { Alert, Button, Card, Form, Spinner } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import Input from '../../components/Input';
+import PasswordInput from './components/PasswordInput';
 import { hasErrors, toFieldErrors } from '../../utils/formErrors';
 import authApi from './auth.api';
 import { validateForgotEmail, validateOtp, validateResetPassword } from './auth.validate';
@@ -183,10 +184,9 @@ const ForgotPasswordPage = () => {
 
         {step === STEP.PASSWORD && (
           <Form onSubmit={handleResetPassword} noValidate>
-            <Input
+            <PasswordInput
               label="Mật khẩu mới"
               name="newPassword"
-              type="password"
               value={form.newPassword}
               onChange={handleChange}
               error={errors.newPassword}
@@ -196,10 +196,9 @@ const ForgotPasswordPage = () => {
               autoFocus
               required
             />
-            <Input
+            <PasswordInput
               label="Xác nhận mật khẩu mới"
               name="confirmPassword"
-              type="password"
               value={form.confirmPassword}
               onChange={handleChange}
               error={errors.confirmPassword}

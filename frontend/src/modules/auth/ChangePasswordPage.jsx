@@ -1,10 +1,10 @@
 // UC-03: đổi mật khẩu (Admin, Manager, Customer đang đăng nhập)
 import { useState } from 'react';
 import { Button, Card, Form, Spinner } from 'react-bootstrap';
+import { BiLockAlt, BiSolidLock } from 'react-icons/bi';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import PageHeader from '../../components/PageHeader';
-import Input from '../../components/Input';
+import PasswordInput from './components/PasswordInput';
 import { hasErrors, toFieldErrors } from '../../utils/formErrors';
 import authApi from './auth.api';
 import { validateChangePassword } from './auth.validate';
@@ -45,26 +45,41 @@ const ChangePasswordPage = () => {
   };
 
   return (
-    <>
-      <PageHeader title="Đổi mật khẩu" />
-
-      <Card className="max-w-xl">
+    // thẻ căn giữa, tiêu đề nằm trong thẻ giống trang Đăng nhập / Quên mật khẩu
+    <div className="max-w-xl mx-auto mt-5">
+      <Card>
+        <Card.Header className="bg-transparent text-center p-4">
+          <h1 className="h4 fw-semibold mb-1 flex items-center justify-center gap-2">
+            <BiSolidLock className="text-primary" />
+            Đổi mật khẩu
+          </h1>
+          <div className="text-secondary">
+            Cập nhật mật khẩu để giữ tài khoản của bạn luôn an toàn.
+          </div>
+        </Card.Header>
         <Card.Body className="p-4">
+          <div className="mb-4">
+            <h2 className="h6 fw-semibold mb-1">Thiết lập mật khẩu mới</h2>
+            <div className="small text-secondary">
+              Vui lòng nhập mật khẩu hiện tại để xác nhận thay đổi.
+            </div>
+          </div>
+
           <Form onSubmit={handleSubmit} noValidate>
-            <Input
+            <PasswordInput
               label="Mật khẩu hiện tại"
               name="currentPassword"
-              type="password"
+              placeholder="Nhập mật khẩu hiện tại"
               value={form.currentPassword}
               onChange={handleChange}
               error={errors.currentPassword}
               autoComplete="current-password"
               required
             />
-            <Input
+            <PasswordInput
               label="Mật khẩu mới"
               name="newPassword"
-              type="password"
+              placeholder="Nhập mật khẩu mới"
               value={form.newPassword}
               onChange={handleChange}
               error={errors.newPassword}
@@ -72,19 +87,18 @@ const ChangePasswordPage = () => {
               autoComplete="new-password"
               required
             />
-            <Input
+            <PasswordInput
               label="Xác nhận mật khẩu mới"
               name="confirmPassword"
-              type="password"
+              placeholder="Nhập lại mật khẩu mới"
               value={form.confirmPassword}
               onChange={handleChange}
               error={errors.confirmPassword}
               autoComplete="new-password"
-              className="mb-4"
               required
             />
 
-            <div className="flex gap-2">
+            <div className="border-top pt-3 flex gap-2">
               <Button type="submit" variant="primary" disabled={submitting}>
                 {submitting && <Spinner animation="border" size="sm" className="me-2" />}
                 Đổi mật khẩu
@@ -95,9 +109,14 @@ const ChangePasswordPage = () => {
               </Button>
             </div>
           </Form>
+
+          <div className="border-top mt-3 pt-3 text-secondary small flex items-center justify-center gap-1">
+            <BiLockAlt />
+            Không chia sẻ mật khẩu của bạn với bất kỳ ai.
+          </div>
         </Card.Body>
       </Card>
-    </>
+    </div>
   );
 };
 
