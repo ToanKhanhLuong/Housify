@@ -41,8 +41,8 @@ Link trong email (BE ghép link, FE khai báo route khớp theo):
 
 | Method | Path                            | Role | Ghi chú                                                                                                                                                                              |
 | ------ | ------------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/activation/manager/:token`  | —   | Kiểm link còn hiệu lực                                                                                                                                                            |
-| POST   | `/activation/manager`         | —   | `{ token, password, confirmPassword }` – `confirmPassword` phải khớp `password`                                                                                              |
+| GET    | `/activation/manager/:token`  | —   | Kiểm link còn hiệu lực. 200 trả `{ name, email }`. Lỗi: 400 "Link kích hoạt đã hết hạn hoặc đã được sử dụng"; 404 "Link kích hoạt không tồn tại" |
+| POST   | `/activation/manager`         | —   | `{ token, password, confirmPassword }` – `password` ≥ 6 ký tự, có chữ và số; `confirmPassword` phải khớp `password`. 200 "Kích hoạt tài khoản thành công. Vui lòng đăng nhập" (không trả token). Lỗi: 400 "Link kích hoạt đã hết hạn hoặc đã được sử dụng"; 404 "Link kích hoạt không tồn tại"; 422 "Xác nhận mật khẩu không khớp"; 422 thiếu / sai định dạng |
 | GET    | `/activation/contract/:token` | —   | Thông tin hợp đồng chỉ xem                                                                                                                                                       |
 | POST   | `/activation/contract`        | —   | `{ token, name, phone, dateOfBirth, address, password, confirmPassword, agreed, cccdFrontImage, cccdBackImage }` – 2 ảnh là publicId, FE tải trước qua `POST /uploads/cccd` |
 

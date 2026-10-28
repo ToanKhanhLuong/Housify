@@ -6,7 +6,7 @@ import { Router } from 'express';
 // --- Iteration 1 ---
 import authRoutes from './modules/auth/auth.routes.js';                     // An    | UC-01..05
 import managerRoutes from './modules/manager/manager.routes.js';            // An    | UC-08..11
-// import activationRoutes from './modules/activation/activation.routes.js';   // An    | iter 1: link kích hoạt Manager (UC-08), iter 2: thêm Customer (UC-06)
+import activationRoutes from './modules/activation/activation.routes.js';   // An    | iter 1: link kích hoạt Manager (UC-08), iter 2: thêm Customer (UC-06)
 import notificationRoutes from './modules/notification/notification.routes.js'; // An | UC-41
 // import buildingRoutes from './modules/building/building.routes.js';         // Toàn  | UC-12..15, 23
 // import roomRoutes from './modules/room/room.routes.js';                     // Toàn  | UC-16..19
@@ -33,7 +33,7 @@ const router = Router();
 // --- Iteration 1 ---
 router.use(authRoutes);
 router.use(managerRoutes);
-// router.use(activationRoutes);
+router.use(activationRoutes);
 router.use(notificationRoutes);
 // router.use(buildingRoutes);
 // router.use(roomRoutes);
