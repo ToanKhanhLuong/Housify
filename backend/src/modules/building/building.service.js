@@ -83,10 +83,10 @@ export const updateBuilding = async (id, data) => {
     const name = data.name.trim();
 
     if (name !== building.name) {
-      // SỬA THÀNH:
       const existing = await Building.findOne({
         name,
         isDeleted: false,
+        _id: { $ne: id },
       });
 
       if (existing) {
@@ -142,14 +142,17 @@ export const deleteBuilding = async (id) => {
   const roomIds = rooms.map((room) => room._id);
 
   // Kiểm tra hợp đồng DRAFT hoặc ACTIVE
-  const contract = await Contract.findOne({
+  const activeContracts = await Contract.find({
     roomId: { $in: roomIds },
     status: { $in: [CONTRACT_STATUS.DRAFT, CONTRACT_STATUS.ACTIVE] },
-  });
+  }).populate("roomId", "roomNumber");
 
-  if (contract) {
+  if (activeContracts.length > 0) {
+    // Lấy thẳng số phòng ra luôn, không cần Set hay filter gì cả:
+    const stuckRooms = activeContracts.map((c) => c.roomId.roomNumber);
+
     throw new AppError(
-      "Không thể xóa vì còn hợp đồng nháp hoặc đang hoạt động",
+      `Không thể xóa vì các phòng sau đang có hợp đồng: ${stuckRooms.join(", ")}`,
       400,
     );
   }
