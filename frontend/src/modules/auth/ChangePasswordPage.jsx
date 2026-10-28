@@ -46,9 +46,9 @@ const ChangePasswordPage = () => {
 
   return (
     // thẻ căn giữa, tiêu đề nằm trong thẻ giống trang Đăng nhập / Quên mật khẩu
-    <div className="max-w-xl mx-auto mt-5">
+    <div className="max-w-3xl mx-auto mt-5">
       <Card>
-        <Card.Header className="bg-transparent text-center p-4">
+        <Card.Header className="bg-transparent text-center p-4 p-sm-5">
           <h1 className="h4 fw-semibold mb-1 flex items-center justify-center gap-2">
             <BiSolidLock className="text-primary" />
             Đổi mật khẩu
@@ -57,7 +57,7 @@ const ChangePasswordPage = () => {
             Cập nhật mật khẩu để giữ tài khoản của bạn luôn an toàn.
           </div>
         </Card.Header>
-        <Card.Body className="p-4">
+        <Card.Body className="p-4 p-sm-5">
           <div className="mb-4">
             <h2 className="h6 fw-semibold mb-1">Thiết lập mật khẩu mới</h2>
             <div className="small text-secondary">
@@ -67,6 +67,7 @@ const ChangePasswordPage = () => {
 
           <Form onSubmit={handleSubmit} noValidate>
             <PasswordInput
+              size="lg"
               label="Mật khẩu hiện tại"
               name="currentPassword"
               placeholder="Nhập mật khẩu hiện tại"
@@ -77,6 +78,7 @@ const ChangePasswordPage = () => {
               required
             />
             <PasswordInput
+              size="lg"
               label="Mật khẩu mới"
               name="newPassword"
               placeholder="Nhập mật khẩu mới"
@@ -88,6 +90,7 @@ const ChangePasswordPage = () => {
               required
             />
             <PasswordInput
+              size="lg"
               label="Xác nhận mật khẩu mới"
               name="confirmPassword"
               placeholder="Nhập lại mật khẩu mới"
@@ -99,12 +102,17 @@ const ChangePasswordPage = () => {
             />
 
             <div className="border-top pt-3 flex gap-2">
-              <Button type="submit" variant="primary" disabled={submitting}>
+              <Button type="submit" variant="primary" size="lg" disabled={submitting}>
                 {submitting && <Spinner animation="border" size="sm" className="me-2" />}
                 Đổi mật khẩu
               </Button>
               {/* hủy giữa chừng: không thay đổi gì, về trang chủ */}
-              <Button variant="secondary" onClick={() => navigate('/')} disabled={submitting}>
+              <Button
+                variant="secondary"
+                size="lg"
+                onClick={() => navigate('/')}
+                disabled={submitting}
+              >
                 Hủy
               </Button>
             </div>
