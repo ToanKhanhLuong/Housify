@@ -32,12 +32,13 @@ const ManagerEditModal = ({ manager, onHide, onSaved }) => {
     setErrors(clientErrors);
     if (hasErrors(clientErrors)) return;
 
-    // ảnh chỉ gửi khi có ảnh mới; ngày sinh để trống thì không gửi
+    // ảnh chỉ gửi khi có ảnh mới; ngày sinh, địa chỉ để trống thì không gửi (BE không nhận chuỗi rỗng)
+    const address = form.address.trim();
     const data = {
       name: form.name.trim(),
       email: form.email.trim(),
       phone: form.phone.trim(),
-      address: form.address.trim(),
+      ...(address && { address }),
       ...(form.dateOfBirth && { dateOfBirth: form.dateOfBirth }),
       ...(form.cccdFrontImage && { cccdFrontImage: form.cccdFrontImage }),
       ...(form.cccdBackImage && { cccdBackImage: form.cccdBackImage }),
@@ -45,8 +46,9 @@ const ManagerEditModal = ({ manager, onHide, onSaved }) => {
 
     setSubmitting(true);
     try {
-      await managerApi.update(manager._id, data);
-      toast.success('Cập nhật thông tin Manager thành công');
+      // BE trả "Cập nhật thông tin Manager thành công" hoặc "Không có thay đổi nào"
+      const response = await managerApi.update(manager._id, data);
+      toast.success(response.message);
       onSaved();
     } catch (error) {
       setErrors(toFieldErrors(error.errors)); // 422: lỗi hiện dưới từng ô

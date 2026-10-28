@@ -13,7 +13,9 @@ const LockManagerModal = ({ manager, onHide, onDone }) => {
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
-  const hasActiveContracts = manager.building && manager.activeContractCount > 0;
+  // BE trả số hợp đồng ACTIVE trong building: { _id, name, address, activeContractCount }
+  const { building } = manager;
+  const hasActiveContracts = building?.activeContractCount > 0;
 
   const handleLock = async () => {
     const clientErrors = validateLockReason({ reason });
@@ -47,8 +49,8 @@ const LockManagerModal = ({ manager, onHide, onDone }) => {
     >
       {hasActiveContracts && (
         <Alert variant="warning">
-          {manager.building.name} đang có {manager.activeContractCount} hợp đồng đang hiệu lực. Khóa
-          xong vẫn giữ phân công tòa, hãy phân công Manager khác tiếp quản.
+          {building.name} đang có {building.activeContractCount} hợp đồng đang hiệu lực. Khóa xong
+          vẫn giữ phân công tòa, hãy phân công Manager khác tiếp quản.
         </Alert>
       )}
       <Input

@@ -178,9 +178,9 @@ const ManagerDetailPage = () => {
               <FieldRow label="Tòa phụ trách">
                 {building?.name ?? <span className="text-secondary">Chưa phân công</span>}
               </FieldRow>
-              {/* UC-09: số hợp đồng đang hiệu lực của tòa, để Admin cân nhắc trước khi khóa */}
-              {building && manager.activeContractCount != null && (
-                <FieldRow label="Hợp đồng đang hiệu lực">{manager.activeContractCount}</FieldRow>
+              {/* UC-09: số hợp đồng đang hiệu lực của tòa (BE trả trong building), để Admin cân nhắc trước khi khóa */}
+              {building && (
+                <FieldRow label="Hợp đồng đang hiệu lực">{building.activeContractCount}</FieldRow>
               )}
             </div>
             <div>

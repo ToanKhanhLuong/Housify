@@ -8,6 +8,7 @@ import DataTable from '../../components/DataTable';
 import StatusBadge from '../../components/StatusBadge';
 import Input from '../../components/Input';
 import Select from '../../components/Select';
+import Pager from '../../components/Pager';
 import { USER_STATUS } from '../../constants/enums';
 import { USER_STATUS_LABEL } from '../../constants/statusLabels';
 import managerApi from './manager.api';
@@ -18,36 +19,49 @@ const STATUS_OPTIONS = [USER_STATUS.PENDING, USER_STATUS.ACTIVE, USER_STATUS.LOC
   (status) => ({ value: status, label: USER_STATUS_LABEL[status].label }),
 );
 
+// BE mặc định 10 dòng / trang (tối đa 50)
+const LIMIT = 10;
+
 const ManagerListPage = () => {
   const navigate = useNavigate();
   const [managers, setManagers] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ status: '', q: '' });
   const [creating, setCreating] = useState(false);
 
+  // GET /managers trả { items, total, page, limit }
   // dùng .then thay vì await: setState nằm trong callback (luật react-hooks/set-state-in-effect)
   const loadManagers = useCallback(
-    (params) =>
+    () =>
       managerApi
-        .list(params)
-        // api.md chưa ghi có phân trang không: đọc được cả mảng thẳng lẫn { items, total… }
-        .then((response) => setManagers(response.data?.items ?? response.data ?? []))
+        .list({
+          status: filters.status || undefined,
+          q: filters.q.trim() || undefined,
+          page,
+          limit: LIMIT,
+        })
+        .then((response) => {
+          setManagers(response.data.items);
+          setTotal(response.data.total);
+        })
         .catch((error) => toast.error(error.message))
         .finally(() => setLoading(false)),
-    [],
+    [filters, page],
   );
 
   // gõ tìm kiếm thì đợi 300ms mới gọi API, tránh gọi theo từng chữ
   useEffect(() => {
-    const timer = setTimeout(
-      () => loadManagers({ status: filters.status || undefined, q: filters.q.trim() || undefined }),
-      300,
-    );
+    const timer = setTimeout(loadManagers, 300);
     return () => clearTimeout(timer);
-  }, [filters, loadManagers]);
+  }, [loadManagers]);
 
-  const handleFilterChange = (event) =>
+  // đổi bộ lọc / từ khóa thì quay về trang 1
+  const handleFilterChange = (event) => {
     setFilters({ ...filters, [event.target.name]: event.target.value });
+    setPage(1);
+  };
 
   const isFiltering = Boolean(filters.status || filters.q.trim());
 
@@ -94,6 +108,7 @@ const ManagerListPage = () => {
           className="mb-0"
           aria-label="Tìm theo tên"
         />
+        <Pager page={page} limit={LIMIT} total={total} onChange={setPage} />
       </PageHeader>
 
       <DataTable
@@ -110,7 +125,7 @@ const ManagerListPage = () => {
           onHide={() => setCreating(false)}
           onSaved={() => {
             setCreating(false);
-            loadManagers({ status: filters.status || undefined, q: filters.q.trim() || undefined });
+            loadManagers();
           }}
         />
       )}
