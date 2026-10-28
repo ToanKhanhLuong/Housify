@@ -18,8 +18,8 @@ import CustomerProfileModal from './CustomerProfileModal';
 const initialOf = (name = '') => name.trim().split(/\s+/).pop()?.[0]?.toUpperCase() ?? '?';
 
 // dòng thông tin trang xem: nhãn nhạt, giá trị đậm để nổi bật thông tin (FieldRow dùng chung giữ nguyên, chỉ truyền class)
-const InfoRow = ({ label, children }) => (
-  <FieldRow label={<span className="fw-normal text-secondary">{label}</span>}>
+const InfoRow = ({ label, required = false, children }) => (
+  <FieldRow label={<span className="fw-normal text-secondary">{label}</span>} required={required}>
     <span className="fw-medium text-body-emphasis">{children ?? '—'}</span>
   </FieldRow>
 );
@@ -85,12 +85,20 @@ const CustomerProfile = () => {
       <Card className="mb-3">
         <Card.Body className="p-4">
           <h2 className="h6 fw-semibold mb-3">Thông tin cá nhân</h2>
-          {/* lưới 2 cột xếp theo cặp hàng; dấu * chỉ hiện ở form chỉnh sửa */}
+          {/* lưới 2 cột xếp theo cặp hàng; gắn required hiện dấu * đỏ theo luật số 11 */}
           <div className="grid lg:grid-cols-2 column-gap-5">
-            <InfoRow label="Họ tên">{profile.name}</InfoRow>
-            <InfoRow label="Số CCCD">{profile.cccd}</InfoRow>
-            <InfoRow label="Email">{profile.email}</InfoRow>
-            <InfoRow label="Số điện thoại">{profile.phone}</InfoRow>
+            <InfoRow label="Họ tên" required>
+              {profile.name}
+            </InfoRow>
+            <InfoRow label="Số CCCD" required>
+              {profile.cccd}
+            </InfoRow>
+            <InfoRow label="Email" required>
+              {profile.email}
+            </InfoRow>
+            <InfoRow label="Số điện thoại" required>
+              {profile.phone}
+            </InfoRow>
             <InfoRow label="Ngày sinh">{formatDate(profile.dateOfBirth)}</InfoRow>
             <InfoRow label="Địa chỉ">{profile.address || null}</InfoRow>
           </div>
