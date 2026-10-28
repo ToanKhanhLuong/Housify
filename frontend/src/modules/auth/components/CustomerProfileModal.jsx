@@ -1,7 +1,8 @@
 // UC-05: Customer (người đại diện) sửa hồ sơ mình (PUT /profile): email, SĐT, ngày sinh, địa chỉ, ảnh CCCD.
 // Họ tên, số CCCD chỉ xem (Manager sửa ở UC-31)
 import { useState } from 'react';
-import { Button, Col, Form, Modal, Row, Spinner } from 'react-bootstrap';
+import { Button, Card, Col, Form, Modal, Row, Spinner } from 'react-bootstrap';
+import { BiInfoCircle } from 'react-icons/bi';
 import { toast } from 'react-toastify';
 import Input from '../../../components/Input';
 import ImageUpload from '../../../components/ImageUpload';
@@ -50,8 +51,8 @@ const CustomerProfileModal = ({ profile, onHide, onSaved }) => {
       toast.success(response.message);
       onSaved();
     } catch (error) {
-      setErrors(toFieldErrors(error.errors)); // 422: lỗi hiện dưới từng ô (vd SĐT, email trùng)
-      if (!error.errors) toast.error(error.message);
+      setErrors(toFieldErrors(error.errors)); // 422: lỗi hiện dưới từng ô
+      if (!error.errors) toast.error(error.message); // vd email hoặc SĐT đã có người dùng
       setSubmitting(false);
     }
   };
@@ -60,9 +61,18 @@ const CustomerProfileModal = ({ profile, onHide, onSaved }) => {
     <Modal show onHide={onHide} centered backdrop="static" size="lg">
       <Form onSubmit={handleSubmit} noValidate>
         <Modal.Header closeButton={!submitting}>
-          <Modal.Title className="h5">Chỉnh sửa hồ sơ</Modal.Title>
+          <div>
+            <Modal.Title className="h5">Chỉnh sửa hồ sơ</Modal.Title>
+            <div className="small text-secondary">Tài khoản Khách thuê · Người đại diện phòng</div>
+          </div>
         </Modal.Header>
         <Modal.Body>
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <h3 className="h6 fw-semibold mb-0">Thông tin cá nhân</h3>
+            <span className="small text-secondary">
+              <span className="text-danger">*</span> Thông tin bắt buộc
+            </span>
+          </div>
           <Row>
             <Col md={6}>
               <Input
@@ -72,6 +82,7 @@ const CustomerProfileModal = ({ profile, onHide, onSaved }) => {
                 helpText="Liên hệ Manager để thay đổi"
                 readOnly
                 disabled
+                required
               />
             </Col>
             <Col md={6}>
@@ -82,28 +93,6 @@ const CustomerProfileModal = ({ profile, onHide, onSaved }) => {
                 helpText="Liên hệ Manager để thay đổi"
                 readOnly
                 disabled
-                required
-              />
-            </Col>
-            <Col md={6}>
-              <Input
-                label="Ngày sinh"
-                name="dateOfBirth"
-                type="date"
-                max={toDateInput(new Date())}
-                value={form.dateOfBirth}
-                onChange={handleChange}
-                error={errors.dateOfBirth}
-                required
-              />
-            </Col>
-            <Col md={6}>
-              <Input
-                label="Số điện thoại"
-                name="phone"
-                value={form.phone}
-                onChange={handleChange}
-                error={errors.phone}
                 required
               />
             </Col>
@@ -120,6 +109,29 @@ const CustomerProfileModal = ({ profile, onHide, onSaved }) => {
             </Col>
             <Col md={6}>
               <Input
+                label="Số điện thoại"
+                name="phone"
+                value={form.phone}
+                onChange={handleChange}
+                error={errors.phone}
+                required
+              />
+            </Col>
+            <Col md={6}>
+              <Input
+                label="Ngày sinh"
+                name="dateOfBirth"
+                type="date"
+                max={toDateInput(new Date())}
+                value={form.dateOfBirth}
+                onChange={handleChange}
+                error={errors.dateOfBirth}
+                helpText="Không chọn ngày trong tương lai."
+                required
+              />
+            </Col>
+            <Col md={6}>
+              <Input
                 label="Địa chỉ"
                 name="address"
                 value={form.address}
@@ -127,36 +139,61 @@ const CustomerProfileModal = ({ profile, onHide, onSaved }) => {
                 error={errors.address}
               />
             </Col>
+          </Row>
+
+          <hr className="my-3" />
+
+          <div className="flex items-center justify-between gap-3 mb-1">
+            <h3 className="h6 fw-semibold mb-0">Hình ảnh CCCD</h3>
+            <span className="small text-secondary">JPG, PNG · Tối đa 5 MB / ảnh</span>
+          </div>
+          <div className="small text-secondary mb-3">
+            Tải ảnh mới để thay thế. Đảm bảo ảnh rõ nét và đầy đủ bốn góc.
+          </div>
+          <Row className="g-3">
             <Col md={6}>
-              <ImageUpload
-                label="Ảnh CCCD mặt trước"
-                kind="CCCD"
-                previewUrl={profile.cccdFrontUrl}
-                onChange={handleImage('cccdFrontImage')}
-                error={errors.cccdFrontImage}
-                disabled={submitting}
-              />
+              <Card>
+                <Card.Body className="p-3">
+                  <div className="small fw-semibold mb-2">CCCD mặt trước</div>
+                  <ImageUpload
+                    kind="CCCD"
+                    previewUrl={profile.cccdFrontUrl}
+                    onChange={handleImage('cccdFrontImage')}
+                    error={errors.cccdFrontImage}
+                    disabled={submitting}
+                  />
+                </Card.Body>
+              </Card>
             </Col>
             <Col md={6}>
-              <ImageUpload
-                label="Ảnh CCCD mặt sau"
-                kind="CCCD"
-                previewUrl={profile.cccdBackUrl}
-                onChange={handleImage('cccdBackImage')}
-                error={errors.cccdBackImage}
-                disabled={submitting}
-              />
+              <Card>
+                <Card.Body className="p-3">
+                  <div className="small fw-semibold mb-2">CCCD mặt sau</div>
+                  <ImageUpload
+                    kind="CCCD"
+                    previewUrl={profile.cccdBackUrl}
+                    onChange={handleImage('cccdBackImage')}
+                    error={errors.cccdBackImage}
+                    disabled={submitting}
+                  />
+                </Card.Body>
+              </Card>
             </Col>
           </Row>
         </Modal.Body>
+        {/* chân modal theo quy định nhóm: nút chính → Hủy bên trái */}
         <Modal.Footer className="justify-content-start">
           <Button type="submit" variant="primary" disabled={submitting}>
             {submitting && <Spinner animation="border" size="sm" className="me-2" />}
-            Lưu
+            Lưu thay đổi
           </Button>
           <Button variant="secondary" onClick={onHide} disabled={submitting}>
             Hủy
           </Button>
+          <span className="ms-auto small text-secondary flex items-center gap-1">
+            <BiInfoCircle />
+            Thay đổi chỉ được cập nhật sau khi lưu.
+          </span>
         </Modal.Footer>
       </Form>
     </Modal>
