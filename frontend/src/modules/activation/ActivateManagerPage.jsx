@@ -41,10 +41,15 @@ const ActivateManagerPage = () => {
 
     setSubmitting(true);
     try {
-      // ô xác nhận chỉ kiểm ở FE, không gửi lên
-      await activationApi.activateManager({ token, password: form.password });
+      // BE kiểm lại cả 2 ô, xác nhận phải khớp mật khẩu
+      const response = await activationApi.activateManager({
+        token,
+        password: form.password,
+        confirmPassword: form.confirmPassword,
+      });
       // bước 8: về trang đăng nhập, đăng nhập bằng email + mật khẩu vừa đặt
-      toast.success('Kích hoạt tài khoản thành công. Vui lòng đăng nhập');
+      // BE trả "Kích hoạt tài khoản thành công. Vui lòng đăng nhập"
+      toast.success(response.message);
       navigate('/login', { replace: true });
     } catch (err) {
       setErrors(toFieldErrors(err.errors)); // 422: lỗi hiện dưới ô
@@ -77,7 +82,7 @@ const ActivateManagerPage = () => {
           value={form.password}
           onChange={handleChange}
           error={errors.password}
-          helpText="Tối thiểu 6 ký tự, có cả chữ và số"
+          helpText="Tối thiểu 6 ký tự, có chữ và số"
           size="lg"
           autoComplete="new-password"
           autoFocus
