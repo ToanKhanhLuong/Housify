@@ -1,9 +1,9 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-
 /*
-  Bootstrap lo component (Button, Modal, Table, Form...), Tailwind lo bố cục và khoảng cách.
+  Bootstrap lo component (Button, Modal, Table, Form...), Tailwind lo bố cục.
   - Bootstrap nằm trong layer riêng, xếp trước utilities nên class Tailwind thắng khi trùng.
-  - Không nạp preflight của Tailwind để không đè lên reboot của Bootstrap.
+  - Không nạp preflight của Tailwind để không đè reboot của Bootstrap.
+  - Khối "Giao diện Housify" ghi đè biến của Bootstrap: sửa ở đây là cả app đổi theo.
+    Trang KHÔNG tự chỉnh màu, bo góc, cỡ chữ.
 */
 @layer theme, bootstrap, components, utilities;
 
@@ -11,59 +11,198 @@
 @import 'tailwindcss/theme.css' layer(theme);
 @import 'tailwindcss/utilities.css' layer(utilities);
 
-:root {
-  --font-main: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  
-  /* Brand Colors */
-  --color-primary: #0284c7;
-  --color-primary-dark: #0369a1;
-  --color-primary-light: #e0f2fe;
-  --color-primary-gradient: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
-  
-  --color-secondary: #0f172a;
-  --color-accent: #10b981;
-  --color-accent-light: #d1fae5;
-  --color-warning: #f59e0b;
-  --color-danger: #ef4444;
-  --color-zalo: #0068ff;
-  --color-zalo-dark: #0052cc;
+/* ===== Giao diện Housify: phong cách phần mềm quản lý kiểu Odoo ===== */
+@layer components {
+  html {
+    font-size: 14px; /* chữ 14px cho dày thông tin; mọi kích thước rem co theo */
+  }
 
-  /* Neutrals */
-  --bg-body: #f8fafc;
-  --bg-card: #ffffff;
-  --text-main: #0f172a;
-  --text-muted: #64748b;
-  --text-light: #94a3b8;
-  --border-color: #e2e8f0;
-  --border-light: #f1f5f9;
+  :root {
+    --bs-body-font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --bs-body-color: #1f2937;
+    --bs-body-color-rgb: 31, 41, 55;
+    --bs-heading-color: #111827;
+    --bs-emphasis-color: #111827;
+    --bs-emphasis-color-rgb: 17, 24, 39;
+    --bs-secondary-color: #6b7280;
+    --bs-secondary-rgb: 107, 114, 128;
+    --bs-tertiary-bg: #f5f6f8;
+    --bs-tertiary-bg-rgb: 245, 246, 248;
+    --bs-border-color: #e3e6ea;
+    --bs-border-radius: 0.375rem;
+    --bs-border-radius-sm: 0.25rem;
+    --bs-border-radius-lg: 0.5rem;
 
-  /* Shadows */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 10px 25px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.04);
-  --shadow-hover: 0 20px 30px -6px rgba(2, 132, 199, 0.15), 0 8px 12px -4px rgba(15, 23, 42, 0.08);
+    /* màu chủ đạo: tím mận */
+    --bs-primary: #714b67;
+    --bs-primary-rgb: 113, 75, 103;
+    --bs-primary-text-emphasis: #4a3044;
+    --bs-primary-bg-subtle: #f4eef2;
+    --bs-primary-border-subtle: #e2d2dd;
 
-  /* Radii */
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-full: 9999px;
+    /* link: xanh cổ vịt */
+    --bs-link-color: #017e84;
+    --bs-link-color-rgb: 1, 126, 132;
+    --bs-link-hover-color: #01656a;
+    --bs-link-hover-color-rgb: 1, 101, 106;
+  }
 
-  /* Transitions */
-  --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
+  /* link không gạch chân, rê chuột mới gạch */
+  a {
+    text-decoration: none;
+  }
 
-body {
-  font-family: var(--font-main);
-  background-color: var(--bg-body);
-  color: var(--text-main);
-  line-height: 1.6;
-}
+  a:not(.btn, .nav-link, .dropdown-item, .page-link):hover {
+    text-decoration: underline;
+  }
 
-.container-custom {
-  max-width: 1200px;
-  margin-left: auto;
-  margin-right: auto;
-  padding-left: 1.25rem;
-  padding-right: 1.25rem;
+  .btn {
+    --bs-btn-font-weight: 500;
+    --bs-btn-padding-x: 0.875rem;
+  }
+
+  .btn-primary {
+    --bs-btn-bg: #714b67;
+    --bs-btn-border-color: #714b67;
+    --bs-btn-hover-bg: #5f3f57;
+    --bs-btn-hover-border-color: #5f3f57;
+    --bs-btn-active-bg: #553850;
+    --bs-btn-active-border-color: #553850;
+    --bs-btn-disabled-bg: #714b67;
+    --bs-btn-disabled-border-color: #714b67;
+    --bs-btn-focus-shadow-rgb: 113, 75, 103;
+  }
+
+  /* nút phụ: xám nhạt chữ đậm */
+  .btn-secondary {
+    --bs-btn-color: #1f2937;
+    --bs-btn-bg: #eceef1;
+    --bs-btn-border-color: #eceef1;
+    --bs-btn-hover-color: #111827;
+    --bs-btn-hover-bg: #dfe2e6;
+    --bs-btn-hover-border-color: #dfe2e6;
+    --bs-btn-active-color: #111827;
+    --bs-btn-active-bg: #d3d7dc;
+    --bs-btn-active-border-color: #d3d7dc;
+    --bs-btn-disabled-color: #6b7280;
+    --bs-btn-disabled-bg: #eceef1;
+    --bs-btn-disabled-border-color: #eceef1;
+    --bs-btn-focus-shadow-rgb: 107, 114, 128;
+  }
+
+  .form-control:focus,
+  .form-select:focus {
+    border-color: #b79aae;
+    box-shadow: 0 0 0 0.2rem rgba(113, 75, 103, 0.15);
+  }
+
+  .form-check-input:checked {
+    background-color: #714b67;
+    border-color: #714b67;
+  }
+
+  .form-label {
+    font-weight: 500;
+    margin-bottom: 0.375rem;
+  }
+
+  /* menu trái: mục đang chọn tô nền nhạt, không tô đặc */
+  .nav-pills {
+    --bs-nav-link-color: #374151;
+    --bs-nav-link-hover-color: #111827;
+    --bs-nav-link-padding-y: 0.5rem;
+    --bs-nav-pills-link-active-bg: var(--bs-primary-bg-subtle);
+    --bs-nav-pills-link-active-color: var(--bs-primary-text-emphasis);
+  }
+
+  .nav-pills .nav-link:not(.active):hover {
+    background-color: #f1f2f4;
+  }
+
+  .nav-pills .nav-link.active {
+    font-weight: 600;
+  }
+
+  .nav-tabs {
+    --bs-nav-link-color: #4b5563;
+    --bs-nav-link-hover-color: #111827;
+    --bs-nav-tabs-link-active-color: #111827;
+  }
+
+  .nav-tabs .nav-link.active {
+    font-weight: 600;
+  }
+
+  .table {
+    --bs-table-hover-bg: #f8f9fb;
+  }
+
+  .table > thead th {
+    font-weight: 600;
+    color: #4b5563;
+    background-color: #f8f9fa;
+    white-space: nowrap;
+  }
+
+  .card {
+    --bs-card-border-color: var(--bs-border-color);
+    --bs-card-cap-bg: #ffffff;
+    --bs-card-cap-padding-y: 0.75rem;
+    --bs-card-cap-padding-x: 1rem;
+  }
+
+  .list-group {
+    --bs-list-group-border-color: var(--bs-border-color);
+  }
+
+  .modal {
+    --bs-modal-header-border-color: var(--bs-border-color);
+    --bs-modal-footer-border-color: var(--bs-border-color);
+    --bs-modal-border-radius: 0.5rem;
+  }
+
+  .dropdown-menu {
+    --bs-dropdown-link-active-bg: var(--bs-primary-bg-subtle);
+    --bs-dropdown-link-active-color: var(--bs-primary-text-emphasis);
+    --bs-dropdown-border-color: var(--bs-border-color);
+  }
+
+  .breadcrumb {
+    --bs-breadcrumb-margin-bottom: 0;
+  }
+
+  .badge {
+    --bs-badge-font-weight: 500;
+    --bs-badge-font-size: 0.8125rem;
+    --bs-badge-padding-y: 0.4em;
+    --bs-badge-padding-x: 0.7em;
+  }
+
+  /* thanh trạng thái (component StatusSteps): Nháp › Đang hiệu lực › Đã kết thúc */
+  .status-steps {
+    display: flex;
+  }
+
+  .status-steps .step {
+    padding: 0.375rem 1rem 0.375rem 1.5rem;
+    margin-left: -0.5rem;
+    background-color: #eceef1;
+    color: #4b5563;
+    font-weight: 500;
+    white-space: nowrap;
+    clip-path: polygon(0 0, calc(100% - 0.6rem) 0, 100% 50%, calc(100% - 0.6rem) 100%, 0 100%, 0.6rem 50%);
+  }
+
+  .status-steps .step:first-child {
+    margin-left: 0;
+    padding-left: 1rem;
+    border-radius: var(--bs-border-radius) 0 0 var(--bs-border-radius);
+    clip-path: polygon(0 0, calc(100% - 0.6rem) 0, 100% 50%, calc(100% - 0.6rem) 100%, 0 100%);
+  }
+
+  .status-steps .step.active {
+    background-color: var(--bs-primary-bg-subtle);
+    color: var(--bs-primary-text-emphasis);
+    font-weight: 600;
+  }
 }
