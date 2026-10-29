@@ -12,6 +12,7 @@ import FieldRow from '../components/FieldRow';
 import Pager from '../components/Pager';
 import MoneyText from '../components/MoneyText';
 import Input from '../components/Input';
+import PasswordInput from '../components/PasswordInput';
 import Select from '../components/Select';
 import ConfirmModal from '../components/ConfirmModal';
 import ImageUpload from '../components/ImageUpload';
@@ -165,7 +166,7 @@ const UiKitPage = () => {
                 </Col>
 
                 <Col lg={6}>
-                    <Section title="Ô nhập (Input, Select)">
+                    <Section title="Ô nhập (Input, PasswordInput, Select)">
                         <Row>
                             <Col md={6}>
                                 <Input label="Họ tên" name="name" placeholder="Nguyễn Văn A" required />
@@ -182,6 +183,24 @@ const UiKitPage = () => {
                             </Col>
                             <Col md={6}>
                                 <Input label="Email (chỉ xem)" name="email" value="manager@housify.vn" disabled readOnly />
+                            </Col>
+                            <Col md={6}>
+                                <PasswordInput
+                                    label="Mật khẩu mới"
+                                    name="newPassword"
+                                    placeholder="Nhập mật khẩu mới"
+                                    helpText="Bấm con mắt để hiện / ẩn"
+                                    required
+                                />
+                            </Col>
+                            <Col md={6}>
+                                <PasswordInput
+                                    label="Xác nhận mật khẩu mới"
+                                    name="confirmPassword"
+                                    defaultValue="abc123"
+                                    error="Xác nhận mật khẩu không khớp"
+                                    required
+                                />
                             </Col>
                             <Col md={6}>
                                 <Select

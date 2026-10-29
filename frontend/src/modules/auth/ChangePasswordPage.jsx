@@ -4,7 +4,7 @@ import { Button, Card, Form, Spinner } from 'react-bootstrap';
 import { BiLockAlt, BiSolidLock } from 'react-icons/bi';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import PasswordInput from './components/PasswordInput';
+import PasswordInput from '../../components/PasswordInput';
 import { hasErrors, toFieldErrors } from '../../utils/formErrors';
 import authApi from './auth.api';
 import { validateChangePassword } from './auth.validate';
