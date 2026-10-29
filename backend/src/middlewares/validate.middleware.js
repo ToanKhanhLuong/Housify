@@ -15,6 +15,11 @@ export const validate = (schema, property = 'body') => (req, res, next) => {
         throw new AppError('Dữ liệu không hợp lệ', 422, errors);
     }
 
-    req[property] = value; // gán lại giá trị đã chuẩn hóa
+    // gán lại giá trị đã chuẩn hóa; Express 5: req.query chỉ có getter, gán thẳng sẽ lỗi nên phải defineProperty
+    if (property === 'query') {
+        Object.defineProperty(req, 'query', { value, writable: true, configurable: true, enumerable: true });
+    } else {
+        req[property] = value;
+    }
     next();
 };

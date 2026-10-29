@@ -40,4 +40,7 @@ const notificationSchema = new Schema(
     { timestamps: true },
 );
 
+// đếm chưa đọc và lấy danh sách mới nhất của 1 người (UC-41) – không unique
+notificationSchema.index({ userId: 1, isRead: 1, createdAt: -1 });
+
 export default mongoose.model('Notification', notificationSchema, 'notifications');

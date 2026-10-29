@@ -1,14 +1,19 @@
-// Nghiệp vụ cho module auth: đăng nhập và lấy thông tin tài khoản (UC-01)
+// Nghiệp vụ cho module auth: đăng nhập, lấy thông tin tài khoản, đổi mật khẩu, quên mật khẩu, hồ sơ cá nhân (UC-01, UC-03, UC-04, UC-05)
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { env } from '../../config/env.js';
-import { ROLE, USER_STATUS } from '../../constants/enums.js';
+import { ROLE, USER_STATUS, TOKEN_STATUS } from '../../constants/enums.js';
 import { MSG } from '../../constants/messages.js';
 import { AppError } from '../../utils/AppError.js';
+import { sendMail } from '../../config/mail.js';
+import { withTransaction } from '../../helpers/withTransaction.js';
+import { getSignedUrl } from '../upload/upload.service.js';
 import User from '../../models/User.js';
 import Manager from '../../models/Manager.js';
 import Occupant from '../../models/Occupant.js';
 import Building from '../../models/Building.js';
+import OtpToken from '../../models/OtpToken.js';
 
 export const getMe = async (userId) => {
     const user = await User.findById(userId);
@@ -17,11 +22,12 @@ export const getMe = async (userId) => {
     }
 
     const userData = {
-        id: user._id,
+        _id: user._id,
         email: user.email,
         role: user.roleId,
         status: user.status,
         name: '',
+        building: null,
     };
 
     if (user.roleId === ROLE.ADMIN) {
@@ -30,8 +36,10 @@ export const getMe = async (userId) => {
         const manager = await Manager.findOne({ userId: user._id });
         userData.name = manager?.name || 'Manager';
         userData.phone = manager?.phone || '';
-        const building = await Building.findOne({ managerId: user._id, isDeleted: false }).select('_id name address');
-        userData.building = building ? { id: building._id, _id: building._id, name: building.name, address: building.address } : null;
+        const building = await Building.findOne({ managerId: user._id, isDeleted: false })
+            .select('name address')
+            .lean();
+        userData.building = building; // { _id, name, address } hoặc null
     } else if (user.roleId === ROLE.CUSTOMER) {
         const occupant = await Occupant.findOne({ userId: user._id, isRepresentative: true }).sort({ createdAt: -1 });
         userData.name = occupant?.name || 'Khách hàng';
@@ -57,6 +65,7 @@ export const login = async ({ identifier, password, remember = false }) => {
     } else {
         // Còn lại hiểu là email của Admin hoặc Manager
         user = await User.findOne({ email: cleanIdentifier.toLowerCase() }).select('+password');
+        if (user?.roleId === ROLE.CUSTOMER) user = null;
     }
 
     if (!user) {
@@ -107,5 +116,230 @@ export const login = async ({ identifier, password, remember = false }) => {
     return {
         token,
         user: me,
+    };
+};
+
+export const changePassword = async (userId, { currentPassword, newPassword }) => {
+    const user = await User.findById(userId).select('+password');
+    if (!user) {
+        throw new AppError(MSG.NOT_FOUND('Tài khoản'), 404);
+    }
+
+    const isMatch = user.password ? await bcrypt.compare(currentPassword, user.password) : false;
+    if (!isMatch) {
+        throw new AppError('Mật khẩu hiện tại không đúng', 400);
+    }
+
+    // BR-006: mật khẩu mới không được trùng mật khẩu hiện tại
+    const isSame = await bcrypt.compare(newPassword, user.password);
+    if (isSame) {
+        throw new AppError('Mật khẩu mới không được trùng mật khẩu hiện tại', 400);
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+};
+
+// OTP chưa dùng: status trống (null hoặc không có field)
+const UNUSED_OTP = { $in: [null] };
+
+export const forgotPassword = async ({ email }) => {
+    const user = await User.findOne({ email: email.trim().toLowerCase() }).select('+password');
+
+    // BR-008, BR-021: không lộ email có tồn tại hay không; Manager chưa kích hoạt / chưa có mật khẩu thì không gửi OTP
+    const canSend = user && user.password && !(user.roleId === ROLE.MANAGER && user.status === USER_STATUS.PENDING);
+    if (canSend) {
+        // Gửi lại thì OTP cũ chưa dùng mất hiệu lực
+        await OtpToken.updateMany({ userId: user._id, status: UNUSED_OTP }, { status: TOKEN_STATUS.EXPIRED });
+
+        const otp = crypto.randomInt(0, 10000).toString().padStart(4, '0');
+        await OtpToken.create({
+            userId: user._id,
+            otp: await bcrypt.hash(otp, 10),
+            expiresAt: new Date(Date.now() + 5 * 60 * 1000), // BR-007
+        });
+
+        const sent = await sendMail(
+            user.email,
+            'Housify - Mã OTP đặt lại mật khẩu',
+            `<p>Mã OTP đặt lại mật khẩu của bạn là: <b>${otp}</b></p>
+<p>Mã có hiệu lực trong 5 phút.</p>
+<p>Nếu không phải bạn yêu cầu, vui lòng bỏ qua email này.</p>`,
+        );
+        if (!sent) {
+            throw new AppError('Gửi email thất bại, vui lòng thử lại sau', 500);
+        }
+    }
+};
+
+const findValidOtp = async (email, otp) => {
+    const user = await User.findOne({ email: email.trim().toLowerCase() });
+    if (!user) {
+        throw new AppError('Mã OTP không đúng hoặc đã hết hạn', 400);
+    }
+
+    const otpDoc = await OtpToken.findOne({
+        userId: user._id,
+        status: UNUSED_OTP,
+        expiresAt: { $gt: new Date() },
+    }).sort({ createdAt: -1 });
+
+    const isMatch = otpDoc ? await bcrypt.compare(otp, otpDoc.otp) : false;
+    if (!isMatch) {
+        throw new AppError('Mã OTP không đúng hoặc đã hết hạn', 400);
+    }
+
+    return { user, otpDoc };
+};
+
+export const verifyOtp = async ({ email, otp }) => {
+    await findValidOtp(email, otp);
+};
+
+export const resetPassword = async ({ email, otp, newPassword }) => {
+    const { user, otpDoc } = await findValidOtp(email, otp);
+
+    const userWithPassword = await User.findById(user._id).select('+password');
+    const isSame = userWithPassword.password ? await bcrypt.compare(newPassword, userWithPassword.password) : false;
+    if (isSame) {
+        throw new AppError('Mật khẩu mới không được trùng mật khẩu hiện tại', 400);
+    }
+
+    userWithPassword.password = await bcrypt.hash(newPassword, 10);
+    await userWithPassword.save();
+
+    otpDoc.status = TOKEN_STATUS.USED;
+    await otpDoc.save();
+};
+
+// Hồ sơ của chính người đăng nhập: Manager ở managers, Customer ở bản ghi đại diện mới nhất (giống getMe)
+const findProfile = async (user) => {
+    let profile = null;
+    if (user.roleId === ROLE.MANAGER) {
+        profile = await Manager.findOne({ userId: user._id });
+    } else if (user.roleId === ROLE.CUSTOMER) {
+        profile = await Occupant.findOne({ userId: user._id, isRepresentative: true }).sort({ createdAt: -1 });
+    }
+
+    if (!profile) {
+        throw new AppError('Không tìm thấy hồ sơ', 404);
+    }
+    return profile;
+};
+
+const buildProfile = (user, profile) => {
+    const data = {
+        _id: user._id,
+        email: user.email,
+        role: user.roleId,
+        name: profile.name,
+        phone: profile.phone,
+        dateOfBirth: profile.dateOfBirth || null,
+        address: profile.address || null,
+        cccdFrontUrl: getSignedUrl(profile.cccdFrontImage),
+        cccdBackUrl: getSignedUrl(profile.cccdBackImage),
+    };
+
+    // Manager không dùng số CCCD nên không trả; Customer chỉ để xem
+    if (user.roleId === ROLE.CUSTOMER) {
+        data.cccd = profile.cccd;
+    }
+    return data;
+};
+
+const findUser = async (userId) => {
+    const user = await User.findById(userId);
+    if (!user) {
+        throw new AppError(MSG.NOT_FOUND('Tài khoản'), 404);
+    }
+    return user;
+};
+
+export const getProfile = async (userId) => {
+    const user = await findUser(userId);
+    const profile = await findProfile(user);
+    return buildProfile(user, profile);
+};
+
+// Các ô lưu ở managers / occupants
+const PROFILE_FIELDS = ['name', 'phone', 'dateOfBirth', 'address', 'cccdFrontImage', 'cccdBackImage'];
+
+const isSameValue = (field, newValue, oldValue) => {
+    if (field === 'dateOfBirth') {
+        return Boolean(oldValue) && new Date(newValue).getTime() === new Date(oldValue).getTime();
+    }
+    return newValue === oldValue;
+};
+
+export const updateProfile = async (userId, body) => {
+    const user = await findUser(userId);
+    const profile = await findProfile(user);
+
+    // Giá trị gửi lên giống giá trị đang lưu thì coi như không đổi
+    const changes = {};
+    for (const field of PROFILE_FIELDS) {
+        if (body[field] !== undefined && !isSameValue(field, body[field], profile[field])) {
+            changes[field] = body[field];
+        }
+    }
+    const emailChanged = body.email !== undefined && body.email !== user.email;
+
+    if (user.roleId === ROLE.MANAGER) {
+        // Họ tên, email của Manager chỉ Admin sửa (UC-09)
+        if (emailChanged || changes.name !== undefined) {
+            throw new AppError('Họ tên, email chỉ Admin được chỉnh sửa', 400);
+        }
+        // BR-010: số điện thoại không trùng người khác
+        if (changes.phone !== undefined) {
+            const phoneUsed = await Manager.findOne({ phone: changes.phone, userId: { $ne: user._id } })
+                || await Occupant.findOne({ phone: changes.phone });
+            if (phoneUsed) {
+                throw new AppError('Số điện thoại đã tồn tại trong hệ thống', 409);
+            }
+        }
+    } else {
+        // Họ tên, số CCCD của Customer chỉ Manager sửa (UC-31)
+        if (changes.name !== undefined || (body.cccd !== undefined && body.cccd !== profile.cccd)) {
+            throw new AppError('Họ tên, số CCCD chỉ Manager được chỉnh sửa', 400);
+        }
+        // BR-010: email, số điện thoại không trùng người khác
+        if (emailChanged) {
+            const emailUsed = await User.findOne({ email: body.email, _id: { $ne: user._id } });
+            if (emailUsed) {
+                throw new AppError('Email đã tồn tại trong hệ thống', 409);
+            }
+        }
+        if (changes.phone !== undefined) {
+            // Cùng CCCD là cùng một người (thuê lại) nên được dùng lại số cũ
+            const phoneUsed = await Manager.findOne({ phone: changes.phone })
+                || await Occupant.findOne({ phone: changes.phone, cccd: { $ne: profile.cccd } });
+            if (phoneUsed) {
+                throw new AppError('Số điện thoại đã tồn tại trong hệ thống', 409);
+            }
+        }
+    }
+
+    if (!emailChanged && Object.keys(changes).length === 0) {
+        return {
+            changed: false,
+            profile: buildProfile(user, profile),
+        };
+    }
+
+    // Email ở users, các ô còn lại ở hồ sơ – ghi chung 1 transaction
+    await withTransaction(async (session) => {
+        if (emailChanged) {
+            user.email = body.email;
+            await user.save({ session });
+        }
+        if (Object.keys(changes).length > 0) {
+            Object.assign(profile, changes);
+            await profile.save({ session });
+        }
+    });
+
+    return {
+        changed: true,
+        profile: buildProfile(user, profile),
     };
 };

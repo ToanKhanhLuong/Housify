@@ -1,4 +1,3 @@
-
 # Module upload
 
 > Cổng duy nhất đưa ảnh lên Cloudinary. Không có use case riêng — đây là chức năng phục vụ cho các UC có ảnh.

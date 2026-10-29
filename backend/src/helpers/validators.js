@@ -15,5 +15,8 @@ export const ADDRESS_REGEX = /^[a-zA-Z0-9\sÀ-ỹà-ỹ,./\-()#]+$/;
 // Mô tả: Cho phép mọi ký tự và xuống dòng, CHỈ CHẶN thẻ HTML < và >
 export const SAFE_TEXT_REGEX = /^[^<>]*$/;
 
+// Mật khẩu: tối thiểu 6 ký tự, có ít nhất 1 chữ cái và 1 chữ số (BR-005)
+export const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).{6,}$/;
+
 export const isPhone = (v) => PHONE_REGEX.test(v);
 export const isCccd = (v) => CCCD_REGEX.test(v);
