@@ -1,6 +1,7 @@
 // UC-08 bước 1–5: Admin tạo tài khoản Manager (họ tên, email, SĐT). BE tạo PENDING và tự gửi mail link kích hoạt 24h
 import { useState } from 'react';
 import { Alert, Button, Form, Modal, Spinner } from 'react-bootstrap';
+import { BiInfoCircle } from 'react-icons/bi';
 import { toast } from 'react-toastify';
 import Input from '../../../components/Input';
 import { hasErrors, toFieldErrors } from '../../../utils/formErrors';
@@ -42,12 +43,16 @@ const ManagerCreateModal = ({ onHide, onSaved }) => {
     <Modal show onHide={onHide} centered backdrop="static">
       <Form onSubmit={handleSubmit} noValidate>
         <Modal.Header closeButton={!submitting}>
-          <Modal.Title className="h5">Thêm Manager</Modal.Title>
+          <div>
+            <Modal.Title className="h5">Thêm Manager</Modal.Title>
+            <div className="small text-secondary">Tạo tài khoản cho nhân viên vận hành mới.</div>
+          </div>
         </Modal.Header>
         <Modal.Body>
           <Input
             label="Họ tên"
             name="name"
+            placeholder="Nhập họ và tên"
             value={form.name}
             onChange={handleChange}
             error={errors.name}
@@ -58,23 +63,27 @@ const ManagerCreateModal = ({ onHide, onSaved }) => {
             label="Email"
             name="email"
             type="email"
+            placeholder="Nhập địa chỉ email"
             value={form.email}
             onChange={handleChange}
             error={errors.email}
-            helpText="Manager đăng nhập bằng email này"
             required
           />
           <Input
             label="Số điện thoại"
             name="phone"
+            placeholder="Nhập số điện thoại"
             value={form.phone}
             onChange={handleChange}
             error={errors.phone}
             required
           />
-          <Alert variant="info" className="mb-0">
-            Hệ thống sẽ gửi email kèm link kích hoạt (hiệu lực 24 giờ). Manager tự đặt mật khẩu qua
-            link đó.
+          <Alert variant="info" className="mb-0 flex items-start gap-2 small">
+            <BiInfoCircle className="shrink-0 mt-1" />
+            <span>
+              Email mời kích hoạt (link hiệu lực 24 giờ) sẽ được gửi đến Manager. Sau khi đặt mật
+              khẩu, tài khoản có thể đăng nhập và nhận phân công tòa nhà.
+            </span>
           </Alert>
         </Modal.Body>
         <Modal.Footer className="justify-content-start">
