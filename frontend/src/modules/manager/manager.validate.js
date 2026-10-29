@@ -8,11 +8,10 @@ const validateContact = ({ name, email, phone }) => {
   if (!name.trim()) errors.name = 'Vui lòng nhập họ tên';
 
   if (!email.trim()) errors.email = 'Vui lòng nhập email';
-  else if (!EMAIL_REGEX.test(email.trim())) errors.email = 'Email không đúng định dạng';
+  else if (!EMAIL_REGEX.test(email.trim())) errors.email = 'Email không hợp lệ';
 
   if (!phone.trim()) errors.phone = 'Vui lòng nhập số điện thoại';
-  else if (!PHONE_REGEX.test(phone.trim()))
-    errors.phone = 'Số điện thoại gồm 10 số, bắt đầu bằng 0';
+  else if (!PHONE_REGEX.test(phone.trim())) errors.phone = 'Số điện thoại không hợp lệ';
   return errors;
 };
 

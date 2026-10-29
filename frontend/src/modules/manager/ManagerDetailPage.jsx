@@ -2,6 +2,17 @@
 // Chưa kích hoạt: gửi lại link, xóa · Đang hoạt động: sửa, khóa, phân công / gỡ phân công tòa · Bị khóa: sửa, mở khóa
 import { useCallback, useEffect, useState } from 'react';
 import { Button, Card } from 'react-bootstrap';
+import {
+  BiBuildings,
+  BiEditAlt,
+  BiFile,
+  BiLockAlt,
+  BiLockOpenAlt,
+  BiSend,
+  BiTrash,
+  BiUnlink,
+  BiUser,
+} from 'react-icons/bi';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import PageHeader from '../../components/PageHeader';
@@ -10,17 +21,34 @@ import FieldRow from '../../components/FieldRow';
 import ConfirmModal from '../../components/ConfirmModal';
 import Loading from '../../components/Loading';
 import EmptyState from '../../components/EmptyState';
-import { USER_STATUS } from '../../constants/enums';
-import { USER_STATUS_LABEL } from '../../constants/statusLabels';
+import StatusBadge from '../../components/StatusBadge';
+import { ROLE, USER_STATUS } from '../../constants/enums';
+import { ROLE_LABEL, USER_STATUS_LABEL } from '../../constants/statusLabels';
 import { formatDate, formatDateTime } from '../../utils/format';
 import managerApi from './manager.api';
 import CccdImages from './components/CccdImages';
+import ManagerAvatar from './components/ManagerAvatar';
 import ManagerEditModal from './components/ManagerEditModal';
 import LockManagerModal from './components/LockManagerModal';
 import AssignBuildingModal from './components/AssignBuildingModal';
 
 // luồng chính: tạo → kích hoạt; Bị khóa nằm ngoài luồng, StatusSteps tự hiện ở cuối
 const STEPS = [USER_STATUS.PENDING, USER_STATUS.ACTIVE];
+
+// dòng thông tin: nhãn nhạt, giá trị đậm (giống trang hồ sơ); FieldRow dùng chung giữ nguyên, chỉ truyền class
+const InfoRow = ({ label, required = false, children }) => (
+  <FieldRow label={<span className="fw-normal text-secondary">{label}</span>} required={required}>
+    <span className="fw-medium text-body-emphasis">{children ?? '—'}</span>
+  </FieldRow>
+);
+
+// nút thao tác có icon đứng trước chữ (theo Figma)
+const IconButton = ({ icon: Icon, children, ...props }) => (
+  <Button className="flex items-center gap-2" {...props}>
+    <Icon />
+    {children}
+  </Button>
+);
 
 const ManagerDetailPage = () => {
   const { id } = useParams();
@@ -121,40 +149,52 @@ const ManagerDetailPage = () => {
         actions={
           <>
             {isPending && (
-              <Button variant="primary" onClick={() => setConfirming('resend')}>
+              <IconButton icon={BiSend} variant="primary" onClick={() => setConfirming('resend')}>
                 Gửi lại link kích hoạt
-              </Button>
+              </IconButton>
             )}
             {isPending && (
-              <Button variant="secondary" onClick={() => setConfirming('remove')}>
+              <IconButton
+                icon={BiTrash}
+                variant="secondary"
+                onClick={() => setConfirming('remove')}
+              >
                 Xóa tài khoản
-              </Button>
+              </IconButton>
             )}
             {/* UC-11: chỉ Manager đang hoạt động, chưa có tòa mới được phân công */}
             {isActive && !building && (
-              <Button variant="primary" onClick={() => setModal('assign')}>
+              <IconButton icon={BiBuildings} variant="primary" onClick={() => setModal('assign')}>
                 Phân công tòa
-              </Button>
+              </IconButton>
             )}
             {isLocked && (
-              <Button variant="primary" onClick={() => setConfirming('unlock')}>
+              <IconButton
+                icon={BiLockOpenAlt}
+                variant="primary"
+                onClick={() => setConfirming('unlock')}
+              >
                 Mở khóa
-              </Button>
+              </IconButton>
             )}
             {(isActive || isLocked) && (
-              <Button variant="secondary" onClick={() => setModal('edit')}>
+              <IconButton icon={BiEditAlt} variant="secondary" onClick={() => setModal('edit')}>
                 Chỉnh sửa
-              </Button>
+              </IconButton>
             )}
             {isActive && building && (
-              <Button variant="secondary" onClick={() => setConfirming('unassign')}>
+              <IconButton
+                icon={BiUnlink}
+                variant="secondary"
+                onClick={() => setConfirming('unassign')}
+              >
                 Gỡ phân công
-              </Button>
+              </IconButton>
             )}
             {isActive && (
-              <Button variant="secondary" onClick={() => setModal('lock')}>
+              <IconButton icon={BiLockAlt} variant="secondary" onClick={() => setModal('lock')}>
                 Khóa
-              </Button>
+              </IconButton>
             )}
           </>
         }
@@ -162,37 +202,70 @@ const ManagerDetailPage = () => {
         <StatusSteps map={USER_STATUS_LABEL} steps={STEPS} current={status} />
       </PageHeader>
 
-      <Card>
-        <Card.Body className="p-4">
-          <div className="small text-secondary">Tài khoản Manager</div>
-          <h2 className="h3 fw-semibold mb-4">{manager.name}</h2>
-
-          <div className="grid lg:grid-cols-2 column-gap-5 mb-4">
-            <div>
-              <FieldRow label="Email" required>
-                {manager.email}
-              </FieldRow>
-              <FieldRow label="Số điện thoại" required>
-                {manager.phone}
-              </FieldRow>
-              <FieldRow label="Tòa phụ trách">
-                {building?.name ?? <span className="text-secondary">Chưa phân công</span>}
-              </FieldRow>
-              {/* UC-09: số hợp đồng đang hiệu lực của tòa, để Admin cân nhắc trước khi khóa */}
-              {building && manager.activeContractCount != null && (
-                <FieldRow label="Hợp đồng đang hiệu lực">{manager.activeContractCount}</FieldRow>
-              )}
-            </div>
-            <div>
-              <FieldRow label="Ngày sinh">{formatDate(manager.dateOfBirth)}</FieldRow>
-              <FieldRow label="Địa chỉ">{manager.address || null}</FieldRow>
-              <FieldRow label="Ngày tạo">{formatDateTime(manager.createdAt)}</FieldRow>
+      {/* thẻ danh tính: avatar + tên + vai trò + trạng thái; bên phải là tòa phụ trách và số hợp đồng của tòa */}
+      <Card className="mb-3">
+        <Card.Body className="p-4 flex flex-wrap items-center gap-4">
+          <ManagerAvatar name={manager.name} size="lg" />
+          <div className="min-w-0">
+            <div className="h4 fw-semibold mb-2">{manager.name}</div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="badge rounded-pill bg-primary-subtle text-primary-emphasis">
+                {ROLE_LABEL[ROLE.MANAGER]}
+              </span>
+              <StatusBadge map={USER_STATUS_LABEL} value={status} />
             </div>
           </div>
 
-          <CccdImages frontUrl={manager.cccdFrontUrl} backUrl={manager.cccdBackUrl} />
+          <div className="ms-auto flex flex-wrap items-center gap-5">
+            <div className="vr d-none d-md-block" />
+            <div>
+              <div className="flex items-center gap-2 fs-5 fw-semibold">
+                <BiBuildings className="text-secondary" />
+                {building?.name ?? <span className="text-secondary fw-normal">Chưa phân công</span>}
+              </div>
+              <div className="small text-secondary">Tòa phụ trách</div>
+            </div>
+            {/* UC-09: số hợp đồng đang hiệu lực của tòa (BE trả trong building), để Admin cân nhắc trước khi khóa */}
+            {building && (
+              <div>
+                <div className="flex items-center gap-2 fs-4 fw-semibold">
+                  <BiFile className="text-secondary" />
+                  {building.activeContractCount}
+                </div>
+                <div className="small text-secondary">Hợp đồng đang hiệu lực</div>
+              </div>
+            )}
+          </div>
         </Card.Body>
       </Card>
+
+      <Card className="mb-3">
+        <Card.Header className="bg-transparent px-4 py-3">
+          <h2 className="h6 fw-semibold mb-0 flex items-center gap-2">
+            <BiUser className="text-secondary" />
+            Thông tin cá nhân
+          </h2>
+        </Card.Header>
+        <Card.Body className="px-4 py-3">
+          {/* * đỏ theo luật 11: họ tên, email, SĐT bắt buộc (UC-08 bước 1); ngày sinh, địa chỉ, ảnh CCCD không bắt buộc */}
+          <div className="grid lg:grid-cols-2 column-gap-5">
+            <InfoRow label="Họ tên" required>
+              {manager.name}
+            </InfoRow>
+            <InfoRow label="Email" required>
+              {manager.email}
+            </InfoRow>
+            <InfoRow label="Số điện thoại" required>
+              {manager.phone}
+            </InfoRow>
+            <InfoRow label="Ngày sinh">{formatDate(manager.dateOfBirth)}</InfoRow>
+            <InfoRow label="Địa chỉ">{manager.address || null}</InfoRow>
+            <InfoRow label="Ngày tạo">{formatDateTime(manager.createdAt)}</InfoRow>
+          </div>
+        </Card.Body>
+      </Card>
+
+      <CccdImages frontUrl={manager.cccdFrontUrl} backUrl={manager.cccdBackUrl} />
 
       {modal === 'edit' && (
         <ManagerEditModal manager={manager} onHide={closeModal} onSaved={handleModalDone} />
