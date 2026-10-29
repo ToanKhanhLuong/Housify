@@ -1,4 +1,4 @@
-// Routes cho module building (UC-12, UC-13, UC-14)
+// Routes cho module building (UC-12, UC-13, UC-14, UC-15)
 import { Router } from "express";
 import { auth } from "../../middlewares/auth.middleware.js";
 import { requireRole } from "../../middlewares/requireRole.middleware.js";
@@ -9,6 +9,7 @@ import {
   createBuildingSchema,
   updateBuildingSchema,
   buildingIdParamSchema,
+  updateFloorCountSchema,
 } from "./building.validation.js";
 
 const router = Router();
@@ -56,6 +57,25 @@ router.delete(
   requireRole(ROLE.ADMIN),
   validate(buildingIdParamSchema, "params"),
   buildingController.deleteBuilding,
+);
+
+// 6. Lấy danh sách tầng và thống kê số phòng mỗi tầng (UC-15 - Admin xem hết, Manager xem tòa mình)
+router.get(
+  "/buildings/:id/floors",
+  auth,
+  requireRole(ROLE.ADMIN, ROLE.MANAGER),
+  validate(buildingIdParamSchema, "params"),
+  buildingController.getBuildingFloors,
+);
+
+// 7. Cập nhật số tầng / xóa tầng trên cùng (UC-15 - Chỉ Admin)
+router.patch(
+  "/buildings/:id/floor-count",
+  auth,
+  requireRole(ROLE.ADMIN),
+  validate(buildingIdParamSchema, "params"),
+  validate(updateFloorCountSchema),
+  buildingController.updateFloorCount,
 );
 
 export default router;
