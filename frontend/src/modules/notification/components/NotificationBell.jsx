@@ -1,5 +1,6 @@
 // UC-41 bước 1: chuông trên Header, hiện số thông báo chưa đọc, bấm thì mở trang Thông báo
-// Số được tải lại khi đổi trang, khi trang Thông báo vừa đánh dấu đã đọc, và mỗi 60 giây (không dùng socket)
+// Số được tải lại khi đổi trang, khi trang Thông báo vừa đánh dấu đã đọc, và mỗi 30 giây (không dùng socket)
+// Tab trình duyệt bị ẩn thì tạm dừng, quay lại tab thì tải ngay (theo gợi ý trong docs/api.md)
 import { useCallback, useEffect, useState } from 'react';
 import { Badge } from 'react-bootstrap';
 import { Link, useLocation } from 'react-router-dom';
@@ -7,7 +8,7 @@ import { BiBell } from 'react-icons/bi';
 import notificationApi from '../notification.api';
 import { NOTIFICATIONS_CHANGED } from '../notification.utils';
 
-const REFRESH_MS = 60 * 1000;
+const REFRESH_MS = 30 * 1000;
 
 const NotificationBell = () => {
     const { pathname } = useLocation();
@@ -28,10 +29,23 @@ const NotificationBell = () => {
     }, [loadCount, pathname]);
 
     useEffect(() => {
-        const timer = setInterval(loadCount, REFRESH_MS);
+        let timer = null;
+        const start = () => {
+            timer = setInterval(loadCount, REFRESH_MS);
+        };
+        const handleVisibility = () => {
+            clearInterval(timer);
+            if (document.hidden) return;
+            loadCount();
+            start();
+        };
+
+        if (!document.hidden) start();
+        document.addEventListener('visibilitychange', handleVisibility);
         window.addEventListener(NOTIFICATIONS_CHANGED, loadCount);
         return () => {
             clearInterval(timer);
+            document.removeEventListener('visibilitychange', handleVisibility);
             window.removeEventListener(NOTIFICATIONS_CHANGED, loadCount);
         };
     }, [loadCount]);
