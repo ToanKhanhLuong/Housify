@@ -4,11 +4,16 @@ import { useCallback, useEffect, useState } from 'react';
 import { Button, Card } from 'react-bootstrap';
 import {
   BiBuildings,
+  BiCake,
   BiEditAlt,
+  BiEnvelope,
   BiFile,
   BiLockAlt,
   BiLockOpenAlt,
+  BiMap,
+  BiPhone,
   BiSend,
+  BiTime,
   BiTrash,
   BiUnlink,
   BiUser,
@@ -35,9 +40,18 @@ import AssignBuildingModal from './components/AssignBuildingModal';
 // luồng chính: tạo → kích hoạt; Bị khóa nằm ngoài luồng, StatusSteps tự hiện ở cuối
 const STEPS = [USER_STATUS.PENDING, USER_STATUS.ACTIVE];
 
-// dòng thông tin: nhãn nhạt, giá trị đậm (giống trang hồ sơ); FieldRow dùng chung giữ nguyên, chỉ truyền class
-const InfoRow = ({ label, required = false, children }) => (
-  <FieldRow label={<span className="fw-normal text-secondary">{label}</span>} required={required}>
+// dòng thông tin: icon đơn sắc + nhãn nhạt, giá trị đậm (giống trang hồ sơ); FieldRow dùng chung giữ nguyên, chỉ truyền class
+// inline-flex để dấu * đỏ của FieldRow vẫn đứng ngay sau nhãn
+const InfoRow = ({ icon: Icon, label, required = false, children }) => (
+  <FieldRow
+    label={
+      <span className="inline-flex items-center gap-2 fw-normal text-secondary">
+        <Icon />
+        {label}
+      </span>
+    }
+    required={required}
+  >
     <span className="fw-medium text-body-emphasis">{children ?? '—'}</span>
   </FieldRow>
 );
@@ -249,18 +263,24 @@ const ManagerDetailPage = () => {
         <Card.Body className="px-4 py-3">
           {/* * đỏ theo luật 11: họ tên, email, SĐT bắt buộc (UC-08 bước 1); ngày sinh, địa chỉ, ảnh CCCD không bắt buộc */}
           <div className="grid lg:grid-cols-2 column-gap-5">
-            <InfoRow label="Họ tên" required>
+            <InfoRow icon={BiUser} label="Họ tên" required>
               {manager.name}
             </InfoRow>
-            <InfoRow label="Email" required>
+            <InfoRow icon={BiEnvelope} label="Email" required>
               {manager.email}
             </InfoRow>
-            <InfoRow label="Số điện thoại" required>
+            <InfoRow icon={BiPhone} label="Số điện thoại" required>
               {manager.phone}
             </InfoRow>
-            <InfoRow label="Ngày sinh">{formatDate(manager.dateOfBirth)}</InfoRow>
-            <InfoRow label="Địa chỉ">{manager.address || null}</InfoRow>
-            <InfoRow label="Ngày tạo">{formatDateTime(manager.createdAt)}</InfoRow>
+            <InfoRow icon={BiCake} label="Ngày sinh">
+              {formatDate(manager.dateOfBirth)}
+            </InfoRow>
+            <InfoRow icon={BiMap} label="Địa chỉ">
+              {manager.address || null}
+            </InfoRow>
+            <InfoRow icon={BiTime} label="Ngày tạo">
+              {formatDateTime(manager.createdAt)}
+            </InfoRow>
           </div>
         </Card.Body>
       </Card>
