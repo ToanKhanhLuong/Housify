@@ -1,7 +1,7 @@
 // UC-05: hồ sơ Manager. Họ tên, email chỉ xem (Admin sửa ở UC-09); SĐT, ngày sinh, địa chỉ, ảnh CCCD tự sửa nhiều lần
 import { useCallback, useEffect, useState } from 'react';
 import { Button, Card } from 'react-bootstrap';
-import { BiEditAlt } from 'react-icons/bi';
+import { BiCake, BiEditAlt, BiEnvelope, BiMap, BiPhone, BiUser } from 'react-icons/bi';
 import { toast } from 'react-toastify';
 import PageHeader from '../../../components/PageHeader';
 import FieldRow from '../../../components/FieldRow';
@@ -17,9 +17,18 @@ import ManagerProfileModal from './ManagerProfileModal';
 // chữ cái đầu của tên gọi, giống avatar trên Header: "Trần Văn Quản" → "Q"
 const initialOf = (name = '') => name.trim().split(/\s+/).pop()?.[0]?.toUpperCase() ?? '?';
 
-// dòng thông tin trang xem: nhãn nhạt, giá trị đậm để nổi bật thông tin (FieldRow dùng chung giữ nguyên, chỉ truyền class)
-const InfoRow = ({ label, required = false, children }) => (
-  <FieldRow label={<span className="fw-normal text-secondary">{label}</span>} required={required}>
+// dòng thông tin trang xem: icon đơn sắc + nhãn nhạt, giá trị đậm để nổi bật thông tin (FieldRow dùng chung giữ nguyên, chỉ truyền class)
+// inline-flex để dấu * đỏ của FieldRow vẫn đứng ngay sau nhãn
+const InfoRow = ({ icon: Icon, label, required = false, children }) => (
+  <FieldRow
+    label={
+      <span className="inline-flex items-center gap-2 fw-normal text-secondary">
+        <Icon />
+        {label}
+      </span>
+    }
+    required={required}
+  >
     <span className="fw-medium text-body-emphasis">{children ?? '—'}</span>
   </FieldRow>
 );
@@ -84,18 +93,22 @@ const ManagerProfile = () => {
           <h2 className="h6 fw-semibold mb-3">Thông tin cá nhân</h2>
           {/* lưới 2 cột xếp theo cặp hàng; gắn required hiện dấu * đỏ theo luật số 11 */}
           <div className="grid lg:grid-cols-2 column-gap-5">
-            <InfoRow label="Họ tên" required>
+            <InfoRow icon={BiUser} label="Họ tên" required>
               {profile.name}
             </InfoRow>
-            <InfoRow label="Email" required>
+            <InfoRow icon={BiEnvelope} label="Email" required>
               {profile.email}
             </InfoRow>
-            <InfoRow label="Số điện thoại" required>
+            <InfoRow icon={BiPhone} label="Số điện thoại" required>
               {profile.phone}
             </InfoRow>
-            <InfoRow label="Ngày sinh">{formatDate(profile.dateOfBirth)}</InfoRow>
+            <InfoRow icon={BiCake} label="Ngày sinh">
+              {formatDate(profile.dateOfBirth)}
+            </InfoRow>
             <div className="lg:col-span-2">
-              <InfoRow label="Địa chỉ">{profile.address || null}</InfoRow>
+              <InfoRow icon={BiMap} label="Địa chỉ">
+                {profile.address || null}
+              </InfoRow>
             </div>
           </div>
         </Card.Body>
