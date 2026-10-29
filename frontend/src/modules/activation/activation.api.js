@@ -5,7 +5,7 @@ import api from '../../api/axios';
 const activationApi = {
   // UC-08 bước 6: kiểm tra link kích hoạt Manager còn hiệu lực (hết hạn / đã dùng / không tồn tại → lỗi)
   checkManagerToken: (token) => api.get(`/activation/manager/${token}`),
-  // UC-08 bước 7–8: { token, password } → tài khoản PENDING → ACTIVE, link hết hiệu lực
+  // UC-08 bước 7–8: { token, password, confirmPassword } → tài khoản PENDING → ACTIVE, link hết hiệu lực
   activateManager: (data) => api.post('/activation/manager', data),
 };
 
