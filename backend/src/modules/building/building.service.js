@@ -1,10 +1,18 @@
-// Service cho module building (UC-12, UC-13, UC-14, UC-15)
+// Service cho module building (UC-12, UC-13, UC-14, UC-15, UC-23)
 import Building from "../../models/Building.js";
 import Contract from "../../models/Contract.js";
 import Room from "../../models/Room.js";
+import Occupant from "../../models/Occupant.js";
 import { AppError } from "../../utils/AppError.js";
-import { ROLE, CONTRACT_STATUS, ROOM_STATUS } from "../../constants/enums.js";
+import {
+  ROLE,
+  CONTRACT_STATUS,
+  ROOM_STATUS,
+  NOTIFICATION_TYPE,
+  OCCUPANT_STATUS,
+} from "../../constants/enums.js";
 import { withTransaction } from "../../helpers/withTransaction.js";
+import { notify } from "../../helpers/notify.js";
 
 // 1. Tạo tòa nhà (UC-12)
 export const createBuilding = async (data) => {
@@ -252,4 +260,81 @@ export const updateFloorCount = async (id, floorCount) => {
   await building.save();
 
   return building;
+};
+
+// 8. Lấy nội quy tòa nhà (UC-23 - Admin xem mọi tòa, Manager xem tòa mình, Customer xem tòa đang ở)
+export const getBuildingRules = async (id, user) => {
+  const building = await Building.findOne({
+    _id: id,
+    isDeleted: false,
+  });
+
+  if (!building) {
+    throw new AppError("Tòa nhà không tồn tại", 404);
+  }
+
+  // Manager chỉ xem nội quy tòa mình phụ trách
+  if (user.role === ROLE.MANAGER) {
+    if (String(building.managerId) !== String(user.id)) {
+      throw new AppError("Bạn không có quyền xem nội quy của tòa nhà này", 403);
+    }
+  }
+
+  // Customer chỉ xem nội quy tòa nhà mình đang ở
+  if (user.role === ROLE.CUSTOMER) {
+    const occupant = await Occupant.findOne({
+      userId: user.id,
+      status: OCCUPANT_STATUS.STAYED,
+    });
+
+    if (!occupant) {
+      throw new AppError("Bạn chưa có phòng đang thuê", 403);
+    }
+
+    const contract = await Contract.findOne({
+      _id: occupant.contractId,
+      status: CONTRACT_STATUS.ACTIVE,
+    });
+
+    if (!contract) {
+      throw new AppError("Bạn không có hợp đồng đang hiệu lực", 403);
+    }
+
+    const room = await Room.findById(contract.roomId);
+    if (!room || String(room.buildingId) !== String(id)) {
+      throw new AppError("Bạn chỉ được xem nội quy của tòa nhà mình đang ở", 403);
+    }
+  }
+
+  return { rules: building.rules || "" };
+};
+
+// 9. Cập nhật / Ghi đè nội quy tòa nhà (UC-23 - Chỉ Admin)
+export const updateBuildingRules = async (id, rules, user) => {
+  const building = await Building.findOne({
+    _id: id,
+    isDeleted: false,
+  });
+
+  if (!building) {
+    throw new AppError("Tòa nhà không tồn tại", 404);
+  }
+
+  // Cập nhật và lưu đè nội quy
+  building.rules = rules.trim();
+  await building.save();
+
+  // Báo Manager của tòa nếu tòa đã có Manager (UC-23)
+  if (building.managerId) {
+    await notify({
+      userIds: building.managerId,
+      type: NOTIFICATION_TYPE.ANNOUNCEMENT,
+      title: "Nội quy mới",
+      message: `Tòa ${building.name} vừa cập nhật nội quy`,
+      refId: building._id,
+      createdBy: user.id,
+    });
+  }
+
+  return { rules: building.rules };
 };

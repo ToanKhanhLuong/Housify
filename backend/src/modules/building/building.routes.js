@@ -1,4 +1,4 @@
-// Routes cho module building (UC-12, UC-13, UC-14, UC-15)
+// Routes cho module building (UC-12, UC-13, UC-14, UC-15, UC-23)
 import { Router } from "express";
 import { auth } from "../../middlewares/auth.middleware.js";
 import { requireRole } from "../../middlewares/requireRole.middleware.js";
@@ -10,6 +10,7 @@ import {
   updateBuildingSchema,
   buildingIdParamSchema,
   updateFloorCountSchema,
+  updateRulesSchema,
 } from "./building.validation.js";
 
 const router = Router();
@@ -76,6 +77,25 @@ router.patch(
   validate(buildingIdParamSchema, "params"),
   validate(updateFloorCountSchema),
   buildingController.updateFloorCount,
+);
+
+// 8. Lấy nội quy tòa nhà (UC-23 - Admin, Manager, Customer)
+router.get(
+  "/buildings/:id/rules",
+  auth,
+  requireRole(ROLE.ADMIN, ROLE.MANAGER, ROLE.CUSTOMER),
+  validate(buildingIdParamSchema, "params"),
+  buildingController.getBuildingRules,
+);
+
+// 9. Cập nhật / Ghi đè nội quy tòa nhà (UC-23 - Chỉ Admin)
+router.put(
+  "/buildings/:id/rules",
+  auth,
+  requireRole(ROLE.ADMIN),
+  validate(buildingIdParamSchema, "params"),
+  validate(updateRulesSchema),
+  buildingController.updateBuildingRules,
 );
 
 export default router;

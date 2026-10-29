@@ -1,4 +1,4 @@
-// Validation schema cho module building (UC-12, UC-13, UC-14, UC-15)
+// Validation schema cho module building (UC-12, UC-13, UC-14, UC-15, UC-23)
 import Joi from "joi";
 import {
   BUILDING_NAME_REGEX,
@@ -118,5 +118,13 @@ export const updateFloorCountSchema = Joi.object({
     "number.integer": "Số tầng phải là số nguyên",
     "number.min": "Số tầng phải lớn hơn hoặc bằng 1",
     "any.required": "Vui lòng nhập số tầng",
+  }),
+});
+
+// Schema cập nhật nội quy tòa nhà (UC-23)
+export const updateRulesSchema = Joi.object({
+  rules: Joi.string().trim().required().messages({
+    "string.empty": "Nội quy không được để trống",
+    "any.required": "Nội quy không được để trống",
   }),
 });

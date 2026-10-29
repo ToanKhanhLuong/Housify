@@ -1,4 +1,4 @@
-// Controller cho module building (UC-12, UC-13, UC-14, UC-15)
+// Controller cho module building (UC-12, UC-13, UC-14, UC-15, UC-23)
 import asyncHandler from "../../utils/asyncHandler.js";
 import { ok, created } from "../../utils/response.js";
 import * as buildingService from "./building.service.js";
@@ -55,4 +55,23 @@ export const updateFloorCount = asyncHandler(async (request, response) => {
     request.body.floorCount,
   );
   return ok(response, building, "Cập nhật số tầng thành công");
+});
+
+// 8. Lấy nội quy tòa nhà (UC-23)
+export const getBuildingRules = asyncHandler(async (request, response) => {
+  const data = await buildingService.getBuildingRules(
+    request.params.id,
+    request.user,
+  );
+  return ok(response, data, "Lấy nội quy tòa nhà thành công");
+});
+
+// 9. Cập nhật / Ghi đè nội quy tòa nhà (UC-23)
+export const updateBuildingRules = asyncHandler(async (request, response) => {
+  const data = await buildingService.updateBuildingRules(
+    request.params.id,
+    request.body.rules,
+    request.user,
+  );
+  return ok(response, data, "Lưu nội quy thành công");
 });
