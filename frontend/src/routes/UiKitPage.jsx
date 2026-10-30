@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Alert, Button, Card, Col, Row, Spinner, Tab, Tabs } from 'react-bootstrap';
 import { toast } from 'react-toastify';
-import { BiBuildings, BiPlus } from 'react-icons/bi';
+import { BiPlus, BiTrash, BiLockAlt, BiUserCheck } from 'react-icons/bi';
 import PageHeader from '../components/PageHeader';
 import DataTable from '../components/DataTable';
 import StatusBadge from '../components/StatusBadge';
@@ -21,8 +21,17 @@ import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
 import SkeletonRows from '../components/SkeletonRows';
 import Loading from '../components/Loading';
+
+// Các component mới theo mockup
+import ControlBar from '../components/ControlBar';
+import CardGrid from '../components/CardGrid';
+import ItemCard from '../components/ItemCard';
+import ModalForm from '../components/ModalForm';
+import ActionDropdown from '../components/ActionDropdown';
+import BlockedBox from '../components/BlockedBox';
+import ImageGalleryPicker from '../components/ImageGalleryPicker';
+
 import { CONTRACT_STATUS } from '../constants/enums';
-import { PHONE_REGEX } from '../constants/regex';
 import {
     CONTRACT_STATUS_LABEL,
     INCIDENT_STATUS_LABEL,
@@ -45,6 +54,45 @@ const OCCUPANTS = [
     { _id: '2', name: 'Trần Thu Hà', cccd: '001204056789', phone: '0987654321', isRepresentative: false },
 ];
 
+const SAMPLE_BUILDINGS = [
+    {
+        _id: 'b1',
+        name: 'Housify Cầu Giấy',
+        address: '12 Trần Thái Tông, Cầu Giấy, Hà Nội',
+        floors: 5,
+        total: 4,
+        available: 1,
+        occupied: 2,
+        maintenance: 1,
+        manager: 'Trần Văn Tùng',
+        image: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=600&auto=format&fit=crop&q=80',
+    },
+    {
+        _id: 'b2',
+        name: 'Housify Đống Đa',
+        address: '25 Tây Sơn, Đống Đa, Hà Nội',
+        floors: 4,
+        total: 0,
+        available: 0,
+        occupied: 0,
+        maintenance: 0,
+        manager: 'Lê Thị Hoa',
+        image: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=600&auto=format&fit=crop&q=80',
+    },
+    {
+        _id: 'b3',
+        name: 'Housify Thanh Xuân',
+        address: '88 Nguyễn Trãi, Thanh Xuân, Hà Nội',
+        floors: 3,
+        total: 1,
+        available: 1,
+        occupied: 0,
+        maintenance: 0,
+        manager: null,
+        image: '',
+    },
+];
+
 const BADGE_GROUPS = [
     ['Phòng', ROOM_STATUS_LABEL],
     ['Hợp đồng', CONTRACT_STATUS_LABEL],
@@ -55,20 +103,30 @@ const BADGE_GROUPS = [
 
 const Section = ({ title, children }) => (
     <Card className="mb-4">
-        <Card.Header className="fw-semibold">{title}</Card.Header>
+        <Card.Header className="fw-semibold bg-white border-b border-[#e1e3e6]">{title}</Card.Header>
         <Card.Body>{children}</Card.Body>
     </Card>
 );
 
-const Heading = ({ children }) => <h2 className="h6 fw-semibold text-secondary mt-2 mb-3">{children}</h2>;
-
 const UiKitPage = () => {
     const [page, setPage] = useState(1);
-    const [status, setStatus] = useState('');
-    const [phone, setPhone] = useState('09123');
+    const [filterSelectVal, setFilterSelectVal] = useState('');
+    const [passwordVal, setPasswordVal] = useState('123456');
     const [showConfirm, setShowConfirm] = useState(false);
 
-    const rooms = status ? ROOMS.filter((room) => room.status === status) : ROOMS;
+    // State demo cho ControlBar & CardGrid
+    const [cbSearch, setCbSearch] = useState('');
+    const [cbFilters, setCbFilters] = useState({});
+    const [cbGroup, setCbGroup] = useState('');
+    const [cbView, setCbView] = useState('cards');
+
+    // State demo ModalForm & Gallery
+    const [showModalForm, setShowModalForm] = useState(false);
+    const [galleryImages, setGalleryImages] = useState([
+        'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=600&auto=format&fit=crop&q=80',
+        'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=600&auto=format&fit=crop&q=80',
+    ]);
+    const [singleUploadUrl, setSingleUploadUrl] = useState('');
 
     const roomColumns = [
         { key: 'code', title: 'Mã phòng', className: 'fw-semibold' },
@@ -91,7 +149,6 @@ const UiKitPage = () => {
             key: 'actions',
             title: '',
             align: 'end',
-            // bảng con trong trang chi tiết được có 1 nút ở cuối dòng (UC-33)
             render: (row) =>
                 !row.isRepresentative && (
                     <Button variant="secondary" size="sm" onClick={() => setShowConfirm(true)}>
@@ -101,24 +158,250 @@ const UiKitPage = () => {
         },
     ];
 
+    // Cấu hình filter cho ControlBar demo
+    const controlBarFilterGroups = [
+        {
+            id: 'hasManager',
+            label: 'Manager phụ trách',
+            type: 'radio',
+            options: [
+                { value: 'true', label: 'Đã có Manager' },
+                { value: 'false', label: 'Chưa có Manager' },
+            ],
+        },
+        {
+            id: 'status',
+            label: 'Trạng thái phòng',
+            type: 'checkbox',
+            options: [
+                { value: 'AVAILABLE', label: 'Còn trống' },
+                { value: 'OCCUPIED', label: 'Đang thuê' },
+                { value: 'MAINTENANCE', label: 'Bảo trì' },
+            ],
+        },
+        {
+            id: 'price',
+            label: 'Giá thuê',
+            type: 'range',
+            minField: 'minPrice',
+            maxField: 'maxPrice',
+        },
+    ];
+
+    const controlBarGroupByOptions = [
+        { value: 'manager', label: 'Theo Manager phụ trách' },
+        { value: 'floors', label: 'Theo số tầng' },
+    ];
+
     return (
-        <>
+        <div className="flex flex-col gap-4">
             <PageHeader
-                title="Bộ giao diện"
-                subtitle="Chỉ có khi chạy dev. Mọi thứ dưới đây là component thật trong src/components"
+                breadcrumbs={['Hệ thống', 'Bộ giao diện UI Kit']}
                 actions={
-                    <Button variant="primary" className="flex items-center gap-1">
+                    <Button variant="primary" className="flex items-center gap-1" onClick={() => setShowModalForm(true)}>
                         <BiPlus size={18} />
-                        Nút chính
+                        Mở ModalForm mẫu
                     </Button>
                 }
             >
-                <Pager page={page} limit={20} total={57} onChange={setPage} />
+                <ActionDropdown
+                    title="Thao tác ▾"
+                    items={[
+                        { label: 'Phân công lại', icon: BiUserCheck, onClick: () => toast.info('Đã chọn Phân công') },
+                        { label: 'Khóa tài khoản', icon: BiLockAlt, onClick: () => toast.warning('Đã chọn Khóa') },
+                        { divider: true },
+                        { label: 'Xóa mục này', icon: BiTrash, danger: true, onClick: () => toast.error('Đã chọn Xóa') },
+                    ]}
+                />
             </PageHeader>
+
+            {/* PHẦN 1: COMPONENT MỚI THEO MOCKUP (ODDO STYLE) */}
+            <Section title="1. Thanh điều khiển Odoo (ControlBar)">
+                <p className="text-sm text-gray-600 mb-3">
+                    Thanh điều khiển một hàng: Nút chính trái | Ô tìm kiếm đa năng ở giữa (search debounced 300ms, facet tags xóa bằng backspace/click x, dropdown bộ lọc 2 cột) | Đếm số lượng + Switch Thẻ/Bảng phải.
+                </p>
+                <div className="border border-[#e1e3e6] rounded mb-3 overflow-hidden">
+                    <ControlBar
+                        actions={
+                            <Button variant="primary" size="sm" onClick={() => setShowModalForm(true)}>
+                                Thêm tòa nhà
+                            </Button>
+                        }
+                        searchValue={cbSearch}
+                        onSearchChange={setCbSearch}
+                        searchPlaceholder="Tìm theo tên hoặc địa chỉ..."
+                        filterGroups={controlBarFilterGroups}
+                        selectedFilters={cbFilters}
+                        onFilterChange={setCbFilters}
+                        groupByOptions={controlBarGroupByOptions}
+                        selectedGroupBy={cbGroup}
+                        onGroupByChange={setCbGroup}
+                        count={SAMPLE_BUILDINGS.length}
+                        view={cbView}
+                        onViewChange={setCbView}
+                    />
+                </div>
+                <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
+                    <strong>State hiện tại:</strong> search = &quot;{cbSearch}&quot; | filters = {JSON.stringify(cbFilters)} | groupBy = &quot;{cbGroup}&quot; | view = &quot;{cbView}&quot;
+                </div>
+            </Section>
+
+            <Section title="2. Lưới thẻ & Thẻ chi tiết (CardGrid & ItemCard)">
+                <p className="text-sm text-gray-600 mb-3">
+                    Thẻ bấm được cả khối, responsive, hover viền đổi sang màu tím mận (#714B67). Hỗ trợ ảnh, tiêu đề, badge số tầng, thống kê chấm màu, chân thẻ thông tin người phụ trách.
+                </p>
+                <CardGrid minWidth="300px">
+                    {SAMPLE_BUILDINGS.map((b) => (
+                        <ItemCard
+                            key={b._id}
+                            image={b.image}
+                            title={b.name}
+                            badge={<span className="hf-badge hf-b-gray">{b.floors} tầng</span>}
+                            subtitle={b.address}
+                            stats={
+                                <>
+                                    <span className="inline-flex items-center gap-1.5">
+                                        <span className="hf-dot hf-dot-ok" />
+                                        <span>{b.available} trống</span>
+                                    </span>
+                                    <span className="inline-flex items-center gap-1.5">
+                                        <span className="hf-dot hf-dot-plum" />
+                                        <span>{b.occupied} đang thuê</span>
+                                    </span>
+                                    <span className="inline-flex items-center gap-1.5">
+                                        <span className="hf-dot hf-dot-warn" />
+                                        <span>{b.maintenance} bảo trì</span>
+                                    </span>
+                                    <span className="text-gray-400">· {b.total} phòng</span>
+                                </>
+                            }
+                            footer={
+                                b.manager ? (
+                                    <div className="flex items-center gap-2">
+                                        <span className="hf-av w-5 h-5 text-[10px]">
+                                            {b.manager.split(' ').slice(-1)[0][0]}
+                                        </span>
+                                        <span className="font-medium text-gray-800">{b.manager}</span>
+                                    </div>
+                                ) : (
+                                    <span className="hf-badge hf-b-warn">Chưa có Manager</span>
+                                )
+                            }
+                            onClick={() => toast.info(`Đã bấm vào ${b.name}`)}
+                        />
+                    ))}
+                </CardGrid>
+            </Section>
 
             <Row>
                 <Col lg={6}>
-                    <Section title="Nút: chỉ 4 kiểu, không dùng outline">
+                    <Section title="3. Khung lý do bị chặn (BlockedBox)">
+                        <p className="text-sm text-gray-600 mb-2">
+                            Hiển thị khi một hành động xóa / khóa bị vi phạm quy tắc ràng buộc nghiệp vụ.
+                        </p>
+                        <BlockedBox
+                            title="Không thể xóa tòa nhà &quot;Housify Cầu Giấy&quot;"
+                            reasons={[
+                                'Tòa nhà đang có 4 phòng thuộc quyền quản lý.',
+                                'Đang có 2 hợp đồng thuê có hiệu lực trong tòa nhà.',
+                                'Vui lòng thanh lý hết hợp đồng và xóa phòng trước khi xóa tòa.',
+                            ]}
+                            className="mb-3"
+                        />
+                        <BlockedBox
+                            message="Tài khoản này đang phụ trách tòa nhà Housify Đống Đa. Vui lòng gỡ phân công trước khi khóa."
+                        />
+                    </Section>
+                </Col>
+
+                <Col lg={6}>
+                    <Section title="4. Quản lý nhiều ảnh (ImageGalleryPicker)">
+                        <p className="text-sm text-gray-600 mb-2">
+                            Ảnh đại diện lớn phía trên, hàng thumbnail nhỏ bên dưới kèm nút xóa / đặt làm đại diện, nút &quot;+ Thêm ảnh&quot;.
+                        </p>
+                        <ImageGalleryPicker
+                            images={galleryImages}
+                            onChange={setGalleryImages}
+                            label="Ảnh tòa nhà"
+                            hint="Ảnh đầu tiên là ảnh đại diện của tòa. Mỗi ảnh tối đa 5MB."
+                        />
+                    </Section>
+                </Col>
+            </Row>
+
+            {/* ModalForm demo */}
+            <ModalForm
+                show={showModalForm}
+                onHide={() => setShowModalForm(false)}
+                title="Thêm tòa nhà mới"
+                onSubmit={() => {
+                    toast.success('Đã gửi form mẫu!');
+                    setShowModalForm(false);
+                }}
+                submitText="Lưu tòa nhà"
+                onDelete={() => {
+                    toast.error('Đã bấm Xóa!');
+                    setShowModalForm(false);
+                }}
+                deleteText="Xóa nháp"
+            >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="col-span-2">
+                        <Input
+                            label="Tên tòa nhà"
+                            required
+                            placeholder="VD: Housify Cầu Giấy"
+                            name="name"
+                            defaultValue=""
+                        />
+                    </div>
+                    <div className="col-span-2">
+                        <Input
+                            label="Địa chỉ"
+                            required
+                            placeholder="Số nhà, tên đường, phường/xã, quận/huyện..."
+                            name="address"
+                            defaultValue=""
+                        />
+                    </div>
+                    <div>
+                        <Input
+                            label="Số tầng"
+                            required
+                            type="number"
+                            min="1"
+                            name="floors"
+                            defaultValue="5"
+                            helpText="Tầng 1 đến N, sửa được sau trong chi tiết tòa."
+                        />
+                    </div>
+                    <div>
+                        <Select
+                            label="Manager phụ trách"
+                            name="managerId"
+                            options={[
+                                { value: 'm1', label: 'Trần Văn Tùng' },
+                                { value: 'm2', label: 'Lê Thị Hoa' },
+                            ]}
+                            placeholder="-- Chưa phân công --"
+                        />
+                    </div>
+                    <div className="col-span-2">
+                        <Input
+                            as="textarea"
+                            rows={3}
+                            label="Mô tả"
+                            name="description"
+                            placeholder="Gần trường học, có thang máy..."
+                        />
+                    </div>
+                </div>
+            </ModalForm>
+
+            {/* PHẦN 2: CÁC COMPONENT NỀN TẢNG ĐÃ CÓ */}
+            <Row>
+                <Col lg={6}>
+                    <Section title="5. Nút: chỉ 4 kiểu, không dùng outline">
                         <div className="flex flex-wrap gap-2 mb-3">
                             <Button variant="primary">Lưu</Button>
                             <Button variant="secondary">Hủy</Button>
@@ -139,225 +422,141 @@ const UiKitPage = () => {
                         </div>
                     </Section>
 
-                    <Section title="Trạng thái (StatusBadge)">
+                    <Section title="6. Trạng thái (StatusBadge & hf-badge)">
                         {BADGE_GROUPS.map(([name, map]) => (
                             <div key={name} className="flex flex-wrap items-center gap-2 mb-2">
                                 <span className="small text-secondary w-20">{name}</span>
-                                {Object.keys(map).map((value) => (
-                                    <StatusBadge key={value} map={map} value={value} />
+                                {Object.keys(map).map((val) => (
+                                    <StatusBadge key={val} map={map} value={val} />
                                 ))}
                             </div>
                         ))}
                     </Section>
 
-                    <Section title="Thông báo trên trang và toast">
-                        <Alert variant="warning">Bạn chưa được cấp quyền quản lý tòa nhà</Alert>
-                        <Alert variant="info">Thông tin thêm cho người dùng</Alert>
-                        <div className="flex flex-wrap gap-2">
-                            <Button variant="secondary" size="sm" onClick={() => toast.success('Tạo phòng thành công')}>
-                                Thử toast thành công
-                            </Button>
-                            <Button
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => toast.error('Mã phòng đã tồn tại trong tòa nhà')}
-                            >
-                                Thử toast lỗi
-                            </Button>
+                    <Section title="7. Thanh trạng thái mũi tên Odoo (StatusSteps)">
+                        <div className="flex flex-col gap-3">
+                            <div>
+                                <div className="small text-secondary mb-1">Hợp đồng: Nháp › Đang hiệu lực › Đã kết thúc</div>
+                                <StatusSteps
+                                    map={CONTRACT_STATUS_LABEL}
+                                    current={CONTRACT_STATUS.ACTIVE}
+                                    steps={[CONTRACT_STATUS.DRAFT, CONTRACT_STATUS.ACTIVE, CONTRACT_STATUS.ENDED]}
+                                />
+                            </div>
+                            <div>
+                                <div className="small text-secondary mb-1">Trạng thái ngoài luồng (Đã hủy) tự thêm vào cuối:</div>
+                                <StatusSteps
+                                    map={CONTRACT_STATUS_LABEL}
+                                    current={CONTRACT_STATUS.CANCELLED}
+                                    steps={[CONTRACT_STATUS.DRAFT, CONTRACT_STATUS.ACTIVE, CONTRACT_STATUS.ENDED]}
+                                />
+                            </div>
                         </div>
                     </Section>
                 </Col>
 
                 <Col lg={6}>
-                    <Section title="Ô nhập (Input, PasswordInput, Select)">
-                        <Row>
-                            <Col md={6}>
-                                <Input label="Họ tên" name="name" placeholder="Nguyễn Văn A" required />
-                            </Col>
-                            <Col md={6}>
-                                <Input
-                                    label="Số điện thoại"
-                                    name="phone"
-                                    value={phone}
-                                    onChange={(e) => setPhone(e.target.value)}
-                                    error={PHONE_REGEX.test(phone) ? '' : 'Số điện thoại gồm 10 số, bắt đầu bằng 0'}
-                                    required
-                                />
-                            </Col>
-                            <Col md={6}>
-                                <Input label="Email (chỉ xem)" name="email" value="manager@housify.vn" disabled readOnly />
-                            </Col>
-                            <Col md={6}>
-                                <PasswordInput
-                                    label="Mật khẩu mới"
-                                    name="newPassword"
-                                    placeholder="Nhập mật khẩu mới"
-                                    helpText="Bấm con mắt để hiện / ẩn"
-                                    required
-                                />
-                            </Col>
-                            <Col md={6}>
-                                <PasswordInput
-                                    label="Xác nhận mật khẩu mới"
-                                    name="confirmPassword"
-                                    defaultValue="abc123"
-                                    error="Xác nhận mật khẩu không khớp"
-                                    required
-                                />
-                            </Col>
-                            <Col md={6}>
-                                <Select
-                                    label="Trạng thái phòng (lọc bảng bên dưới)"
-                                    name="status"
-                                    options={toOptions(ROOM_STATUS_LABEL)}
-                                    placeholder="Tất cả trạng thái"
-                                    value={status}
-                                    onChange={(e) => setStatus(e.target.value)}
-                                />
-                            </Col>
-                            <Col xs={12}>
-                                <Input
-                                    label="Lý do khóa tài khoản"
-                                    name="reason"
-                                    as="textarea"
-                                    rows={2}
-                                    helpText="Bắt buộc khi khóa (BR-029)"
-                                    required
-                                />
-                            </Col>
-                        </Row>
+                    <Section title="8. Dòng nhãn - giá trị (FieldRow)">
+                        <div className="hf-paper p-3">
+                            <FieldRow label="Tòa nhà" required>Housify Cầu Giấy</FieldRow>
+                            <FieldRow label="Địa chỉ">12 Trần Thái Tông, Cầu Giấy, Hà Nội</FieldRow>
+                            <FieldRow label="Số phòng">15 phòng (3 phòng trống)</FieldRow>
+                            <FieldRow label="Ngày tạo">{formatDate('2026-09-01')}</FieldRow>
+                            <FieldRow label="Ghi chú">{null}</FieldRow>
+                        </div>
                     </Section>
 
-                    <Row>
-                        <Col md={6}>
-                            <Section title="Ảnh (ImageUpload)">
-                                <ImageUpload upload={false} onChange={(file) => toast.info(`Đã chọn ${file.name}`)} />
-                            </Section>
-                        </Col>
-                        <Col md={6}>
-                            <Section title="Trống, đang tải, lỗi">
-                                <EmptyState message="Chưa có phòng nào. Bấm Thêm phòng để bắt đầu.">
-                                    <Button variant="secondary" size="sm">
-                                        Thêm phòng
-                                    </Button>
-                                </EmptyState>
-                                <SkeletonRows rows={2} columns={3} media />
-                                <ErrorState
-                                    message="Không tải được danh sách phòng."
-                                    detail="Không kết nối được máy chủ"
-                                    onRetry={() => toast.info('Tải lại')}
-                                />
-                                <Loading />
-                            </Section>
-                        </Col>
-                    </Row>
+                    <Section title="9. Bảng dữ liệu (DataTable) & Phân trang (Pager)">
+                        <DataTable
+                            columns={roomColumns}
+                            data={ROOMS}
+                            onRowClick={(row) => toast.info(`Bấm vào phòng ${row.code}`)}
+                        />
+                        <div className="pt-3">
+                            <Pager page={page} limit={10} total={35} onChange={setPage} />
+                        </div>
+                    </Section>
                 </Col>
             </Row>
 
-            <Heading>Trang danh sách: DataTable, bấm vào dòng để mở chi tiết</Heading>
-            {/* thanh lọc: FilterSelect có label (nhãn trong ô) hoặc không label (icon phễu) */}
-            <div className="flex flex-wrap gap-2 mb-3">
-                <FilterSelect
-                    label="Tòa nhà"
-                    icon={BiBuildings}
-                    name="buildingDemo"
-                    options={[
-                        { value: 'b1', label: 'Housify Cầu Giấy' },
-                        { value: 'b2', label: 'Housify Thanh Xuân' },
-                    ]}
-                    placeholder="Tất cả"
-                    defaultValue=""
-                    className="w-72"
-                />
-                <FilterSelect
-                    label="Trạng thái"
-                    name="statusDemo"
-                    options={toOptions(ROOM_STATUS_LABEL)}
-                    placeholder="Tất cả"
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value)}
-                    className="w-60"
-                />
-                <FilterSelect
-                    name="typeDemo"
-                    options={[{ value: '1', label: 'Phòng đơn' }]}
-                    placeholder="Tất cả loại phòng"
-                    defaultValue=""
-                    className="w-56"
-                />
-            </div>
-            <div className="mb-4">
-                <DataTable
-                    columns={roomColumns}
-                    data={rooms}
-                    emptyMessage="Không tìm thấy phòng phù hợp"
-                    onRowClick={(row) => toast.info(`Mở chi tiết phòng ${row.code}`)}
-                />
-            </div>
+            {/* PHẦN 3: FORM, INPUT, TABS, VÀ CÁC TRẠNG THÁI TẢI */}
+            <Section title="10. Form nhập liệu & Bộ lọc đơn giản (Input, Select, FilterSelect, ImageUpload)">
+                <Row>
+                    <Col md={6}>
+                        <Input label="Họ tên" required defaultValue="Nguyễn Văn A" name="demoName" />
+                        <PasswordInput label="Mật khẩu" value={passwordVal} onChange={(e) => setPasswordVal(e.target.value)} />
+                        <Select
+                            label="Trạng thái hợp đồng"
+                            name="contractStatus"
+                            options={toOptions(CONTRACT_STATUS_LABEL)}
+                        />
+                    </Col>
+                    <Col md={6}>
+                        <FilterSelect
+                            label="Bộ lọc nhanh"
+                            value={filterSelectVal}
+                            onChange={(e) => setFilterSelectVal(e.target.value)}
+                            options={[
+                                { value: 'active', label: 'Đang hoạt động' },
+                                { value: 'pending', label: 'Chờ kích hoạt' },
+                            ]}
+                            className="mb-3 w-full"
+                        />
+                        <ImageUpload
+                            label="Ảnh đơn (ImageUpload)"
+                            value={singleUploadUrl}
+                            onChange={setSingleUploadUrl}
+                            kind="PUBLIC"
+                        />
+                    </Col>
+                </Row>
+            </Section>
 
-            <Heading>Trang chi tiết kiểu Odoo: PageHeader + StatusSteps + FieldRow + Tabs</Heading>
-            <PageHeader
-                actions={
-                    <>
-                        <Button variant="primary">Gia hạn</Button>
-                        <Button variant="secondary">Chỉnh sửa</Button>
-                        <Button variant="secondary">Tạo đơn chấm dứt</Button>
-                    </>
-                }
-            >
-                <StatusSteps
-                    map={CONTRACT_STATUS_LABEL}
-                    current={CONTRACT_STATUS.ACTIVE}
-                    steps={[CONTRACT_STATUS.DRAFT, CONTRACT_STATUS.ACTIVE, CONTRACT_STATUS.ENDED]}
-                />
-            </PageHeader>
-            <Card className="mb-4">
-                <Card.Body className="p-4">
-                    <div className="small text-secondary">Hợp đồng thuê phòng</div>
-                    <h3 className="h3 fw-semibold mb-4">HĐ-P101-2026</h3>
-                    <div className="grid lg:grid-cols-2 column-gap-5 mb-4">
-                        <div>
-                            <FieldRow label="Phòng" required>P101</FieldRow>
-                            <FieldRow label="Người đại diện" required>Nguyễn Minh Anh</FieldRow>
-                            <FieldRow label="Loại hợp đồng" required>Nhóm</FieldRow>
+            <Section title="11. Tab và Trạng thái tải / Lỗi (Tabs, Loading, SkeletonRows, EmptyState, ErrorState)">
+                <Tabs defaultActiveKey="loading" className="mb-3">
+                    <Tab eventKey="loading" title="Đang tải">
+                        <div className="p-3 border rounded">
+                            <div className="mb-2 font-semibold text-gray-700">Loading spinner:</div>
+                            <Loading />
+                            <div className="mt-4 mb-2 font-semibold text-gray-700">SkeletonRows:</div>
+                            <SkeletonRows rows={3} columns={4} />
                         </div>
-                        <div>
-                            <FieldRow label="Ngày bắt đầu" required>{formatDate('2026-01-15')}</FieldRow>
-                            <FieldRow label="Ngày kết thúc" required>{formatDate('2027-01-15')}</FieldRow>
-                            <FieldRow label="Giá thuê" required>
-                                <MoneyText value={3300000} />
-                            </FieldRow>
-                            <FieldRow label="Tiền cọc" required>
-                                <MoneyText value={3300000} />
-                            </FieldRow>
+                    </Tab>
+                    <Tab eventKey="empty" title="Không có dữ liệu (EmptyState)">
+                        <div className="p-3 border rounded">
+                            <EmptyState message="Không tìm thấy bản ghi nào" />
                         </div>
-                    </div>
-                    <Tabs defaultActiveKey="occupants" className="mb-3">
-                        <Tab eventKey="occupants" title="Cư dân (2)">
-                            <DataTable columns={occupantColumns} data={OCCUPANTS} />
-                        </Tab>
-                        <Tab eventKey="terminations" title="Đơn chấm dứt">
-                            <EmptyState message="Chưa có đơn chấm dứt nào" />
-                        </Tab>
-                    </Tabs>
-                </Card.Body>
-            </Card>
+                    </Tab>
+                    <Tab eventKey="error" title="Lỗi tải (ErrorState)">
+                        <div className="p-3 border rounded">
+                            <ErrorState
+                                message="Không thể tải danh sách hợp đồng"
+                                detail="Network Error: Cannot connect to server"
+                                onRetry={() => toast.info('Đang thử lại...')}
+                            />
+                        </div>
+                    </Tab>
+                    <Tab eventKey="occupants" title="Bảng cư dân mẫu">
+                        <DataTable columns={occupantColumns} data={OCCUPANTS} />
+                    </Tab>
+                    <Tab eventKey="alert" title="Thông báo mẫu">
+                        <Alert variant="warning" className="mb-2">Đây là cảnh báo mẫu từ Alert</Alert>
+                        <Alert variant="info" className="mb-0">Đây là thông tin mẫu từ Alert</Alert>
+                    </Tab>
+                </Tabs>
+            </Section>
 
             <ConfirmModal
                 show={showConfirm}
-                title="Xóa khỏi phòng"
-                message="Hợp đồng không thay đổi. Người đại diện vẫn giữ nguyên."
-                confirmText="Xác nhận"
-                variant="danger"
+                title="Xác nhận"
+                message="Bạn có chắc muốn thực hiện thao tác này?"
                 onConfirm={() => {
+                    toast.success('Đã xác nhận');
                     setShowConfirm(false);
-                    toast.success('Đã cập nhật danh sách cư dân');
                 }}
                 onCancel={() => setShowConfirm(false)}
-            >
-                <Input label="Ngày chuyển ra" name="exitDate" type="date" className="mb-0" required />
-            </ConfirmModal>
-        </>
+            />
+        </div>
     );
 };
 

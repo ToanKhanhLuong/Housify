@@ -2,12 +2,15 @@
 import { Nav, Offcanvas } from 'react-bootstrap';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { ROLE } from '../constants/enums';
 import { MENUS } from '../constants/menus';
 import Brand from './Brand';
 
 const Sidebar = ({ show, onHide }) => {
     const { user } = useAuth();
-    const items = MENUS[user.role] || [];
+    const items = MENUS[user?.role] || [];
+    // Manager chưa được phân công tòa (BR-023): mọi mục menu đều mờ không bấm được
+    const isManagerNoBuilding = user?.role === ROLE.MANAGER && !user?.building;
 
     return (
         <Offcanvas
@@ -25,18 +28,35 @@ const Sidebar = ({ show, onHide }) => {
                     <Brand />
                 </div>
                 <Nav variant="pills" className="flex-column gap-1 p-2">
-                    {items.map(({ label, path, icon: Icon }) => (
-                        <Nav.Link
-                            key={path}
-                            as={NavLink}
-                            to={path}
-                            onClick={onHide}
-                            className="flex items-center gap-2"
-                        >
-                            <Icon size={18} />
-                            {label}
-                        </Nav.Link>
-                    ))}
+                    {items.map(({ label, path, icon: Icon, disabled }) => {
+                        const isOff = disabled || isManagerNoBuilding;
+
+                        if (isOff) {
+                            return (
+                                <div
+                                    key={path || label}
+                                    className="hf-nav-off flex items-center gap-2 rounded px-3 py-2"
+                                    title="Chức năng đang phát triển"
+                                >
+                                    <Icon size={18} />
+                                    <span>{label}</span>
+                                </div>
+                            );
+                        }
+
+                        return (
+                            <Nav.Link
+                                key={path}
+                                as={NavLink}
+                                to={path}
+                                onClick={onHide}
+                                className="flex items-center gap-2"
+                            >
+                                <Icon size={18} />
+                                {label}
+                            </Nav.Link>
+                        );
+                    })}
                 </Nav>
             </Offcanvas.Body>
         </Offcanvas>

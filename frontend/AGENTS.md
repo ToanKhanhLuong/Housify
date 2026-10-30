@@ -157,6 +157,13 @@ Lưu ý: `p-3`, `gap-3`, `mb-4`… có ở cả Bootstrap lẫn Tailwind, **Boot
 | `Loading`      | không                                                                                                                                                                                               |                                                                                                                                                                                                                                                                                                                                                           |
 | `EmptyState`   | `message`, `children`                                                                                                                                                                            |                                                                                                                                                                                                                                                                                                                                                           |
 | `SkeletonRows` | `rows`, `columns`, `media` | Khung xương khi đang tải: thanh xám phẳng đúng chỗ dữ liệu, bố cục không nhảy. `media` chừa ô ảnh 40px đầu dòng |
+| `ControlBar`   | `actions`, `searchValue`, `onSearchChange`, `searchPlaceholder`, `filterGroups`, `selectedFilters`, `onFilterChange`, `groupByOptions`, `selectedGroupBy`, `onGroupByChange`, `count`, `view`, `onViewChange` | Thanh điều khiển Odoo một hàng (actions trái, search/facets/dropdown filter & group giữa, count + switch Thẻ/Bảng phải). Đi kèm helper `formatFilterQuery`, `groupArrayBy` (`src/utils/filter.js`) |
+| `CardGrid`     | `children`, `minWidth`, `className` | Lưới thẻ responsive kiểu Odoo Kanban |
+| `ItemCard`     | `to`, `onClick`, `image`, `placeholderText`, `title`, `badge`, `subtitle`, `stats`, `footer`, `children` | Thẻ đối tượng bấm được cả khối, hover viền đổi sang màu tím mận `#714B67` |
+| `ModalForm`    | `show`, `onHide`, `title`, `onSubmit`, `submitText`, `cancelText`, `loading`, `onDelete`, `deleteText`, `size`, `children` | Modal form 2 cột chuẩn, nút Lưu/Hủy bên trái, nút Xóa bên phải |
+| `ActionDropdown` | `title` (mặc định "Thao tác"), `items` (`[{ label, icon, onClick, danger, disabled, divider }]`), `align`, `children` | Nút "Thao tác ▾" xổ ra menu phụ / nguy hiểm ở trang chi tiết |
+| `BlockedBox`   | `title`, `reasons`, `message`, `children` | Khung cảnh báo nền đỏ nhạt liệt kê các lý do bị chặn bởi ràng buộc nghiệp vụ |
+| `ImageGalleryPicker` | `images`, `onChange`, `label`, `hint`, `disabled`, `maxImages` | Quản lý nhiều ảnh: ảnh đại diện lớn phía trên, hàng thumbnail nhỏ + nút tải lên bên dưới |
 | `ErrorState`   | `message`, `detail`, `onRetry` | Lỗi tải trong một khối: câu nói rõ cái gì lỗi, `detail` là message của BE, nút "Thử lại" gọi `onRetry` |
 
 ### Đăng nhập (`useAuth()` trong `context/AuthContext.jsx`)
@@ -179,6 +186,7 @@ Lưu ý: `p-3`, `gap-3`, `mb-4`… có ở cả Bootstrap lẫn Tailwind, **Boot
 | `constants/regex.js`        | `PHONE_REGEX`, `CCCD_REGEX`, `EMAIL_REGEX`, `PASSWORD_REGEX` (giống BE)                                 |
 | `utils/format.js`           | `formatMoney`, `formatDate`, `formatDateTime`, `formatPeriod`, `toDateInput`                           |
 | `utils/formErrors.js`       | `toFieldErrors(err.errors)` → `{ field: message }`                                                          |
+| `utils/filter.js`           | `formatFilterQuery(filters)` đổi filter sang query chuẩn, `groupArrayBy(items, key)` gom nhóm mảng            |
 
 ---
 
@@ -281,7 +289,26 @@ const roomTypeApi = {
 
 ---
 
-## 9. Hai khuôn mẫu trang
+## 9. Hai khuôn mẫu trang chuẩn Odoo
+
+Mọi trang nghiệp vụ làm theo một trong hai khuôn dưới đây theo đúng mockup tham chiếu (`docs/mock/`). Tên field trong mẫu là minh họa, **tên thật lấy theo api.md**.
+
+### Quy ước chung của 2 khuôn trang:
+1. **Trang danh sách (Khuôn 1 - List / Kanban View theo Main.dc.html)**:
+   - Dùng `ControlBar` ở đầu: nút chính bên trái, ô search debounced 300ms + facet tags + dropdown filter/group ở giữa, số lượng bản ghi + switch Thẻ/Bảng ở bên phải.
+   - Khi ở dạng thẻ: dùng `CardGrid` bọc các `ItemCard`. Bấm cả thẻ mở chi tiết.
+   - Khi ở dạng bảng: dùng `DataTable`. Bấm dòng mở chi tiết.
+   - Khi danh sách trống: dùng `EmptyState` với thông báo đúng theo UC.
+   - Form thêm / sửa nhanh: dùng `ModalForm` (tiêu đề, body 2 cột, footer nút bên trái).
+
+2. **Trang chi tiết (Khuôn 2 - Detail / Paper View theo BuildingDetail.dc.html & ManagerDetail.dc.html)**:
+   - Đầu trang `PageHeader`: nút `backTo`, breadcrumbs dạng mảng (`['Tòa nhà', 'Housify Cầu Giấy']`), nút chỉnh sửa chính bên trái, nút `ActionDropdown` "Thao tác ▾" cho các hành động phụ / nguy hiểm (xóa, khóa, gỡ phân công), thanh trạng thái `StatusSteps` bên phải.
+   - Khung giấy `.hf-paper`:
+     - Khối thông tin định danh: ảnh đại diện lớn (hoặc placeholder) bên trái, tiêu đề lớn h1 + địa chỉ / phụ đề + các badge trạng thái bên phải.
+     - Khối thông tin chi tiết: các `FieldRow` chia 2 cột (`<div className="grid lg:grid-cols-2 column-gap-5">`), trường bắt buộc / quan trọng có `required` hiện `*` đỏ.
+     - Khối ảnh thu nhỏ: dùng `ImageGalleryPicker` hoặc hàng thumbnail.
+     - Tab nội dung liên quan: dùng `Tabs` + `Tab` (ví dụ: Tab Phòng, Tab Giá dịch vụ, Tab Nội quy).
+     - Ràng buộc nghiệp vụ bị chặn: dùng `BlockedBox` hiển thị rõ lý do vì sao không thể xóa / khóa.
 
 Mọi trang làm theo một trong hai khuôn dưới đây. Tên field trong mẫu là minh họa, **tên thật lấy theo api.md**.
 
