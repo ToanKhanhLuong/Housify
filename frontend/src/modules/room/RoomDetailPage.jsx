@@ -132,8 +132,15 @@ const RoomDetailPage = () => {
           {room.images?.length > 0 ? (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {room.images.map((url) => (
-                <div key={url} className="h-32 overflow-hidden rounded border bg-body-tertiary">
-                  <Image src={url} alt={room.roomNumber} className="h-full w-full object-cover" />
+                <div
+                  key={url}
+                  className="group h-32 overflow-hidden rounded border bg-body-tertiary"
+                >
+                  <Image
+                    src={url}
+                    alt={room.roomNumber}
+                    className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105 motion-reduce:transition-none"
+                  />
                 </div>
               ))}
             </div>

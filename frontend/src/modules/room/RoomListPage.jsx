@@ -1,15 +1,15 @@
-// UC-19: danh sách phòng theo tòa, lọc theo trạng thái, tầng, loại phòng, khoảng giá. Bấm dòng mở chi tiết
-// Admin chọn tòa và có nút "Thêm phòng" (UC-16). Manager chỉ xem phòng tòa mình (BR-051), không thêm / sửa
+// UC-19: danh sách phòng, lọc theo tòa nhà, tầng, loại phòng, trạng thái, khoảng giá. Bấm dòng mở chi tiết
+// Admin chọn tòa (có "Tất cả") và có nút "Thêm phòng" (UC-16). Manager chỉ xem phòng tòa mình (BR-051), không thêm / sửa
 import { useEffect, useState } from 'react';
-import { Alert, Button } from 'react-bootstrap';
+import { Alert, Button, Form, InputGroup } from 'react-bootstrap';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import { BiBuildings } from 'react-icons/bi';
 import PageHeader from '../../components/PageHeader';
 import DataTable from '../../components/DataTable';
 import EmptyState from '../../components/EmptyState';
 import Loading from '../../components/Loading';
-import Select from '../../components/Select';
-import Input from '../../components/Input';
+import FilterSelect from '../../components/FilterSelect';
 import MoneyText from '../../components/MoneyText';
 import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
@@ -17,6 +17,23 @@ import { ROLE } from '../../constants/enums';
 import { ROOM_STATUS_LABEL, toOptions } from '../../constants/statusLabels';
 import roomApi from './room.api';
 import RoomFormModal from './components/RoomFormModal';
+
+// nhớ tòa Admin chọn lần trước ('' = Tất cả). Trình duyệt chặn bộ nhớ thì bỏ qua, mặc định "Tất cả"
+const SAVED_BUILDING_KEY = 'housify.rooms.buildingId';
+const readSavedBuilding = () => {
+  try {
+    return localStorage.getItem(SAVED_BUILDING_KEY);
+  } catch {
+    return null;
+  }
+};
+const saveBuilding = (value) => {
+  try {
+    localStorage.setItem(SAVED_BUILDING_KEY, value);
+  } catch {
+    // không lưu được thì thôi, lần sau về "Tất cả"
+  }
+};
 
 const RoomListPage = () => {
   const { user } = useAuth();
@@ -33,13 +50,18 @@ const RoomListPage = () => {
   const [reloadCount, setReloadCount] = useState(0);
   const [showForm, setShowForm] = useState(false);
 
-  // Manager: tòa được phân công lấy từ /auth/me; Admin: tòa trên URL, chưa chọn thì lấy tòa đầu tiên
+  // Admin: URL → lựa chọn lần trước → "Tất cả" (''); tòa đã bị xóa thì về "Tất cả"
+  // Manager: luôn là tòa được phân công (lấy từ /auth/me)
+  const chosenId = searchParams.get('buildingId') ?? readSavedBuilding() ?? '';
   const buildingId = isAdmin
-    ? (searchParams.get('buildingId') ?? buildings?.[0]?._id ?? '')
+    ? buildings?.some((item) => item._id === chosenId)
+      ? chosenId
+      : ''
     : (user.building?._id ?? '');
-  const building = isAdmin
-    ? buildings?.find((item) => item._id === buildingId)
-    : (buildings?.find((item) => item._id === buildingId) ?? user.building);
+  const building = buildingId
+    ? (buildings?.find((item) => item._id === buildingId) ?? user.building)
+    : null;
+  const isAll = isAdmin && !buildingId;
 
   useEffect(() => {
     roomApi
@@ -58,12 +80,13 @@ const RoomListPage = () => {
   // mỗi bộ (tòa + lọc + lần tải lại) là một key; key của kết quả khác key hiện tại nghĩa là đang tải
   const requestKey = JSON.stringify({ buildingId, ...filters, reloadCount });
   const loading = result.key !== requestKey;
+  const canLoad = buildings !== null && (isAll ? buildings.length > 0 : Boolean(buildingId));
 
   useEffect(() => {
-    if (!buildingId) return;
+    if (!canLoad) return;
     const params = Object.fromEntries(Object.entries(filters).filter(([, value]) => value));
-    roomApi
-      .list(buildingId, params)
+    const request = buildingId ? roomApi.list(buildingId, params) : roomApi.listAll(params);
+    request
       .then((response) =>
         setResult({ key: requestKey, rooms: response.data?.items ?? response.data ?? [] }),
       )
@@ -71,7 +94,7 @@ const RoomListPage = () => {
         setResult({ key: requestKey, rooms: [] });
         toast.error(error.message);
       });
-  }, [buildingId, filters, requestKey]);
+  }, [canLoad, buildingId, filters, requestKey]);
 
   const rooms = result.rooms.filter(
     (room) =>
@@ -82,9 +105,10 @@ const RoomListPage = () => {
   const handleFilter = (event) =>
     setFilters({ ...filters, [event.target.name]: event.target.value });
 
-  // đổi tòa thì bỏ lọc tầng (mỗi tòa số tầng khác nhau)
+  // đổi tòa thì bỏ lọc tầng (mỗi tòa số tầng khác nhau), nhớ lựa chọn cho lần sau
   const handleChangeBuilding = (event) => {
     setSearchParams({ buildingId: event.target.value });
+    saveBuilding(event.target.value);
     setFilters({ ...filters, floor: '' });
   };
 
@@ -97,6 +121,8 @@ const RoomListPage = () => {
 
   const columns = [
     { key: 'roomNumber', title: 'Mã phòng', className: 'fw-semibold' },
+    // xem "Tất cả" thì cần biết phòng thuộc tòa nào
+    ...(isAll ? [{ key: 'building', title: 'Tòa nhà', render: (row) => row.building?.name }] : []),
     { key: 'floorNumber', title: 'Tầng', render: (row) => `Tầng ${row.floorNumber}` },
     { key: 'roomType', title: 'Loại phòng', render: (row) => row.roomType?.name },
     {
@@ -118,78 +144,92 @@ const RoomListPage = () => {
     <>
       <PageHeader
         title="Phòng"
-        subtitle={!isAdmin ? building?.name : undefined}
         actions={
           isAdmin && (
             <Button
               variant="primary"
               onClick={() => setShowForm(true)}
-              disabled={!building || roomTypes.length === 0}
+              disabled={buildings.length === 0 || roomTypes.length === 0}
             >
               Thêm phòng
             </Button>
           )
         }
-      >
-        {isAdmin && buildings.length > 0 && (
-          <Select
+      />
+
+      {/* thanh lọc: mỗi ô có nhãn nằm trong ô, "Tất cả" là giá trị mặc định */}
+      <div className="flex flex-wrap gap-2 mb-3">
+        {isAdmin ? (
+          <FilterSelect
+            label="Tòa nhà"
+            icon={BiBuildings}
             name="buildingId"
             options={buildings.map((item) => ({ value: item._id, label: item.name }))}
-            placeholder={null}
+            placeholder="Tất cả"
             value={buildingId}
             onChange={handleChangeBuilding}
-            className="mb-0 w-48"
-            aria-label="Tòa nhà"
+            className="w-80"
           />
+        ) : (
+          <InputGroup className="w-80">
+            <InputGroup.Text className="flex items-center gap-1 text-secondary">
+              <BiBuildings size={16} />
+              Tòa nhà
+            </InputGroup.Text>
+            <Form.Control value={building?.name ?? ''} aria-label="Tòa nhà" readOnly disabled />
+          </InputGroup>
         )}
-        <Select
+        <FilterSelect
+          label="Tầng"
           name="floor"
           options={floorOptions}
-          placeholder="Tất cả tầng"
+          placeholder={isAll ? 'Chọn tòa trước' : 'Tất cả'}
           value={filters.floor}
           onChange={handleFilter}
-          className="mb-0 w-36"
-          aria-label="Tầng"
+          disabled={isAll}
+          className="w-64"
         />
-        <Select
+        <FilterSelect
+          label="Loại phòng"
           name="roomTypeId"
           options={roomTypeOptions}
-          placeholder="Tất cả loại phòng"
+          placeholder="Tất cả"
           value={filters.roomTypeId}
           onChange={handleFilter}
-          className="mb-0 w-48"
-          aria-label="Loại phòng"
+          className="w-64"
         />
-        <Select
+        <FilterSelect
+          label="Trạng thái"
           name="status"
           options={toOptions(ROOM_STATUS_LABEL)}
-          placeholder="Tất cả trạng thái"
+          placeholder="Tất cả"
           value={filters.status}
           onChange={handleFilter}
-          className="mb-0 w-44"
-          aria-label="Trạng thái"
+          className="w-60"
         />
-        <Input
-          name="priceMin"
-          type="number"
-          min={0}
-          placeholder="Giá từ"
-          value={price.min}
-          onChange={(event) => setPrice({ ...price, min: event.target.value })}
-          className="mb-0 w-28"
-          aria-label="Giá thuê từ"
-        />
-        <Input
-          name="priceMax"
-          type="number"
-          min={0}
-          placeholder="Giá đến"
-          value={price.max}
-          onChange={(event) => setPrice({ ...price, max: event.target.value })}
-          className="mb-0 w-28"
-          aria-label="Giá thuê đến"
-        />
-      </PageHeader>
+        <InputGroup className="w-80">
+          <InputGroup.Text className="text-secondary">Giá</InputGroup.Text>
+          <Form.Control
+            name="priceMin"
+            type="number"
+            min={0}
+            placeholder="từ"
+            value={price.min}
+            onChange={(event) => setPrice({ ...price, min: event.target.value })}
+            aria-label="Giá thuê từ"
+          />
+          <Form.Control
+            name="priceMax"
+            type="number"
+            min={0}
+            placeholder="đến"
+            value={price.max}
+            onChange={(event) => setPrice({ ...price, max: event.target.value })}
+            aria-label="Giá thuê đến"
+          />
+          <InputGroup.Text className="text-secondary">đ</InputGroup.Text>
+        </InputGroup>
+      </div>
 
       {noRoomType && (
         <Alert variant="warning">
@@ -197,7 +237,7 @@ const RoomListPage = () => {
         </Alert>
       )}
 
-      {!buildingId ? (
+      {buildings.length === 0 && !user.building ? (
         <EmptyState message="Chưa có tòa nhà nào" />
       ) : (
         <DataTable
@@ -213,6 +253,7 @@ const RoomListPage = () => {
         <RoomFormModal
           room={{}}
           building={building}
+          buildings={buildings}
           roomTypes={roomTypes}
           onHide={() => setShowForm(false)}
           onSaved={() => {

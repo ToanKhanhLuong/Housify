@@ -59,6 +59,22 @@
   .btn {
     --bs-btn-font-weight: 500;
     --bs-btn-padding-x: 0.875rem;
+    /* giữ chuyển màu của Bootstrap, thêm chuyển động khi rê chuột */
+    transition:
+      color 0.15s ease-in-out,
+      background-color 0.15s ease-in-out,
+      border-color 0.15s ease-in-out,
+      box-shadow 0.15s ease-in-out,
+      transform 0.15s ease-in-out;
+  }
+
+  /* rê chuột: nút nhích lên 1px; bấm xuống thì về chỗ cũ */
+  .btn:not(:disabled):not(.disabled):hover {
+    transform: translateY(-1px);
+  }
+
+  .btn:not(:disabled):not(.disabled):active {
+    transform: translateY(0);
   }
 
   .btn-primary {
@@ -117,6 +133,20 @@
 
   .nav-pills .nav-link:not(.active):hover {
     background-color: #f1f2f4;
+  }
+
+  /* rê chuột: mục menu trái và mục trong dropdown nhích sang phải 2px */
+  .nav-pills .nav-link,
+  .dropdown-item {
+    transition:
+      color 0.15s ease-in-out,
+      background-color 0.15s ease-in-out,
+      transform 0.15s ease-in-out;
+  }
+
+  .nav-pills .nav-link:not(.active):hover,
+  .dropdown-item:hover {
+    transform: translateX(2px);
   }
 
   .nav-pills .nav-link.active {
@@ -204,5 +234,15 @@
     background-color: var(--bs-primary-bg-subtle);
     color: var(--bs-primary-text-emphasis);
     font-weight: 600;
+  }
+
+  /* người dùng bật "giảm chuyển động" trong hệ điều hành: bỏ hết hiệu ứng nhích khi rê chuột */
+  @media (prefers-reduced-motion: reduce) {
+    .btn,
+    .nav-pills .nav-link,
+    .dropdown-item {
+      transition: none;
+      transform: none !important;
+    }
   }
 }

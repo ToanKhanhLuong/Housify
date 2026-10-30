@@ -79,6 +79,7 @@ Chỉ Admin (Manager, Customer gọi → 403). Id sai định dạng → 404 nh�
 | Method             | Path                             | Role         | Ghi chú                                                                          |
 | ------------------ | -------------------------------- | ------------ | --------------------------------------------------------------------------------- |
 | GET / POST         | `/buildings/:buildingId/rooms` | A (GET: A M) | `?floor=&status=&roomTypeId=`                                                   |
+| GET                | `/rooms`                       | A M          | Danh sách phòng **mọi tòa** cho lựa chọn "Tất cả tòa nhà" (UC-19). `?buildingId=&floor=&status=&roomTypeId=`, `buildingId` không bắt buộc. Manager luôn chỉ thấy tòa mình. Mỗi phòng kèm `building: { _id, name }` |
 | GET / PUT / DELETE | `/rooms/:id`                   | A (GET: A M) | PUT không sửa `roomNumber`; `status` chỉ chọn AVAILABLE hoặc MAINTENANCE |
 | GET                | `/room-types`                  | A M          |                                                                                   |
 | POST               | `/room-types`                  | A            |                                                                                   |

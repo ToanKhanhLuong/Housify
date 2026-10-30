@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Alert, Button, Card, Col, Row, Spinner, Tab, Tabs } from 'react-bootstrap';
 import { toast } from 'react-toastify';
-import { BiPlus } from 'react-icons/bi';
+import { BiBuildings, BiPlus } from 'react-icons/bi';
 import PageHeader from '../components/PageHeader';
 import DataTable from '../components/DataTable';
 import StatusBadge from '../components/StatusBadge';
@@ -14,6 +14,7 @@ import MoneyText from '../components/MoneyText';
 import Input from '../components/Input';
 import PasswordInput from '../components/PasswordInput';
 import Select from '../components/Select';
+import FilterSelect from '../components/FilterSelect';
 import ConfirmModal from '../components/ConfirmModal';
 import ImageUpload from '../components/ImageUpload';
 import EmptyState from '../components/EmptyState';
@@ -242,6 +243,37 @@ const UiKitPage = () => {
             </Row>
 
             <Heading>Trang danh sách: DataTable, bấm vào dòng để mở chi tiết</Heading>
+            {/* thanh lọc: FilterSelect có label (nhãn trong ô) hoặc không label (icon phễu) */}
+            <div className="flex flex-wrap gap-2 mb-3">
+                <FilterSelect
+                    label="Tòa nhà"
+                    icon={BiBuildings}
+                    name="buildingDemo"
+                    options={[
+                        { value: 'b1', label: 'Housify Cầu Giấy' },
+                        { value: 'b2', label: 'Housify Thanh Xuân' },
+                    ]}
+                    placeholder="Tất cả"
+                    defaultValue=""
+                    className="w-72"
+                />
+                <FilterSelect
+                    label="Trạng thái"
+                    name="statusDemo"
+                    options={toOptions(ROOM_STATUS_LABEL)}
+                    placeholder="Tất cả"
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value)}
+                    className="w-60"
+                />
+                <FilterSelect
+                    name="typeDemo"
+                    options={[{ value: '1', label: 'Phòng đơn' }]}
+                    placeholder="Tất cả loại phòng"
+                    defaultValue=""
+                    className="w-56"
+                />
+            </div>
             <div className="mb-4">
                 <DataTable
                     columns={roomColumns}

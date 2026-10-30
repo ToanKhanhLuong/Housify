@@ -24,13 +24,17 @@ const RoomImagesInput = ({ value = [], onChange, disabled = false }) => {
           {value.map((url) => (
             <div
               key={url}
-              className="relative h-24 overflow-hidden rounded border bg-body-tertiary"
+              className="group relative h-24 overflow-hidden rounded border bg-body-tertiary"
             >
-              <Image src={url} alt="Ảnh phòng" className="h-full w-full object-cover" />
+              <Image
+                src={url}
+                alt="Ảnh phòng"
+                className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105 motion-reduce:transition-none"
+              />
               <Button
                 variant="secondary"
                 size="sm"
-                className="absolute top-0 end-0 m-1 p-0 flex"
+                className="absolute top-0 end-0 m-1 p-0 flex transition-opacity duration-200 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
                 onClick={() => handleRemove(url)}
                 disabled={disabled}
                 aria-label="Bỏ ảnh"
