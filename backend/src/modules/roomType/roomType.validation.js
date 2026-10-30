@@ -41,3 +41,4 @@ export const roomTypeIdParamSchema = Joi.object({
       "any.required": "Thiếu mã loại phòng",
     }),
 });
+

@@ -105,3 +105,4 @@ export const deleteRoomType = async (id) => {
 
   return { message: "Xóa loại phòng thành công" };
 };
+
