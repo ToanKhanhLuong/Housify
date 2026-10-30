@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Nội quy tòa nhà – Khách thuê</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/8c542f24d703b19ce315047abd610531">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="hf app">
+  <div class="side"><dc-import name="Sidebar" role="customer" active="rules" hint-size="100%,900px"></dc-import></div>
+  <main class="main">
+    <dc-import name="Topbar" title="Nội quy" role="customer" hint-size="100%,60px"></dc-import>
+    <div class="page">
+      <div class="paper" style="max-width: 860px">
+        <div style="display: flex; gap: 16px; align-items: center; flex-wrap: wrap">
+          <div class="cover" style="width: 120px; height: 80px; font-size: 11px; flex: none">Ảnh tòa nhà</div>
+          <div style="display: flex; flex-direction: column; gap: 4px"><span class="muted" style="font-size: 13px">Nội quy tòa nhà</span><h1 style="margin: 0; font-size: 24px; font-weight: 700">Housify Cầu Giấy</h1><span class="muted">12 Trần Thái Tông, Cầu Giấy, Hà Nội</span></div>
+        </div>
+        <div style="white-space: pre-line; line-height: 1.8; font-size: 15px; background: #fafafb; border: 1px solid #eef0f2; border-radius: 5px; padding: 18px 20px">1. Giữ yên lặng sau 22h.
+2. Không hút thuốc trong phòng và hành lang.
+3. Khách ở lại qua đêm phải báo Manager.
+4. Để xe đúng khu vực tầng hầm.
+5. Thanh toán hóa đơn trước hạn ghi trên hóa đơn.</div>
+        <div class="muted" style="font-size: 13px">Thắc mắc về nội quy, vui lòng liên hệ Manager của tòa: Trần Văn Tùng · 0912000001.</div>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

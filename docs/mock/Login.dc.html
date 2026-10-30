@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Đăng nhập</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/8c542f24d703b19ce315047abd610531">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="hf auth">
+  <div class="auth-card">
+    <div class="brand"><div class="logo">H</div><div style="display: flex; flex-direction: column; line-height: 1.2"><span style="font-weight: 700; font-size: 17px">Housify</span><span class="muted" style="font-size: 12px">Quản lý nhà trọ</span></div></div>
+    <div><div style="font-size: 20px; font-weight: 700">Đăng nhập</div><div class="muted" style="font-size: 13px">{{ sub }}</div></div>
+    <div class="vsw" style="width: 100%">
+      <button class="vs {{ emailOn }}" style="flex: 1" onClick="{{ setEmail }}">Email</button>
+      <button class="vs {{ cccdOn }}" style="flex: 1" onClick="{{ setCccd }}">Số CCCD</button>
+    </div>
+    <sc-if value="{{ showErr }}" hint-placeholder-val="{{ false }}"><div class="alert a-err">{{ errText }}</div></sc-if>
+    <div class="field"><label class="lb" for="id">{{ idLabel }} <span class="req">*</span></label><input id="id" class="inp {{ idErrCls }}" value="{{ ident }}" onChange="{{ onId }}" placeholder="{{ idPh }}"><sc-if value="{{ idErr }}" hint-placeholder-val="{{ false }}"><span class="err">{{ idErrText }}</span></sc-if></div>
+    <div class="field"><label class="lb" for="pw">Mật khẩu <span class="req">*</span></label>
+      <div style="position: relative"><input id="pw" class="inp {{ pwErrCls }}" type="{{ pwType }}" value="{{ pw }}" onChange="{{ onPw }}" style="padding-right: 64px"><button class="lnk" onClick="{{ togglePw }}" style="position: absolute; right: 10px; top: 10px; font-size: 13px">{{ pwToggle }}</button></div>
+      <sc-if value="{{ pwErr }}" hint-placeholder-val="{{ false }}"><span class="err">Vui lòng nhập mật khẩu</span></sc-if></div>
+    <div style="display: flex; justify-content: space-between; align-items: center">
+      <button class="chk" onClick="{{ toggleRemember }}"><span class="box {{ remCls }}"><sc-if value="{{ remember }}" hint-placeholder-val="{{ false }}">✓</sc-if></span>Ghi nhớ đăng nhập</button>
+      <a href="ForgotPassword.dc.html" style="font-size: 13px; font-weight: 600">Quên mật khẩu?</a>
+    </div>
+    <sc-if value="{{ canGo }}" hint-placeholder-val="{{ false }}"><a class="btn btn-p btn-blk" href="{{ goHref }}">Đăng nhập</a></sc-if>
+    <sc-if value="{{ cannotGo }}" hint-placeholder-val="{{ true }}"><button class="btn btn-p btn-blk" onClick="{{ submit }}">Đăng nhập</button></sc-if>
+    <div class="hint" style="text-align: center">Ghi nhớ đăng nhập giữ phiên trong 7 ngày.</div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"err":{"editor":"enum","options":["none","wrong","locked","pending","inactive"],"default":"none"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const e = props.err && props.err !== 'none' ? props.err : null;
+    this.state = { mode: e === 'inactive' ? 'cccd' : 'email', ident: e ? (e === 'inactive' ? '001203004567' : 'tung.tv@example.com') : '', pw: e ? '••••••' : '', showPw: false, remember: false, tried: !!e, err: e };
+  }
+  renderVals() {
+    const s = this.state;
+    const isEmail = s.mode === 'email';
+    const E = {
+      wrong: isEmail ? 'Email hoặc mật khẩu không đúng.' : 'Số CCCD hoặc mật khẩu không đúng.',
+      locked: 'Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản lý để được hỗ trợ.',
+      pending: 'Tài khoản Manager chưa được kích hoạt. Vui lòng mở link kích hoạt trong email.',
+      inactive: 'Tài khoản chưa được kích hoạt. Vui lòng mở link mời trong email để kích hoạt hợp đồng.'
+    };
+    const idEmpty = s.tried && !s.ident.trim();
+    const idBadEmail = s.tried && isEmail && !!s.ident.trim() && !/^\S+@\S+\.\S+$/.test(s.ident.trim());
+    const idBadCccd = s.tried && !isEmail && !!s.ident.trim() && !/^\d{12}$/.test(s.ident.trim());
+    const pwEmpty = s.tried && !s.pw;
+    const ok = !!s.ident.trim() && !!s.pw && !s.err && (isEmail ? /^\S+@\S+\.\S+$/.test(s.ident.trim()) : /^\d{12}$/.test(s.ident.trim()));
+    return {
+      sub: isEmail ? 'Admin và Manager đăng nhập bằng email.' : 'Khách thuê đăng nhập bằng số CCCD.',
+      emailOn: isEmail ? 'vs-on' : '', cccdOn: isEmail ? '' : 'vs-on',
+      setEmail: () => this.setState({ mode: 'email', tried: false, err: null, ident: '' }),
+      setCccd: () => this.setState({ mode: 'cccd', tried: false, err: null, ident: '' }),
+      idLabel: isEmail ? 'Email' : 'Số CCCD', idPh: isEmail ? 'ten@example.com' : '12 chữ số',
+      ident: s.ident, pw: s.pw,
+      onId: (e) => this.setState({ ident: e.target.value, err: null }), onPw: (e) => this.setState({ pw: e.target.value, err: null }),
+      idErr: idEmpty || idBadEmail || idBadCccd, idErrCls: idEmpty || idBadEmail || idBadCccd ? 'inp-err' : '',
+      idErrText: idEmpty ? (isEmail ? 'Vui lòng nhập email' : 'Vui lòng nhập số CCCD') : isEmail ? 'Email không đúng định dạng' : 'Số CCCD gồm 12 chữ số',
+      pwErr: pwEmpty, pwErrCls: pwEmpty ? 'inp-err' : '',
+      pwType: s.showPw ? 'text' : 'password', pwToggle: s.showPw ? 'Ẩn' : 'Hiện', togglePw: () => this.setState({ showPw: !s.showPw }),
+      remember: s.remember, remCls: s.remember ? 'box-on' : '', toggleRemember: () => this.setState({ remember: !s.remember }),
+      showErr: !!s.err, errText: s.err ? E[s.err] : '',
+      canGo: ok, cannotGo: !ok,
+      goHref: isEmail ? (s.ident.includes('tung') ? 'MyBuilding.dc.html' : 'Main.dc.html') : 'Rules.dc.html',
+      submit: () => this.setState({ tried: true })
+    };
+  }
+}
+</script>
+</body>
+</html>

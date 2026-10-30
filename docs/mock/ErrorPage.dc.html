@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Trang lỗi</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/8c542f24d703b19ce315047abd610531">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="hf app">
+  <div class="side"><dc-import name="Sidebar" role="manager" active="" hint-size="100%,900px"></dc-import></div>
+  <main class="main">
+    <dc-import name="Topbar" title="{{ title }}" role="manager" hint-size="100%,60px"></dc-import>
+    <div class="page" style="align-items: center; justify-content: center; flex: 1">
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; max-width: 440px; padding: 60px 0">
+        <div style="font-size: 64px; font-weight: 700; color: #714B67; line-height: 1">{{ code }}</div>
+        <div style="font-size: 20px; font-weight: 700">{{ heading }}</div>
+        <div class="muted">{{ text }}</div>
+        <a class="btn btn-p" href="MyBuilding.dc.html" style="margin-top: 8px">Về trang chính</a>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"code":{"editor":"enum","options":["404","403"],"default":"404"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const is403 = this.props.code === '403';
+    return {
+      code: is403 ? '403' : '404',
+      title: is403 ? 'Không có quyền truy cập' : 'Không tìm thấy trang',
+      heading: is403 ? 'Bạn không có quyền xem trang này' : 'Không tìm thấy trang',
+      text: is403 ? 'Trang này dành cho vai trò khác hoặc thuộc tòa nhà bạn không phụ trách.' : 'Đường dẫn không tồn tại hoặc đã bị thay đổi.'
+    };
+  }
+}
+</script>
+</body>
+</html>

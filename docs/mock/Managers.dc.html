@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Quản lý Manager – Admin</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/8c542f24d703b19ce315047abd610531">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="hf app">
+  <div class="side"><dc-import name="Sidebar" role="admin" active="managers" hint-size="100%,900px"></dc-import></div>
+  <main class="main">
+    <dc-import name="Topbar" title="Quản lý Manager" role="admin" hint-size="100%,60px"></dc-import>
+    <div class="bar">
+      <button class="btn btn-p" onClick="{{ openCreate }}">Thêm Manager</button>
+      <div style="position: relative; flex: 1 1 360px; max-width: 640px; margin: 0 auto">
+        <div class="search">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4b5563" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14zM21 21l-4.3-4.3"></path></svg>
+          <sc-for list="{{ facets }}" as="f" hint-placeholder-count="1">
+            <span class="facet"><span class="facet-ic {{ f.icCls }}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" aria-hidden="true"><path d="{{ f.d }}"></path></svg></span><span style="padding: 0 8px">{{ f.label }}</span><button class="facet-x" onClick="{{ f.remove }}" aria-label="Bỏ mục này">✕</button></span>
+          </sc-for>
+          <input aria-label="Tìm Manager" value="{{ q }}" onChange="{{ onQ }}" placeholder="Tìm theo họ tên, email, số điện thoại...">
+          <button class="ib" style="width: 30px; height: 28px" onClick="{{ togglePanel }}" aria-label="Mở bộ lọc"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+        </div>
+        <sc-if value="{{ panel }}" hint-placeholder-val="{{ false }}">
+          <button class="scrim" onClick="{{ togglePanel }}" aria-label="Đóng bộ lọc"></button>
+          <div class="drop" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px">
+            <div style="border-right: 1px solid #eef0f2"><div class="colh" style="color: #714B67">Bộ lọc</div>
+              <div class="sub">Trạng thái</div>
+              <sc-for list="{{ stOpts }}" as="o" hint-placeholder-count="3"><button class="opt" onClick="{{ o.pick }}"><span class="box {{ o.cls }}"><sc-if value="{{ o.on }}" hint-placeholder-val="{{ false }}">✓</sc-if></span>{{ o.label }}</button></sc-for>
+              <div class="sep"></div><div class="sub">Phân công</div>
+              <sc-for list="{{ asOpts }}" as="o" hint-placeholder-count="2"><button class="opt" onClick="{{ o.pick }}"><span class="box {{ o.cls }}"><sc-if value="{{ o.on }}" hint-placeholder-val="{{ false }}">✓</sc-if></span>{{ o.label }}</button></sc-for></div>
+            <div><div class="colh" style="color: #017E84">Nhóm theo</div>
+              <sc-for list="{{ gOpts }}" as="o" hint-placeholder-count="2"><button class="opt" onClick="{{ o.pick }}"><span class="rd {{ o.cls }}"></span>{{ o.label }}</button></sc-for></div>
+          </div>
+        </sc-if>
+      </div>
+      <span class="muted" style="font-size: 13px">{{ countText }}</span>
+    </div>
+    <div class="page">
+      <sc-if value="{{ flash }}" hint-placeholder-val="{{ false }}"><div class="alert a-ok">Đã tạo Manager và gửi link kích hoạt (hiệu lực 24 giờ) tới email.</div></sc-if>
+      <div style="overflow-x: auto">
+        <div style="display: flex; gap: 16px; align-items: flex-start; min-width: min-content">
+          <sc-for list="{{ cols }}" as="c" hint-placeholder-count="3">
+            <section style="flex: 1 0 300px; max-width: 440px; display: flex; flex-direction: column; gap: 10px">
+              <sc-if value="{{ c.showHead }}" hint-placeholder-val="{{ true }}"><div style="display: flex; align-items: center; justify-content: space-between"><span style="display: flex; align-items: center; gap: 8px; font-weight: 700"><span class="dot" style="background: {{ c.color }}"></span>{{ c.label }}</span><span class="badge b-gray">{{ c.count }}</span></div></sc-if>
+              <sc-for list="{{ c.items }}" as="m" hint-placeholder-count="2">
+                <a class="tcard" href="{{ m.href }}">
+                  <span style="display: flex; align-items: center; gap: 10px"><span class="av" style="width: 40px; height: 40px; font-size: 14px">{{ m.ini }}</span><span style="display: flex; flex-direction: column; min-width: 0"><span style="font-weight: 600; font-size: 15px; color: #111827">{{ m.name }}</span><span class="muted" style="font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ m.email }}</span></span></span>
+                  <span style="display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px"><span>{{ m.phone }}</span><span class="badge {{ m.bCls }}">{{ m.bText }}</span></span>
+                </a>
+              </sc-for>
+              <sc-if value="{{ c.empty }}" hint-placeholder-val="{{ false }}"><div class="ph" style="padding: 16px; font-size: 13px">Không có Manager</div></sc-if>
+            </section>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <sc-if value="{{ modal }}" hint-placeholder-val="{{ false }}">
+    <div class="overlay"><div class="modal" role="dialog" aria-label="Thêm Manager" style="max-width: 520px">
+      <div class="mh">Thêm Manager<button class="ib" onClick="{{ close }}" aria-label="Đóng">✕</button></div>
+      <div class="mb">
+        <div class="field"><label class="lb" for="mn">Họ tên <span class="req">*</span></label><input id="mn" class="inp {{ nErrCls }}" value="{{ fName }}" onChange="{{ onName }}"><sc-if value="{{ nErr }}" hint-placeholder-val="{{ false }}"><span class="err">Vui lòng nhập họ tên</span></sc-if></div>
+        <div class="field"><label class="lb" for="me">Email <span class="req">*</span></label><input id="me" class="inp {{ eErrCls }}" value="{{ fEmail }}" onChange="{{ onEmail }}" placeholder="ten@example.com"><sc-if value="{{ hasEErr }}" hint-placeholder-val="{{ false }}"><span class="err">{{ eErr }}</span></sc-if></div>
+        <div class="field"><label class="lb" for="mp">Số điện thoại <span class="req">*</span></label><input id="mp" class="inp {{ pErrCls }}" value="{{ fPhone }}" onChange="{{ onPhone }}" placeholder="0912345678"><sc-if value="{{ hasPErr }}" hint-placeholder-val="{{ false }}"><span class="err">{{ pErr }}</span></sc-if></div>
+        <div class="alert a-info">Manager được tạo ở trạng thái Chưa kích hoạt. Hệ thống gửi link kích hoạt tới email, link hiệu lực 24 giờ.</div>
+      </div>
+      <div class="mf"><button class="btn btn-p" onClick="{{ save }}">Tạo và gửi link</button><button class="btn btn-s" onClick="{{ close }}">Hủy</button></div>
+    </div></div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"startModal":{"editor":"enum","options":["none","create"],"default":"none"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      q: '', panel: false, st: [], as: [], group: 'status', modal: props.startModal === 'create',
+      fName: '', fEmail: '', fPhone: '', tried: false, flash: false,
+      list: [
+        { name: 'Trần Văn Tùng', email: 'tung.tv@example.com', phone: '0912000001', building: 'Housify Cầu Giấy', st: 'ACTIVE', at: 6 },
+        { name: 'Lê Thị Hoa', email: 'hoa.lt@example.com', phone: '0912000004', building: 'Housify Đống Đa', st: 'ACTIVE', at: 5 },
+        { name: 'Quản lý Test Hai', email: 'testhai@example.com', phone: '0912000002', building: '', st: 'ACTIVE', at: 4 },
+        { name: 'Phạm Quốc Bảo', email: 'bao.pq@example.com', phone: '0912000005', building: '', st: 'PENDING', at: 3 },
+        { name: 'Nguyễn Đức Long', email: 'long.nd@example.com', phone: '0912000006', building: '', st: 'LOCKED', at: 2 }
+      ]
+    };
+  }
+  renderVals() {
+    const s = this.state;
+    const ST = { ACTIVE: ['Đang hoạt động', '#12936b', 'ManagerDetail.dc.html'], PENDING: ['Chưa kích hoạt', '#d49a00', 'ManagerDetailPending.dc.html'], LOCKED: ['Bị khóa', '#c0392b', 'ManagerDetailLocked.dc.html'] };
+    const q = s.q.trim().toLowerCase();
+    const shown = s.list.filter((m) => {
+      if (q && !(m.name.toLowerCase().includes(q) || m.email.includes(q) || m.phone.includes(q))) return false;
+      if (s.st.length && !s.st.includes(m.st)) return false;
+      if (s.as.length === 1 && s.as[0] === 'yes' && !m.building) return false;
+      if (s.as.length === 1 && s.as[0] === 'no' && m.building) return false;
+      return true;
+    }).sort((a, b) => b.at - a.at).map((m) => ({
+      ...m, ini: m.name.split(' ').slice(-2).map((w) => w[0]).join('').toUpperCase(), href: ST[m.st][2],
+      bText: m.building || 'Chưa phân công', bCls: m.building ? 'b-plum' : 'b-gray'
+    }));
+    const tog = (k, v) => () => this.setState({ [k]: s[k].includes(v) ? s[k].filter((x) => x !== v) : [...s[k], v] });
+    const mk = (k, arr) => arr.map(([v, l]) => ({ label: l, on: s[k].includes(v), cls: s[k].includes(v) ? 'box-on' : '', pick: tog(k, v) }));
+    const facets = [];
+    if (s.st.length) facets.push({ label: s.st.map((x) => ST[x][0]).join(' hoặc '), icCls: '', d: 'M3 5h18l-7 8v6l-4 2v-8z', remove: () => this.setState({ st: [] }) });
+    if (s.as.length) facets.push({ label: s.as.map((x) => (x === 'yes' ? 'Đã phân công' : 'Chưa phân công')).join(' hoặc '), icCls: '', d: 'M3 5h18l-7 8v6l-4 2v-8z', remove: () => this.setState({ as: [] }) });
+    if (s.group === 'status') facets.push({ label: 'Nhóm: Trạng thái', icCls: 'facet-gb', d: 'm12 3 9 5-9 5-9-5zM3 13l9 5 9-5', remove: () => this.setState({ group: 'none' }) });
+    const cols = s.group === 'status'
+      ? ['ACTIVE', 'PENDING', 'LOCKED'].map((k) => { const items = shown.filter((m) => m.st === k); return { label: ST[k][0], color: ST[k][1], count: items.length, items, empty: !items.length, showHead: true }; })
+      : [{ label: '', color: '', count: shown.length, items: shown, empty: !shown.length, showHead: false }];
+    const nm = s.fName.trim(); const em = s.fEmail.trim(); const ph = s.fPhone.trim();
+    const eEmpty = !em; const eBad = !!em && !/^\S+@\S+\.\S+$/.test(em); const eDup = s.list.some((m) => m.email === em.toLowerCase());
+    const pEmpty = !ph; const pBad = !!ph && !/^0\d{9}$/.test(ph); const pDup = s.list.some((m) => m.phone === ph);
+    const t = s.tried;
+    return {
+      q: s.q, onQ: (e) => this.setState({ q: e.target.value }),
+      panel: s.panel, togglePanel: () => this.setState({ panel: !s.panel }),
+      facets, cols, countText: shown.length + ' / ' + s.list.length + ' Manager',
+      stOpts: mk('st', [['ACTIVE', 'Đang hoạt động'], ['PENDING', 'Chưa kích hoạt'], ['LOCKED', 'Bị khóa']]),
+      asOpts: mk('as', [['yes', 'Đã phân công tòa'], ['no', 'Chưa phân công tòa']]),
+      gOpts: [['status', 'Trạng thái'], ['none', 'Không nhóm']].map(([v, l]) => ({ label: l, cls: s.group === v ? 'rd-on' : '', pick: () => this.setState({ group: v }) })),
+      flash: s.flash, modal: s.modal,
+      openCreate: () => this.setState({ modal: true, tried: false, fName: '', fEmail: '', fPhone: '' }),
+      close: () => this.setState({ modal: false }),
+      fName: s.fName, fEmail: s.fEmail, fPhone: s.fPhone,
+      onName: (e) => this.setState({ fName: e.target.value }), onEmail: (e) => this.setState({ fEmail: e.target.value }), onPhone: (e) => this.setState({ fPhone: e.target.value }),
+      nErr: t && !nm, nErrCls: t && !nm ? 'inp-err' : '',
+      hasEErr: t && (eEmpty || eBad || eDup), eErrCls: t && (eEmpty || eBad || eDup) ? 'inp-err' : '',
+      eErr: eEmpty ? 'Vui lòng nhập email' : eBad ? 'Email không đúng định dạng' : 'Email đã được sử dụng',
+      hasPErr: t && (pEmpty || pBad || pDup), pErrCls: t && (pEmpty || pBad || pDup) ? 'inp-err' : '',
+      pErr: pEmpty ? 'Vui lòng nhập số điện thoại' : pBad ? 'Số điện thoại gồm 10 số, bắt đầu bằng 0' : 'Số điện thoại đã được sử dụng',
+      save: () => {
+        if (!nm || eEmpty || eBad || eDup || pEmpty || pBad || pDup) { this.setState({ tried: true }); return; }
+        this.setState({ modal: false, flash: true, list: [...s.list, { name: nm, email: em.toLowerCase(), phone: ph, building: '', st: 'PENDING', at: 10 }] });
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Loại phòng – Admin</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/8c542f24d703b19ce315047abd610531">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="hf app">
+  <div class="side"><dc-import name="Sidebar" role="admin" active="roomTypes" hint-size="100%,900px"></dc-import></div>
+  <main class="main">
+    <dc-import name="Topbar" title="Loại phòng" role="admin" hint-size="100%,60px"></dc-import>
+    <div class="bar">
+      <button class="btn btn-p" onClick="{{ openCreate }}">Thêm loại phòng</button>
+      <span class="muted" style="font-size: 13px; margin-left: auto">{{ countText }}</span>
+    </div>
+    <div class="page">
+      <div class="muted" style="font-size: 13px">Loại phòng dùng chung cho mọi tòa nhà. Sức chứa của phòng lấy theo loại phòng.</div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px">
+        <sc-for list="{{ types }}" as="t" hint-placeholder-count="3">
+          <button class="tcard" onClick="{{ t.open }}" style="flex-direction: row; align-items: center; gap: 12px">
+            <span class="av" style="width: 44px; height: 44px; border-radius: 8px; font-size: 16px">{{ t.capacity }}</span>
+            <span style="display: flex; flex-direction: column; gap: 3px; min-width: 0"><span style="font-weight: 600; font-size: 15px">{{ t.name }}</span><span class="muted" style="font-size: 13px">Tối đa {{ t.capacity }} người · {{ t.usedText }}</span></span>
+          </button>
+        </sc-for>
+      </div>
+    </div>
+  </main>
+
+  <sc-if value="{{ modal }}" hint-placeholder-val="{{ false }}">
+    <div class="overlay"><div class="modal" role="dialog" aria-label="Loại phòng" style="max-width: 460px">
+      <div class="mh">{{ mTitle }}<button class="ib" onClick="{{ close }}" aria-label="Đóng">✕</button></div>
+      <div class="mb">
+        <div class="field"><label class="lb" for="tn">Tên loại phòng <span class="req">*</span></label><input id="tn" class="inp {{ nameErrCls }}" value="{{ fName }}" onChange="{{ onName }}" placeholder="VD: Phòng đôi"><sc-if value="{{ hasNameErr }}" hint-placeholder-val="{{ false }}"><span class="err">{{ nameErr }}</span></sc-if></div>
+        <div class="field"><label class="lb" for="tc">Sức chứa tối đa (người) <span class="req">*</span></label><input id="tc" class="inp {{ capErrCls }}" type="number" min="1" value="{{ fCap }}" onChange="{{ onCap }}" style="max-width: 160px"><sc-if value="{{ hasCapErr }}" hint-placeholder-val="{{ false }}"><span class="err">{{ capErr }}</span></sc-if></div>
+        <sc-if value="{{ isEdit }}" hint-placeholder-val="{{ false }}"><span class="hint">{{ sel.usedText }}. Giảm sức chứa không được thấp hơn số người đang ở của phòng đông nhất thuộc loại này.</span></sc-if>
+        <sc-if value="{{ blocked }}" hint-placeholder-val="{{ false }}"><div class="alert a-err">Không thể xóa loại phòng đang được dùng bởi {{ sel.used }} phòng.</div></sc-if>
+      </div>
+      <div class="mf">
+        <button class="btn btn-p" onClick="{{ save }}">Lưu</button><button class="btn btn-s" onClick="{{ close }}">Hủy</button>
+        <sc-if value="{{ isEdit }}" hint-placeholder-val="{{ false }}"><button class="btn btn-d" onClick="{{ remove }}">Xóa</button></sc-if>
+      </div>
+    </div></div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"startModal":{"editor":"enum","options":["none","create","edit","blocked"],"default":"none"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const m = props.startModal;
+    this.state = {
+      types: [
+        { id: 't1', name: 'Phòng đơn', capacity: 1, used: 3, maxOcc: 1 },
+        { id: 't2', name: 'Phòng đôi', capacity: 2, used: 1, maxOcc: 0 },
+        { id: 't3', name: 'Phòng gia đình', capacity: 4, used: 1, maxOcc: 3 },
+        { id: 't4', name: 'Căn hộ mini', capacity: 3, used: 0, maxOcc: 0 }
+      ],
+      modal: m === 'create' || m === 'edit' || m === 'blocked',
+      sel: m === 'edit' ? 't3' : m === 'blocked' ? 't1' : null,
+      fName: m === 'edit' ? 'Phòng gia đình' : m === 'blocked' ? 'Phòng đơn' : '',
+      fCap: m === 'edit' ? '2' : m === 'blocked' ? '1' : '',
+      tried: m === 'edit', blocked: m === 'blocked'
+    };
+  }
+  renderVals() {
+    const s = this.state;
+    const types = s.types.slice().sort((a, b) => a.name.localeCompare(b.name)).map((t) => ({ ...t, usedText: t.used ? t.used + ' phòng đang dùng' : 'Chưa gán cho phòng nào', open: () => this.setState({ modal: true, sel: t.id, fName: t.name, fCap: String(t.capacity), tried: false, blocked: false }) }));
+    const sel = types.find((t) => t.id === s.sel) || { usedText: '', used: 0, maxOcc: 0 };
+    const name = s.fName.trim(); const cap = Number(s.fCap);
+    const nameEmpty = s.tried && !name;
+    const nameDup = s.tried && s.types.some((t) => t.id !== s.sel && t.name.toLowerCase() === name.toLowerCase());
+    const capBad = s.tried && !(Number.isInteger(cap) && cap >= 1);
+    const capLow = s.tried && !capBad && s.sel && cap < sel.maxOcc;
+    const capErr = capBad ? 'Sức chứa phải là số nguyên lớn hơn hoặc bằng 1' : 'Sức chứa mới nhỏ hơn số người đang ở của phòng P301 (3 người)';
+    return {
+      types, sel, countText: types.length + ' loại phòng',
+      modal: s.modal, isEdit: !!s.sel, mTitle: s.sel ? 'Sửa loại phòng' : 'Thêm loại phòng',
+      fName: s.fName, fCap: s.fCap,
+      onName: (e) => this.setState({ fName: e.target.value }), onCap: (e) => this.setState({ fCap: e.target.value }),
+      hasNameErr: nameEmpty || nameDup, nameErr: nameEmpty ? 'Tên loại phòng không được để trống' : 'Tên loại phòng đã tồn tại', nameErrCls: nameEmpty || nameDup ? 'inp-err' : '',
+      hasCapErr: capBad || capLow, capErr, capErrCls: capBad || capLow ? 'inp-err' : '',
+      blocked: s.blocked,
+      openCreate: () => this.setState({ modal: true, sel: null, fName: '', fCap: '', tried: false, blocked: false }),
+      close: () => this.setState({ modal: false }),
+      save: () => {
+        const bad = !name || !(Number.isInteger(cap) && cap >= 1) || s.types.some((t) => t.id !== s.sel && t.name.toLowerCase() === name.toLowerCase()) || (s.sel && cap < sel.maxOcc);
+        if (bad) { this.setState({ tried: true }); return; }
+        if (s.sel) this.setState({ modal: false, types: s.types.map((t) => (t.id === s.sel ? { ...t, name, capacity: cap } : t)) });
+        else this.setState({ modal: false, types: [...s.types, { id: 't' + Date.now(), name, capacity: cap, used: 0, maxOcc: 0 }] });
+      },
+      remove: () => {
+        if (sel.used > 0) { this.setState({ blocked: true }); return; }
+        this.setState({ modal: false, types: s.types.filter((t) => t.id !== s.sel) });
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

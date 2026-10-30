@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Menu bên trái</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/8c542f24d703b19ce315047abd610531">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="hf" style="background: #fff; min-height: 900px; height: 100%; display: flex; flex-direction: column">
+  <div class="brand" style="height: 60px; padding: 0 18px; border-bottom: 1px solid #eef0f2">
+    <div class="logo">H</div>
+    <div style="display: flex; flex-direction: column; line-height: 1.2"><span style="font-weight: 700; color: #111827">Housify</span><span style="font-size: 12px; color: #4b5563">Quản lý nhà trọ</span></div>
+  </div>
+  <nav aria-label="Menu chính" style="display: flex; flex-direction: column; gap: 2px; padding: 12px">
+    <sc-for list="{{ items }}" as="it" hint-placeholder-count="6">
+      <sc-if value="{{ it.isOn }}" hint-placeholder-val="{{ false }}">
+        <a class="nav nav-on" href="{{ it.href }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ it.d }}"></path></svg>{{ it.label }}</a>
+      </sc-if>
+      <sc-if value="{{ it.isLink }}" hint-placeholder-val="{{ true }}">
+        <a class="nav" href="{{ it.href }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ it.d }}"></path></svg>{{ it.label }}</a>
+      </sc-if>
+      <sc-if value="{{ it.isOff }}" hint-placeholder-val="{{ false }}">
+        <span class="nav-off"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ it.d }}"></path></svg>{{ it.label }}</span>
+      </sc-if>
+    </sc-for>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"role":{"editor":"enum","options":["admin","manager","managerNoBuilding","customer"],"default":"admin"},"active":{"editor":"text","default":"buildings"},"$preview":{"width":240,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const role = this.props.role || 'admin';
+    const active = this.props.active || '';
+    const I = {
+      dash: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
+      building: 'M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16M16 9h2a2 2 0 0 1 2 2v10M3 21h18M8 7h4M8 11h4M8 15h4',
+      tag: 'M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8zM7.5 7.5h.01',
+      plug: 'M9 2v6M15 2v6M6 8h12v4a6 6 0 0 1-12 0zM12 18v4',
+      card: 'M3 5h18v14H3zM14 10h4M14 14h4M7 10a2 2 0 1 0 4 0a2 2 0 1 0-4 0M6 16c.6-1.5 1.8-2 3-2s2.4.5 3 2',
+      xc: 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18zM15 9l-6 6M9 9l6 6',
+      chart: 'M4 20V10M10 20V4M16 20v-7M22 20H2',
+      file: 'M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13h8M8 17h5',
+      users: 'M9 11a4 4 0 1 0 0-8a4 4 0 0 0 0 8zM2 21c1-4 4-6 7-6s6 2 7 6M17 3.5a4 4 0 0 1 0 7.5M22 21c-.5-2.5-2-4.3-4-5.2',
+      receipt: 'M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-3 2zM9 8h6M9 12h6',
+      pay: 'M2 6h20v12H2zM2 10h20M6 15h4',
+      alert: 'M12 3 2 20h20zM12 10v4M12 17h.01',
+      mega: 'M3 11v2a1 1 0 0 0 1 1h3l6 4V6L7 10H4a1 1 0 0 0-1 1zM17 9a4 4 0 0 1 0 6',
+      door: 'M5 21V4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v17M3 21h18M15 12h.01',
+      book: 'M4 4h6a3 3 0 0 1 3 3v14a2 2 0 0 0-2-2H4zM20 4h-6a3 3 0 0 0-3 3v14a2 2 0 0 1 2-2h7z'
+    };
+    const M = {
+      admin: [
+        ['dash', 'Tổng quan', 'dash', ''],
+        ['buildings', 'Tòa nhà', 'building', 'Main.dc.html'],
+        ['roomTypes', 'Loại phòng', 'tag', 'RoomTypes.dc.html'],
+        ['services', 'Dịch vụ', 'plug', 'Services.dc.html'],
+        ['managers', 'Quản lý Manager', 'card', 'Managers.dc.html'],
+        ['terminations', 'Đơn chấm dứt', 'xc', ''],
+        ['reports', 'Báo cáo', 'chart', '']
+      ],
+      manager: [
+        ['dash', 'Tổng quan', 'dash', ''],
+        ['myBuilding', 'Tòa của tôi', 'building', 'MyBuilding.dc.html'],
+        ['contracts', 'Hợp đồng', 'file', ''],
+        ['occupants', 'Cư dân', 'users', ''],
+        ['invoices', 'Hóa đơn', 'receipt', ''],
+        ['payments', 'Thanh toán', 'pay', ''],
+        ['incidents', 'Sự cố', 'alert', ''],
+        ['announcements', 'Thông báo chung', 'mega', ''],
+        ['reports', 'Báo cáo', 'chart', '']
+      ],
+      customer: [
+        ['myContract', 'Hợp đồng của tôi', 'file', ''],
+        ['myRoom', 'Phòng của tôi', 'door', ''],
+        ['myInvoices', 'Hóa đơn', 'receipt', ''],
+        ['myPayments', 'Thanh toán', 'pay', ''],
+        ['myIncidents', 'Sự cố', 'alert', ''],
+        ['rules', 'Nội quy', 'book', 'Rules.dc.html']
+      ]
+    };
+    const noBuilding = role === 'managerNoBuilding';
+    const list = M[noBuilding ? 'manager' : role] || M.admin;
+    const items = list.map(([key, label, icon, href]) => {
+      const usable = !!href && !noBuilding;
+      const on = usable && key === active;
+      return { label, href, d: I[icon], isOn: on, isLink: usable && !on, isOff: !usable };
+    });
+    return { items };
+  }
+}
+</script>
+</body>
+</html>

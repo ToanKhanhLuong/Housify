@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Chi tiết Manager – Admin</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/8c542f24d703b19ce315047abd610531">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="hf app">
+  <div class="side"><dc-import name="Sidebar" role="admin" active="managers" hint-size="100%,900px"></dc-import></div>
+  <main class="main">
+    <dc-import name="Topbar" title="{{ topTitle }}" role="admin" hint-size="100%,60px"></dc-import>
+    <div class="bar">
+      <a class="ib" href="Managers.dc.html" aria-label="Quay lại danh sách"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"></path></svg></a>
+      <sc-if value="{{ isPending }}" hint-placeholder-val="{{ false }}">
+        <button class="btn btn-p" onClick="{{ resend }}">Gửi lại link kích hoạt</button>
+        <button class="btn btn-s" onClick="{{ openEdit }}">Chỉnh sửa</button>
+        <button class="btn btn-d" onClick="{{ openDelete }}">Xóa</button>
+      </sc-if>
+      <sc-if value="{{ isActive }}" hint-placeholder-val="{{ true }}">
+        <sc-if value="{{ noBuilding }}" hint-placeholder-val="{{ true }}"><button class="btn btn-p" onClick="{{ openAssign }}">Phân công tòa</button></sc-if>
+        <sc-if value="{{ hasBuilding }}" hint-placeholder-val="{{ false }}"><button class="btn btn-s" onClick="{{ openUnassign }}">Gỡ phân công</button></sc-if>
+        <button class="btn btn-s" onClick="{{ openEdit }}">Chỉnh sửa</button>
+        <button class="btn btn-d" onClick="{{ openLock }}">Khóa</button>
+      </sc-if>
+      <sc-if value="{{ isLocked }}" hint-placeholder-val="{{ false }}">
+        <button class="btn btn-p" onClick="{{ openUnlock }}">Mở khóa</button>
+        <button class="btn btn-s" onClick="{{ openEdit }}">Chỉnh sửa</button>
+      </sc-if>
+      <div style="margin-left: auto; display: flex"><span class="step {{ s1 }}">Chưa kích hoạt</span><span class="step {{ s2 }}">Đang hoạt động</span><span class="step {{ s3 }}">Bị khóa</span></div>
+    </div>
+    <div class="page">
+      <sc-if value="{{ hasFlash }}" hint-placeholder-val="{{ false }}"><div class="alert a-ok" style="max-width: 1240px; width: 100%; margin: 0 auto">{{ flash }}</div></sc-if>
+      <div class="paper">
+        <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; align-items: center">
+          <div style="display: flex; align-items: center; gap: 14px">
+            <span class="av" style="width: 60px; height: 60px; font-size: 20px">{{ m.ini }}</span>
+            <div style="display: flex; flex-direction: column; gap: 6px"><h1 style="margin: 0; font-size: 24px; font-weight: 700; color: #111827">{{ m.name }}</h1><div style="display: flex; gap: 6px"><span class="badge b-plum">Manager</span><span class="badge {{ stCls }}">{{ stLabel }}</span></div></div>
+          </div>
+          <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px; padding-left: 16px; border-left: 1px solid #eef0f2">
+            <sc-if value="{{ hasBuilding }}" hint-placeholder-val="{{ false }}"><a href="BuildingDetail.dc.html" style="font-size: 17px; font-weight: 600">{{ building }}</a></sc-if>
+            <sc-if value="{{ noBuilding }}" hint-placeholder-val="{{ true }}"><span style="font-size: 17px; font-weight: 600; color: #4b5563">Chưa phân công</span></sc-if>
+            <span class="muted" style="font-size: 12px">Tòa phụ trách</span>
+          </div>
+        </div>
+        <sc-if value="{{ isPending }}" hint-placeholder-val="{{ false }}"><div class="alert a-warn">Manager chưa kích hoạt tài khoản. Link kích hoạt gửi tới {{ m.email }} lúc {{ m.sentAt }}, hết hạn sau 24 giờ.</div></sc-if>
+        <sc-if value="{{ isLocked }}" hint-placeholder-val="{{ false }}"><div class="alert a-err">Tài khoản bị khóa lúc {{ m.lockedAt }}. Lý do: {{ m.lockReason }}</div></sc-if>
+        <div>
+          <div style="font-weight: 600; padding-bottom: 6px; border-bottom: 1px solid #eef0f2; margin-bottom: 6px">Thông tin cá nhân</div>
+          <div class="grid2" style="gap: 0 40px">
+            <div>
+              <div class="fr"><span class="fk">Họ tên <span class="req">*</span></span><span>{{ m.name }}</span></div>
+              <div class="fr"><span class="fk">Email <span class="req">*</span></span><span>{{ m.email }}</span></div>
+              <div class="fr"><span class="fk">Số điện thoại <span class="req">*</span></span><span>{{ m.phone }}</span></div>
+            </div>
+            <div>
+              <div class="fr"><span class="fk">Ngày sinh</span><span>{{ m.dob }}</span></div>
+              <div class="fr"><span class="fk">Địa chỉ</span><span>{{ m.address }}</span></div>
+              <div class="fr"><span class="fk">Ngày tạo</span><span>{{ m.created }}</span></div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div style="font-weight: 600; padding-bottom: 6px; border-bottom: 1px solid #eef0f2; margin-bottom: 10px">Ảnh CCCD <span class="muted" style="font-weight: 400; font-size: 13px">· chỉ Admin và chính Manager xem được</span></div>
+          <div class="grid2">
+            <div class="field"><span class="lb">Mặt trước</span><div class="ph" style="height: 150px">{{ m.cccdText }}</div></div>
+            <div class="field"><span class="lb">Mặt sau</span><div class="ph" style="height: 150px">{{ m.cccdText }}</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <sc-if value="{{ mEdit }}" hint-placeholder-val="{{ false }}">
+    <div class="overlay"><div class="modal" role="dialog" aria-label="Chỉnh sửa Manager">
+      <div class="mh">Chỉnh sửa Manager<button class="ib" onClick="{{ close }}" aria-label="Đóng">✕</button></div>
+      <div class="mb">
+        <div class="field"><label class="lb" for="en">Họ tên <span class="req">*</span></label><input id="en" class="inp" value="{{ m.name }}"></div>
+        <div class="field"><label class="lb" for="ee">Email <span class="req">*</span></label><input id="ee" class="inp" value="{{ m.email }}"></div>
+        <div class="field"><label class="lb" for="ep">Số điện thoại <span class="req">*</span></label><input id="ep" class="inp" value="{{ m.phone }}"></div>
+        <span class="hint">Ngày sinh, địa chỉ, ảnh CCCD do Manager tự cập nhật ở hồ sơ cá nhân.</span>
+      </div>
+      <div class="mf"><button class="btn btn-p" onClick="{{ close }}">Lưu</button><button class="btn btn-s" onClick="{{ close }}">Hủy</button></div>
+    </div></div>
+  </sc-if>
+
+  <sc-if value="{{ mLock }}" hint-placeholder-val="{{ false }}">
+    <div class="overlay"><div class="modal" role="dialog" aria-label="Khóa tài khoản">
+      <div class="mh">Khóa tài khoản {{ m.name }}<button class="ib" onClick="{{ close }}" aria-label="Đóng">✕</button></div>
+      <div class="mb">
+        <sc-if value="{{ hasBuilding }}" hint-placeholder-val="{{ false }}"><div class="alert a-warn">Tòa {{ building }} đang có 2 hợp đồng hiệu lực. Sau khi khóa, Manager này không đăng nhập được để xử lý tòa.</div></sc-if>
+        <div class="field"><label class="lb" for="lr">Lý do khóa <span class="req">*</span></label><textarea id="lr" class="inp {{ lockErrCls }}" rows="3" value="{{ lockReason }}" onChange="{{ onLockReason }}"></textarea><sc-if value="{{ lockErr }}" hint-placeholder-val="{{ false }}"><span class="err">Vui lòng nhập lý do khóa</span></sc-if><span class="hint">Lý do được gửi qua email cho Manager.</span></div>
+      </div>
+      <div class="mf"><button class="btn btn-p" onClick="{{ doLock }}">Khóa tài khoản</button><button class="btn btn-s" onClick="{{ close }}">Hủy</button></div>
+    </div></div>
+  </sc-if>
+
+  <sc-if value="{{ mUnlock }}" hint-placeholder-val="{{ false }}">
+    <div class="overlay"><div class="modal" role="dialog" aria-label="Mở khóa" style="max-width: 440px">
+      <div class="mb"><div style="font-size: 16px; font-weight: 600">Mở khóa tài khoản {{ m.name }}?</div><div class="muted">Manager đăng nhập lại được ngay sau khi mở khóa.</div></div>
+      <div class="mf"><button class="btn btn-p" onClick="{{ doUnlock }}">Mở khóa</button><button class="btn btn-s" onClick="{{ close }}">Hủy</button></div>
+    </div></div>
+  </sc-if>
+
+  <sc-if value="{{ mDelete }}" hint-placeholder-val="{{ false }}">
+    <div class="overlay"><div class="modal" role="dialog" aria-label="Xóa Manager" style="max-width: 460px">
+      <div class="mb"><div style="font-size: 16px; font-weight: 600">Xóa Manager {{ m.name }}?</div><div class="muted">Manager chưa kích hoạt sẽ bị xóa hẳn, link kích hoạt đã gửi không dùng được nữa.</div></div>
+      <div class="mf"><a class="btn btn-p" href="Managers.dc.html">Xóa</a><button class="btn btn-s" onClick="{{ close }}">Hủy</button></div>
+    </div></div>
+  </sc-if>
+
+  <sc-if value="{{ mUnassign }}" hint-placeholder-val="{{ false }}">
+    <div class="overlay"><div class="modal" role="dialog" aria-label="Gỡ phân công" style="max-width: 460px">
+      <div class="mb"><div style="font-size: 16px; font-weight: 600">Gỡ {{ m.name }} khỏi {{ building }}?</div><div class="muted">Tòa sẽ chưa có Manager phụ trách. Manager nhận thông báo và email.</div></div>
+      <div class="mf"><button class="btn btn-p" onClick="{{ doUnassign }}">Gỡ phân công</button><button class="btn btn-s" onClick="{{ close }}">Hủy</button></div>
+    </div></div>
+  </sc-if>
+
+  <sc-if value="{{ mAssign }}" hint-placeholder-val="{{ false }}">
+    <div class="overlay"><div class="modal" role="dialog" aria-label="Phân công tòa" style="max-width: 540px">
+      <div class="mh">Phân công tòa cho {{ m.name }}<button class="ib" onClick="{{ close }}" aria-label="Đóng">✕</button></div>
+      <div class="mb">
+        <span class="muted" style="font-size: 13px">Mỗi Manager phụ trách đúng một tòa. Chọn tòa:</span>
+        <sc-for list="{{ bOpts }}" as="b" hint-placeholder-count="3">
+          <button class="seg {{ b.cls }}" onClick="{{ b.pick }}" style="flex: none; width: 100%"><span style="font-weight: 600">{{ b.name }}</span><span class="hint">{{ b.note }}</span></button>
+        </sc-for>
+        <sc-if value="{{ replaceWarn }}" hint-placeholder-val="{{ false }}"><div class="alert a-warn">Tòa này đang do <b>{{ replaceName }}</b> phụ trách. Lưu sẽ thay Manager cũ; {{ replaceName }} nhận thông báo bị gỡ.</div></sc-if>
+      </div>
+      <div class="mf"><button class="btn btn-p" onClick="{{ doAssign }}" disabled="{{ noPick }}">{{ assignLabel }}</button><button class="btn btn-s" onClick="{{ close }}">Hủy</button></div>
+    </div></div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"status":{"editor":"enum","options":["ACTIVE","PENDING","LOCKED"],"default":"ACTIVE"},"startModal":{"editor":"enum","options":["none","edit","lock","unlock","assign","delete"],"default":"none"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const m = props.startModal;
+    this.state = { st: props.status || 'ACTIVE', modal: m && m !== 'none' ? m : null, building: '', pick: m === 'assign' ? 'Housify Cầu Giấy' : '', lockReason: '', lockTried: false, flash: '' };
+  }
+  renderVals() {
+    const s = this.state;
+    const P = {
+      ACTIVE: { name: 'Quản lý Test Hai', ini: 'TH', email: 'testhai@example.com', phone: '0912000002', dob: '20/05/1998', address: '15 Lê Lợi, Huế', created: '28/10/2026 09:28', cccdText: 'Chưa có ảnh CCCD' },
+      PENDING: { name: 'Phạm Quốc Bảo', ini: 'QB', email: 'bao.pq@example.com', phone: '0912000005', dob: '—', address: '—', created: '29/10/2026 14:20', sentAt: '29/10/2026 14:20', cccdText: 'Chưa có ảnh CCCD' },
+      LOCKED: { name: 'Nguyễn Đức Long', ini: 'ĐL', email: 'long.nd@example.com', phone: '0912000006', dob: '02/02/1991', address: '7 Kim Mã, Hà Nội', created: '01/09/2026 08:00', lockedAt: '25/10/2026 17:05', lockReason: 'Nghỉ việc từ ngày 25/10/2026.', cccdText: 'Ảnh đã tải lên' }
+    };
+    const m = P[this.props.status || 'ACTIVE'];
+    const ST = { ACTIVE: ['Đang hoạt động', 'b-ok'], PENDING: ['Chưa kích hoạt', 'b-warn'], LOCKED: ['Bị khóa', 'b-red'] };
+    const B = [['Housify Thanh Xuân', ''], ['Housify Cầu Giấy', 'Trần Văn Tùng'], ['Housify Đống Đa', 'Lê Thị Hoa']];
+    const picked = B.find((b) => b[0] === s.pick);
+    const open = (k) => () => this.setState({ modal: k, lockTried: false, lockReason: '' });
+    return {
+      m, topTitle: 'Quản lý Manager / ' + m.name,
+      stLabel: ST[s.st][0], stCls: ST[s.st][1],
+      isActive: s.st === 'ACTIVE', isPending: s.st === 'PENDING', isLocked: s.st === 'LOCKED',
+      s1: s.st === 'PENDING' ? 'step-on' : '', s2: s.st === 'ACTIVE' ? 'step-on' : '', s3: s.st === 'LOCKED' ? 'step-on' : '',
+      building: s.building, hasBuilding: !!s.building, noBuilding: !s.building,
+      hasFlash: !!s.flash, flash: s.flash,
+      mEdit: s.modal === 'edit', mLock: s.modal === 'lock', mUnlock: s.modal === 'unlock', mDelete: s.modal === 'delete', mAssign: s.modal === 'assign', mUnassign: s.modal === 'unassign',
+      openEdit: open('edit'), openLock: open('lock'), openUnlock: open('unlock'), openDelete: open('delete'), openUnassign: open('unassign'),
+      openAssign: () => this.setState({ modal: 'assign', pick: '' }),
+      close: () => this.setState({ modal: null }),
+      resend: () => this.setState({ flash: 'Đã gửi lại link kích hoạt tới ' + m.email + '. Link cũ không còn dùng được.' }),
+      lockReason: s.lockReason, onLockReason: (e) => this.setState({ lockReason: e.target.value }),
+      lockErr: s.lockTried && !s.lockReason.trim(), lockErrCls: s.lockTried && !s.lockReason.trim() ? 'inp-err' : '',
+      doLock: () => { if (!s.lockReason.trim()) { this.setState({ lockTried: true }); return; } this.setState({ modal: null, st: 'LOCKED', flash: 'Đã khóa tài khoản và gửi email thông báo cho Manager.' }); },
+      doUnlock: () => this.setState({ modal: null, st: 'ACTIVE', flash: 'Đã mở khóa tài khoản.' }),
+      doUnassign: () => this.setState({ modal: null, building: '', flash: 'Đã gỡ phân công. Manager nhận thông báo và email.' }),
+      bOpts: B.map(([name, mgr]) => ({ name, note: mgr ? 'Đang do ' + mgr + ' phụ trách' : 'Chưa có Manager', cls: s.pick === name ? 'seg-on' : '', pick: () => this.setState({ pick: name }) })),
+      replaceWarn: !!(picked && picked[1]), replaceName: picked ? picked[1] : '',
+      noPick: !s.pick, assignLabel: picked && picked[1] ? 'Thay Manager và lưu' : 'Phân công',
+      doAssign: () => { if (!s.pick) return; this.setState({ modal: null, building: s.pick, flash: 'Đã phân công ' + s.pick + '. Manager nhận thông báo và email.' }); }
+    };
+  }
+}
+</script>
+</body>
+</html>

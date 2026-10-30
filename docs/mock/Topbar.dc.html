@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Thanh trên cùng</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/8c542f24d703b19ce315047abd610531">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<header class="hf" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 60px; padding: 0 24px; background: #fff; border-bottom: 1px solid #e1e3e6">
+  <div style="font-size: 16px; font-weight: 600; color: #111827; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ title }}</div>
+  <div style="display: flex; align-items: center; gap: 8px">
+    <div style="position: relative">
+      <button class="ib" onClick="{{ toggleBell }}" aria-label="Thông báo">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>
+        <sc-if value="{{ hasUnread }}" hint-placeholder-val="{{ true }}"><span style="position: absolute; top: 3px; right: 2px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px; background: #714B67; color: #fff; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center">{{ unread }}</span></sc-if>
+      </button>
+      <sc-if value="{{ bellOpen }}" hint-placeholder-val="{{ false }}">
+        <button class="scrim" onClick="{{ closeAll }}" aria-label="Đóng"></button>
+        <div class="menu" style="width: 380px; padding: 0; overflow: hidden">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-bottom: 1px solid #eef0f2"><span style="font-weight: 600">Thông báo</span><button class="lnk" style="font-size: 13px" onClick="{{ readAll }}">Đánh dấu tất cả đã đọc</button></div>
+          <sc-for list="{{ notis }}" as="n" hint-placeholder-count="3">
+            <button class="noti {{ n.cls }}" onClick="{{ n.read }}">
+              <span class="dot" style="margin-top: 6px; background: {{ n.dotColor }}"></span>
+              <span style="display: flex; flex-direction: column; gap: 2px; min-width: 0"><span style="font-weight: 600">{{ n.title }}</span><span style="font-size: 13px; color: #374151">{{ n.message }}</span><span style="font-size: 12px; color: #4b5563">{{ n.time }}</span></span>
+            </button>
+          </sc-for>
+          <div style="padding: 10px 14px; text-align: center"><a href="{{ notiHref }}" style="font-weight: 600">Xem tất cả thông báo</a></div>
+        </div>
+      </sc-if>
+    </div>
+    <div style="width: 1px; height: 28px; background: #e1e3e6"></div>
+    <div style="position: relative">
+      <button onClick="{{ toggleUser }}" aria-label="Tài khoản" style="display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 8px; border: 0; background: transparent; border-radius: 5px; font: inherit; cursor: pointer; color: #1f2937">
+        <span class="av" style="width: 30px; height: 30px; font-size: 12px">{{ user.ini }}</span>
+        <span style="display: flex; flex-direction: column; line-height: 1.2; text-align: left"><span style="font-weight: 600; font-size: 13px">{{ user.name }}</span><span style="font-size: 12px; color: #4b5563">{{ user.roleLabel }}</span></span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+      </button>
+      <sc-if value="{{ userOpen }}" hint-placeholder-val="{{ false }}">
+        <button class="scrim" onClick="{{ closeAll }}" aria-label="Đóng"></button>
+        <div class="menu">
+          <sc-if value="{{ hasProfile }}" hint-placeholder-val="{{ true }}"><a class="mi" href="{{ profileHref }}">Hồ sơ cá nhân</a></sc-if>
+          <a class="mi" href="{{ pwHref }}">Đổi mật khẩu</a>
+          <div class="sep" style="margin: 4px 6px"></div>
+          <button class="mi" style="color: #a3241b" onClick="{{ askLogout }}">Đăng xuất</button>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+  <sc-if value="{{ logoutOpen }}" hint-placeholder-val="{{ false }}">
+    <div class="overlay">
+      <div class="modal" role="dialog" aria-label="Đăng xuất" style="max-width: 420px">
+        <div class="mb"><div style="font-size: 16px; font-weight: 600">Đăng xuất?</div><div class="muted">Bạn sẽ cần đăng nhập lại để tiếp tục sử dụng hệ thống.</div></div>
+        <div class="mf"><a class="btn btn-p" href="Login.dc.html">Đăng xuất</a><button class="btn btn-s" onClick="{{ closeAll }}">Hủy</button></div>
+      </div>
+    </div>
+  </sc-if>
+</header>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"title":{"editor":"text","default":"Tòa nhà"},"role":{"editor":"enum","options":["admin","manager","managerNoBuilding","customer"],"default":"admin"},"startOpen":{"editor":"enum","options":["none","bell","user","logout"],"default":"none"},"$preview":{"width":1200,"height":60}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const o = props.startOpen;
+    this.state = { open: o && o !== 'none' ? o : null, read: {} };
+  }
+  renderVals() {
+    const s = this.state;
+    const role = this.props.role || 'admin';
+    const U = {
+      admin: { name: 'Admin', roleLabel: 'Admin', ini: 'A' },
+      manager: { name: 'Trần Văn Tùng', roleLabel: 'Manager', ini: 'VT' },
+      managerNoBuilding: { name: 'Quản lý Test Hai', roleLabel: 'Manager', ini: 'TH' },
+      customer: { name: 'Nguyễn Minh Anh', roleLabel: 'Khách thuê', ini: 'MA' }
+    };
+    const N = {
+      admin: [
+        ['a1', 'Đơn chấm dứt đơn phương chờ duyệt', 'Phòng P301 · Housify Cầu Giấy – Trần Văn Tùng vừa gửi đơn.', '10 phút trước', false],
+        ['a2', 'Thanh toán thành công', 'Hóa đơn HD2610K7QX – 3.150.000 đ đã về tài khoản.', '2 giờ trước', false],
+        ['a3', 'Thanh toán thành công', 'Hóa đơn HD2610B2MN – 2.680.000 đ đã về tài khoản.', 'Hôm qua', true]
+      ],
+      manager: [
+        ['m1', 'Nội quy mới', 'Admin vừa cập nhật nội quy tòa Housify Cầu Giấy.', '1 giờ trước', false],
+        ['m2', 'Bạn được phân công tòa nhà', 'Admin đã phân công bạn phụ trách Housify Cầu Giấy.', '28/10/2026', true]
+      ],
+      managerNoBuilding: [
+        ['n1', 'Bạn đã được gỡ khỏi tòa nhà', 'Admin đã gỡ phân công tòa Housify Thanh Xuân của bạn.', '29/10/2026', true]
+      ],
+      customer: [
+        ['c1', 'Lịch cắt nước', 'Tòa Housify Cầu Giấy cắt nước 8h–11h thứ Bảy 02/11.', '3 giờ trước', false],
+        ['c2', 'Hóa đơn tháng 10/2026', 'Hóa đơn HD2610K7QX – 3.150.000 đ, hạn thanh toán 07/11/2026.', '25/10/2026', true]
+      ]
+    };
+    const list = (N[role] || N.admin).map(([id, title, message, time, isRead]) => {
+      const r = isRead || !!s.read[id];
+      return { title, message, time, cls: r ? '' : 'noti-new', dotColor: r ? '#d1d5db' : '#714B67', read: () => this.setState({ read: { ...s.read, [id]: true } }) };
+    });
+    const unread = list.filter((n) => n.cls).length;
+    const allIds = {};
+    (N[role] || N.admin).forEach((n) => { allIds[n[0]] = true; });
+    const notiHref = role === 'customer' ? 'NotificationsCustomer.dc.html' : role === 'admin' ? 'Notifications.dc.html' : 'NotificationsManager.dc.html';
+    const profileHref = role === 'customer' ? 'ProfileCustomer.dc.html' : role === 'managerNoBuilding' ? 'ManagerNoBuilding.dc.html' : 'Profile.dc.html';
+    const pwHref = role === 'customer' ? 'ChangePasswordCustomer.dc.html' : role === 'admin' ? 'ChangePassword.dc.html' : 'ChangePasswordManager.dc.html';
+    const toggle = (k) => () => this.setState({ open: s.open === k ? null : k });
+    return {
+      title: this.props.title || '',
+      user: U[role] || U.admin,
+      notis: list, unread, hasUnread: unread > 0,
+      bellOpen: s.open === 'bell', userOpen: s.open === 'user', logoutOpen: s.open === 'logout',
+      toggleBell: toggle('bell'), toggleUser: toggle('user'),
+      askLogout: () => this.setState({ open: 'logout' }),
+      closeAll: () => this.setState({ open: null }),
+      readAll: () => this.setState({ read: allIds }),
+      hasProfile: role !== 'admin',
+      notiHref, profileHref, pwHref
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Chi tiết tòa nhà</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/8c542f24d703b19ce315047abd610531">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="hf app" style="min-height: 1000px">
+  <div class="side"><dc-import name="Sidebar" role="{{ sideRole }}" active="{{ sideActive }}" hint-size="100%,1000px"></dc-import></div>
+  <main class="main">
+    <dc-import name="Topbar" title="{{ topTitle }}" role="{{ sideRole }}" hint-size="100%,60px"></dc-import>
+
+    <sc-if value="{{ isAdmin }}" hint-placeholder-val="{{ true }}">
+      <div class="bar">
+        <a class="ib" href="Main.dc.html" aria-label="Quay lại danh sách tòa"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"></path></svg></a>
+        <button class="btn btn-p" onClick="{{ openEdit }}">Chỉnh sửa</button>
+        <div style="position: relative">
+          <button class="btn btn-s" onClick="{{ toggleGear }}">Thao tác ▾</button>
+          <sc-if value="{{ gear }}" hint-placeholder-val="{{ false }}">
+            <button class="scrim" onClick="{{ toggleGear }}" aria-label="Đóng"></button>
+            <div class="menu menu-l"><button class="mi" style="color: #a3241b" onClick="{{ openDelete }}">Xóa tòa nhà</button></div>
+          </sc-if>
+        </div>
+      </div>
+    </sc-if>
+
+    <div class="page">
+      <div class="paper">
+        <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start">
+          <div class="cover" style="width: 220px; height: 140px; font-size: 12px; font-weight: 600; flex: none">Ảnh đại diện tòa nhà</div>
+          <div style="flex: 1 1 320px; display: flex; flex-direction: column; gap: 6px; min-width: 0">
+            <span class="muted" style="font-size: 13px">Tòa nhà</span>
+            <h1 style="margin: 0; font-size: 26px; font-weight: 700; color: #111827">Housify Cầu Giấy</h1>
+            <span style="color: #374151">12 Trần Thái Tông, Cầu Giấy, Hà Nội</span>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap; padding-top: 4px"><span class="badge b-gray">{{ floorCount }} tầng</span><span class="badge b-gray">{{ roomTotal }} phòng</span><span class="badge b-ok">{{ availCount }} phòng trống</span></div>
+          </div>
+        </div>
+        <div class="grid2" style="gap: 0 40px">
+          <div>
+            <div class="fr"><span class="fk">Manager phụ trách</span><span><sc-if value="{{ isAdmin }}" hint-placeholder-val="{{ true }}"><a href="ManagerDetail.dc.html">Trần Văn Tùng</a></sc-if><sc-if value="{{ isManager }}" hint-placeholder-val="{{ false }}">Trần Văn Tùng</sc-if></span></div>
+            <div class="fr"><span class="fk">Ngày tạo</span><span>01/09/2026</span></div>
+          </div>
+          <div>
+            <div class="fr"><span class="fk">Mô tả</span><span style="color: #374151">Gần ĐH Quốc gia, có thang máy và chỗ để xe tầng hầm.</span></div>
+          </div>
+        </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap">
+          <div class="cover" style="width: 120px; height: 80px; font-size: 11px">Ảnh 1</div>
+          <div class="cover" style="width: 120px; height: 80px; font-size: 11px; opacity: .8">Ảnh 2</div>
+          <div class="cover" style="width: 120px; height: 80px; font-size: 11px; opacity: .65">Ảnh 3</div>
+        </div>
+
+        <div>
+          <div class="tabs" role="tablist">
+            <button role="tab" class="tab {{ tRoomsOn }}" onClick="{{ tabRooms }}">Phòng</button>
+            <button role="tab" class="tab {{ tPricesOn }}" onClick="{{ tabPrices }}">Giá dịch vụ</button>
+            <button role="tab" class="tab {{ tRulesOn }}" onClick="{{ tabRules }}">Nội quy</button>
+          </div>
+
+          <!-- TAB PHÒNG -->
+          <sc-if value="{{ isRooms }}" hint-placeholder-val="{{ true }}">
+            <div style="padding-top: 16px; display: flex; flex-direction: column; gap: 14px">
+              <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center">
+                <sc-if value="{{ isAdmin }}" hint-placeholder-val="{{ true }}">
+                  <button class="btn btn-p" onClick="{{ openRoomCreate }}">Thêm phòng</button>
+                  <button class="btn btn-s" onClick="{{ openFloors }}">Quản lý tầng</button>
+                </sc-if>
+                <div style="position: relative; flex: 1 1 300px; max-width: 520px">
+                  <div class="search">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4b5563" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14zM21 21l-4.3-4.3"></path></svg>
+                    <sc-for list="{{ facets }}" as="f" hint-placeholder-count="0">
+                      <span class="facet"><span class="facet-ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4 2v-8z"></path></svg></span><span style="padding: 0 8px">{{ f.label }}</span><button class="facet-x" onClick="{{ f.remove }}" aria-label="Bỏ bộ lọc"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></button></span>
+                    </sc-for>
+                    <input aria-label="Tìm phòng" value="{{ q }}" onChange="{{ onQ }}" placeholder="Tìm theo mã phòng...">
+                    <button class="ib" style="width: 30px; height: 28px" onClick="{{ togglePanel }}" aria-label="Mở bộ lọc"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+                  </div>
+                  <sc-if value="{{ panel }}" hint-placeholder-val="{{ false }}">
+                    <button class="scrim" onClick="{{ togglePanel }}" aria-label="Đóng bộ lọc"></button>
+                    <div class="drop" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; min-width: 460px">
+                      <div style="display: flex; flex-direction: column; border-right: 1px solid #eef0f2">
+                        <div class="colh" style="color: #714B67">Bộ lọc</div>
+                        <div class="sub">Trạng thái</div>
+                        <sc-for list="{{ stOpts }}" as="o" hint-placeholder-count="3"><button class="opt" onClick="{{ o.pick }}"><span class="box {{ o.cls }}"><sc-if value="{{ o.on }}" hint-placeholder-val="{{ false }}">✓</sc-if></span>{{ o.label }}</button></sc-for>
+                        <div class="sep"></div>
+                        <div class="sub">Loại phòng</div>
+                        <sc-for list="{{ tyOpts }}" as="o" hint-placeholder-count="3"><button class="opt" onClick="{{ o.pick }}"><span class="box {{ o.cls }}"><sc-if value="{{ o.on }}" hint-placeholder-val="{{ false }}">✓</sc-if></span>{{ o.label }}</button></sc-for>
+                      </div>
+                      <div style="display: flex; flex-direction: column">
+                        <div class="sub" style="padding-top: 30px">Tầng</div>
+                        <sc-for list="{{ flOpts }}" as="o" hint-placeholder-count="5"><button class="opt" onClick="{{ o.pick }}"><span class="box {{ o.cls }}"><sc-if value="{{ o.on }}" hint-placeholder-val="{{ false }}">✓</sc-if></span>{{ o.label }}</button></sc-for>
+                        <div class="sep"></div>
+                        <div class="sub">Giá thuê (đ)</div>
+                        <div style="display: flex; gap: 6px; padding: 4px 10px"><input class="inp" aria-label="Giá từ" type="number" placeholder="Từ" value="{{ pMinD }}" onChange="{{ onMin }}"><input class="inp" aria-label="Giá đến" type="number" placeholder="Đến" value="{{ pMaxD }}" onChange="{{ onMax }}"></div>
+                        <sc-if value="{{ priceErr }}" hint-placeholder-val="{{ false }}"><span class="err" style="padding: 0 10px">Giá từ không được lớn hơn giá đến</span></sc-if>
+                        <div style="padding: 6px 10px"><button class="btn btn-s btn-sm" onClick="{{ applyPrice }}">Áp dụng</button></div>
+                      </div>
+                    </div>
+                  </sc-if>
+                </div>
+                <div class="vsw" style="margin-left: auto">
+                  <button class="vs {{ vFloorOn }}" onClick="{{ setFloorView }}">Theo tầng</button>
+                  <button class="vs {{ vTableOn }}" onClick="{{ setTableView }}">Bảng</button>
+                </div>
+              </div>
+
+              <div style="display: flex; gap: 14px; font-size: 13px; color: #374151; flex-wrap: wrap">
+                <span style="display: inline-flex; align-items: center; gap: 6px"><span class="dot" style="background: #12936b"></span>Trống</span>
+                <span style="display: inline-flex; align-items: center; gap: 6px"><span class="dot" style="background: #714B67"></span>Đang thuê</span>
+                <span style="display: inline-flex; align-items: center; gap: 6px"><span class="dot" style="background: #d49a00"></span>Bảo trì</span>
+                <span class="muted">· {{ shownText }}</span>
+              </div>
+
+              <sc-if value="{{ noResult }}" hint-placeholder-val="{{ false }}"><div class="ph" style="padding: 28px; font-size: 14px">Không tìm thấy phòng phù hợp</div></sc-if>
+
+              <sc-if value="{{ isFloorView }}" hint-placeholder-val="{{ true }}">
+                <div>
+                  <sc-for list="{{ floors }}" as="fl" hint-placeholder-count="5">
+                    <div style="display: flex; gap: 16px; padding: 12px 0; border-top: 1px solid #eef0f2; align-items: flex-start">
+                      <div style="width: 84px; flex: none; padding-top: 8px"><div style="font-weight: 600">Tầng {{ fl.n }}</div><div class="muted" style="font-size: 12px">{{ fl.count }} phòng</div></div>
+                      <div style="display: flex; flex-wrap: wrap; gap: 10px; flex: 1; min-width: 0">
+                        <sc-for list="{{ fl.rooms }}" as="r" hint-placeholder-count="2">
+                          <a class="tile {{ r.tileCls }}" href="{{ roomHref }}">
+                            <span style="display: flex; justify-content: space-between; align-items: center; gap: 6px"><span style="font-size: 16px; font-weight: 700">{{ r.code }}</span><span class="badge {{ r.badgeCls }}">{{ r.stLabel }}</span></span>
+                            <span style="font-size: 13px; color: #374151">{{ r.type }} · {{ r.area }} m²</span>
+                            <span style="font-size: 12px; color: #4b5563">{{ r.occ }}/{{ r.cap }} người</span>
+                            <span style="font-weight: 600">{{ r.priceText }}</span>
+                          </a>
+                        </sc-for>
+                        <sc-if value="{{ fl.empty }}" hint-placeholder-val="{{ false }}"><div style="height: 40px; display: flex; align-items: center; padding: 0 14px; border: 1px dashed #d1d5db; border-radius: 6px; font-size: 13px" class="muted">{{ fl.emptyText }}</div></sc-if>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ isTableView }}" hint-placeholder-val="{{ false }}">
+                <div class="card" style="overflow-x: auto">
+                  <table class="tbl">
+                    <thead><tr><th>Mã phòng</th><th>Tầng</th><th>Loại phòng</th><th class="r">Diện tích</th><th>Đang ở</th><th class="r">Giá thuê</th><th>Trạng thái</th></tr></thead>
+                    <tbody>
+                      <sc-for list="{{ tableRooms }}" as="r" hint-placeholder-count="4">
+                        <tr class="row"><td><a href="{{ roomHref }}" style="font-weight: 600">{{ r.code }}</a></td><td>Tầng {{ r.floor }}</td><td>{{ r.type }}</td><td class="r">{{ r.area }} m²</td><td>{{ r.occ }}/{{ r.cap }} người</td><td class="r">{{ r.priceText }}</td><td><span class="badge {{ r.badgeCls }}">{{ r.stLabel }}</span></td></tr>
+                      </sc-for>
+                    </tbody>
+                  </table>
+                </div>
+              </sc-if>
+            </div>
+          </sc-if>
+
+          <!-- TAB GIÁ DỊCH VỤ -->
+          <sc-if value="{{ isPrices }}" hint-placeholder-val="{{ false }}">
+            <div style="padding-top: 16px; display: flex; flex-direction: column; gap: 12px">
+              <div style="display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: center">
+                <span class="muted" style="font-size: 13px">Các dịch vụ đã được đặt giá ở tòa này. Giá hiện hành là giá có ngày áp dụng gần nhất.</span>
+                <sc-if value="{{ isAdmin }}" hint-placeholder-val="{{ true }}"><a class="btn btn-s" href="ServicesPrice.dc.html">Đặt giá dịch vụ</a></sc-if>
+              </div>
+              <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px">
+                <sc-for list="{{ prices }}" as="p" hint-placeholder-count="4">
+                  <div class="card" style="padding: 14px; display: flex; flex-direction: column; gap: 6px">
+                    <div style="display: flex; justify-content: space-between; gap: 8px"><span style="font-weight: 600">{{ p.name }}</span><span class="badge {{ p.cls }}">{{ p.mode }}</span></div>
+                    <div style="font-size: 20px; font-weight: 700">{{ p.price }} <span class="muted" style="font-size: 13px; font-weight: 500">/ {{ p.unit }}</span></div>
+                    <div class="muted" style="font-size: 13px">Áp dụng từ {{ p.from }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- TAB NỘI QUY -->
+          <sc-if value="{{ isRules }}" hint-placeholder-val="{{ false }}">
+            <div style="padding-top: 16px; display: flex; flex-direction: column; gap: 12px">
+              <sc-if value="{{ viewRules }}" hint-placeholder-val="{{ true }}">
+                <sc-if value="{{ isAdmin }}" hint-placeholder-val="{{ true }}"><div><button class="btn btn-s" onClick="{{ editRules }}">Chỉnh sửa nội quy</button></div></sc-if>
+                <div style="white-space: pre-line; line-height: 1.7; background: #fafafb; border: 1px solid #eef0f2; border-radius: 5px; padding: 16px 18px">{{ rules }}</div>
+              </sc-if>
+              <sc-if value="{{ editingRules }}" hint-placeholder-val="{{ false }}">
+                <label class="lb" for="rl">Nội quy tòa nhà <span class="req">*</span></label>
+                <textarea id="rl" class="inp {{ rulesErrCls }}" rows="9" value="{{ draft }}" onChange="{{ onDraft }}"></textarea>
+                <sc-if value="{{ rulesErr }}" hint-placeholder-val="{{ false }}"><span class="err">Nội quy không được để trống</span></sc-if>
+                <div style="display: flex; gap: 8px"><button class="btn btn-p" onClick="{{ saveRules }}">Lưu &amp; Đăng</button><button class="btn btn-s" onClick="{{ cancelRules }}">Hủy</button></div>
+                <span class="hint">Nội quy mới thay thế bản cũ và gửi thông báo cho Manager của tòa.</span>
+              </sc-if>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- MODAL: SỬA TÒA -->
+  <sc-if value="{{ mEdit }}" hint-placeholder-val="{{ false }}">
+    <div class="overlay"><div class="modal" role="dialog" aria-label="Chỉnh sửa tòa nhà" style="max-width: 640px">
+      <div class="mh">Chỉnh sửa tòa nhà<button class="ib" onClick="{{ closeModal }}" aria-label="Đóng">✕</button></div>
+      <div class="mb"><div class="grid2">
+        <div class="field span2"><label class="lb" for="en">Tên tòa nhà <span class="req">*</span></label><input id="en" class="inp" value="Housify Cầu Giấy"></div>
+        <div class="field span2"><label class="lb" for="ea">Địa chỉ <span class="req">*</span></label><input id="ea" class="inp" value="12 Trần Thái Tông, Cầu Giấy, Hà Nội"></div>
+        <div class="field span2"><label class="lb" for="ed">Mô tả</label><textarea id="ed" class="inp" rows="3">Gần ĐH Quốc gia, có thang máy và chỗ để xe tầng hầm.</textarea></div>
+        <div class="field span2"><span class="lb">Ảnh tòa nhà</span>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap">
+            <div style="display: flex; flex-direction: column; gap: 4px; align-items: center"><div class="cover" style="width: 110px; height: 76px; font-size: 11px">Ảnh 1</div><span class="badge b-plum">Ảnh đại diện</span></div>
+            <div class="cover" style="width: 110px; height: 76px; font-size: 11px; opacity: .8">Ảnh 2</div>
+            <div class="cover" style="width: 110px; height: 76px; font-size: 11px; opacity: .65">Ảnh 3</div>
+            <button class="ph" style="width: 110px; height: 76px; cursor: pointer; font: inherit; font-size: 12px">+ Thêm ảnh</button>
+          </div>
+          <span class="hint">Ảnh đầu tiên là ảnh đại diện. Số tầng sửa ở mục Quản lý tầng.</span></div>
+      </div></div>
+      <div class="mf"><button class="btn btn-p" onClick="{{ closeModal }}">Lưu</button><button class="btn btn-s" onClick="{{ closeModal }}">Hủy</button></div>
+    </div></div>
+  </sc-if>
+
+  <!-- MODAL: QUẢN LÝ TẦNG -->
+  <sc-if value="{{ mFloors }}" hint-placeholder-val="{{ false }}">
+    <div class="overlay"><div class="modal" role="dialog" aria-label="Quản lý tầng">
+      <div class="mh">Quản lý tầng<button class="ib" onClick="{{ closeModal }}" aria-label="Đóng">✕</button></div>
+      <div class="mb">
+        <div class="field"><label class="lb" for="fc">Tổng số tầng <span class="req">*</span></label>
+          <div style="display: flex; gap: 8px"><input id="fc" class="inp {{ floorErrCls }}" type="number" min="1" style="max-width: 140px" value="{{ floorDraft }}" onChange="{{ onFloorDraft }}"><button class="btn btn-p" onClick="{{ saveFloors }}">Lưu</button></div>
+          <sc-if value="{{ hasFloorErr }}" hint-placeholder-val="{{ false }}"><span class="err">{{ floorErr }}</span></sc-if>
+          <span class="hint">Không giảm được xuống dưới tầng {{ topUsed }} – tầng cao nhất đang có phòng.</span>
+        </div>
+        <div class="card" style="overflow: hidden">
+          <sc-for list="{{ floorRows }}" as="f" hint-placeholder-count="5">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 9px 14px; border-bottom: 1px solid #eef0f2"><span style="font-weight: 600">Tầng {{ f.n }}</span><span class="muted" style="font-size: 13px">{{ f.count }} phòng</span></div>
+          </sc-for>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+          <button class="btn btn-d" onClick="{{ removeTop }}" disabled="{{ topBlocked }}">Xóa tầng trên cùng (Tầng {{ floorCount }})</button>
+          <sc-if value="{{ topBlocked }}" hint-placeholder-val="{{ false }}"><span class="err">Tầng {{ floorCount }} còn phòng, không xóa được.</span></sc-if>
+        </div>
+      </div>
+      <div class="mf"><button class="btn btn-s" onClick="{{ closeModal }}">Đóng</button></div>
+    </div></div>
+  </sc-if>
+
+  <!-- MODAL: THÊM PHÒNG -->
+  <sc-if value="{{ mRoom }}" hint-placeholder-val="{{ false }}">
+    <div class="overlay"><div class="modal" role="dialog" aria-label="Thêm phòng" style="max-width: 640px">
+      <div class="mh">Thêm phòng · Housify Cầu Giấy<button class="ib" onClick="{{ closeModal }}" aria-label="Đóng">✕</button></div>
+      <div class="mb"><div class="grid2">
+        <div class="field"><label class="lb" for="rc">Mã phòng <span class="req">*</span></label><input id="rc" class="inp {{ codeErrCls }}" value="{{ rCode }}" onChange="{{ onCode }}" placeholder="VD: P402"><sc-if value="{{ hasCodeErr }}" hint-placeholder-val="{{ false }}"><span class="err">{{ codeErr }}</span></sc-if><span class="hint">Không sửa được sau khi tạo.</span></div>
+        <div class="field"><label class="lb" for="rf">Tầng <span class="req">*</span></label><select id="rf" class="inp"><sc-for list="{{ floorRows }}" as="f" hint-placeholder-count="5"><option>Tầng {{ f.n }}</option></sc-for></select></div>
+        <div class="field"><label class="lb" for="rt">Loại phòng <span class="req">*</span></label><select id="rt" class="inp" value="{{ rType }}" onChange="{{ onType }}"><sc-for list="{{ typeList }}" as="t" hint-placeholder-count="3"><option value="{{ t.name }}">{{ t.name }} – tối đa {{ t.cap }} người</option></sc-for></select><span class="hint">Sức chứa lấy theo loại phòng: tối đa {{ rTypeCap }} người.</span></div>
+        <div class="field"><label class="lb" for="ra">Diện tích (m²) <span class="req">*</span></label><input id="ra" class="inp" type="number" value="20"></div>
+        <div class="field"><label class="lb" for="rp">Giá thuê (đ/tháng) <span class="req">*</span></label><input id="rp" class="inp {{ rentErrCls }}" type="number" value="{{ rRent }}" onChange="{{ onRent }}"><sc-if value="{{ rentErr }}" hint-placeholder-val="{{ false }}"><span class="err">Giá thuê phải lớn hơn 0</span></sc-if></div>
+        <div class="field"><label class="lb" for="rd">Tiền cọc (đ) <span class="req">*</span></label><input id="rd" class="inp {{ depErrCls }}" type="number" value="{{ rDep }}" onChange="{{ onDep }}"><sc-if value="{{ depErr }}" hint-placeholder-val="{{ false }}"><span class="err">Tiền cọc phải lớn hơn 0</span></sc-if></div>
+        <div class="field span2"><span class="lb">Ảnh phòng</span><button class="ph" style="width: 120px; height: 80px; cursor: pointer; font: inherit; font-size: 12px">+ Tải ảnh lên</button><span class="hint">Không bắt buộc. Phòng mới tạo luôn ở trạng thái Trống.</span></div>
+      </div></div>
+      <div class="mf"><button class="btn btn-p" onClick="{{ saveRoom }}">Tạo phòng</button><button class="btn btn-s" onClick="{{ closeModal }}">Hủy</button></div>
+    </div></div>
+  </sc-if>
+
+  <!-- MODAL: XÓA TÒA BỊ CHẶN -->
+  <sc-if value="{{ mDelete }}" hint-placeholder-val="{{ false }}">
+    <div class="overlay"><div class="modal" role="dialog" aria-label="Không thể xóa tòa nhà" style="max-width: 480px">
+      <div class="mb">
+        <div style="font-size: 16px; font-weight: 600">Không thể xóa tòa nhà</div>
+        <div class="alert a-err">Tòa nhà còn Manager đang phụ trách: <b>Trần Văn Tùng</b>. Hãy gỡ phân công Manager trước.</div>
+        <div class="alert a-err">Tòa nhà còn phòng có hợp đồng đang hiệu lực: <b>P101, P301</b>. Hãy chờ hợp đồng kết thúc trước.</div>
+        <div class="muted" style="font-size: 13px">Khi đủ điều kiện, xóa tòa sẽ xóa mềm luôn các phòng thuộc tòa.</div>
+      </div>
+      <div class="mf"><button class="btn btn-s" onClick="{{ closeModal }}">Đóng</button></div>
+    </div></div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"role":{"editor":"enum","options":["admin","manager"],"default":"admin"},"startTab":{"editor":"enum","options":["rooms","prices","rules"],"default":"rooms"},"startModal":{"editor":"enum","options":["none","edit","floors","roomCreate","delete"],"default":"none"},"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const m = props.startModal;
+    this.state = {
+      tab: props.startTab || 'rooms', modal: m && m !== 'none' ? m : null, gear: false,
+      view: 'floor', panel: false, q: '', st: [], ty: [], fl: [], pMin: null, pMax: null, pMinD: '', pMaxD: '', priceErr: false,
+      floorCount: 5, floorDraft: '5', floorErr: '',
+      rooms: [
+        { code: 'P101', floor: 1, type: 'Phòng đơn', area: 20, rent: 2500000, st: 'OCCUPIED', occ: 1 },
+        { code: 'P102', floor: 1, type: 'Phòng đơn', area: 18, rent: 2300000, st: 'AVAILABLE', occ: 0 },
+        { code: 'P201', floor: 2, type: 'Phòng đôi', area: 28, rent: 3300000, st: 'MAINTENANCE', occ: 0 },
+        { code: 'P301', floor: 3, type: 'Phòng gia đình', area: 40, rent: 4200000, st: 'OCCUPIED', occ: 3 }
+      ],
+      rCode: '', rType: 'Phòng đơn', rRent: '', rDep: '', tried: false,
+      editing: false, draft: '', rulesTried: false,
+      rules: '1. Giữ yên lặng sau 22h.\n2. Không hút thuốc trong phòng và hành lang.\n3. Khách ở lại qua đêm phải báo Manager.\n4. Để xe đúng khu vực tầng hầm.\n5. Thanh toán hóa đơn trước hạn ghi trên hóa đơn.'
+    };
+  }
+  renderVals() {
+    const s = this.state;
+    const role = this.props.role === 'manager' ? 'manager' : 'admin';
+    const money = (n) => n.toLocaleString('vi-VN') + ' đ';
+    const CAP = { 'Phòng đơn': 1, 'Phòng đôi': 2, 'Phòng gia đình': 4 };
+    const ST = { AVAILABLE: ['Trống', 'b-ok', 't-ok'], OCCUPIED: ['Đang thuê', 'b-plum', 't-plum'], MAINTENANCE: ['Bảo trì', 'b-warn', 't-warn'] };
+    const all = s.rooms.map((r) => ({ ...r, cap: CAP[r.type], stLabel: ST[r.st][0], badgeCls: ST[r.st][1], tileCls: ST[r.st][2], priceText: money(r.rent) }));
+    const q = s.q.trim().toLowerCase();
+    const shown = all.filter((r) => (!q || r.code.toLowerCase().includes(q)) && (!s.st.length || s.st.includes(r.st)) && (!s.ty.length || s.ty.includes(r.type)) && (!s.fl.length || s.fl.includes(r.floor)) && (s.pMin == null || r.rent >= s.pMin) && (s.pMax == null || r.rent <= s.pMax));
+    const filtering = !!(q || s.st.length || s.ty.length || s.fl.length || s.pMin != null || s.pMax != null);
+    const floorNums = []; for (let n = s.floorCount; n >= 1; n--) floorNums.push(n);
+    const floors = floorNums.filter((n) => !s.fl.length || s.fl.includes(n)).map((n) => {
+      const rs = shown.filter((r) => r.floor === n);
+      return { n, rooms: rs, count: all.filter((r) => r.floor === n).length, empty: rs.length === 0, emptyText: filtering ? 'Không có phòng phù hợp' : 'Chưa có phòng ở tầng này' };
+    });
+    const topUsed = Math.max(1, ...all.map((r) => r.floor));
+    const tog = (key, v) => () => this.setState({ [key]: s[key].includes(v) ? s[key].filter((x) => x !== v) : [...s[key], v] });
+    const mk = (key, items) => items.map(([v, label]) => ({ label, on: s[key].includes(v), cls: s[key].includes(v) ? 'box-on' : '', pick: tog(key, v) }));
+    const STL = { AVAILABLE: 'Trống', OCCUPIED: 'Đang thuê', MAINTENANCE: 'Bảo trì' };
+    const facets = [];
+    if (s.st.length) facets.push({ label: s.st.map((x) => STL[x]).join(' hoặc '), remove: () => this.setState({ st: [] }) });
+    if (s.ty.length) facets.push({ label: s.ty.join(' hoặc '), remove: () => this.setState({ ty: [] }) });
+    if (s.fl.length) facets.push({ label: 'Tầng ' + s.fl.slice().sort().join(', '), remove: () => this.setState({ fl: [] }) });
+    if (s.pMin != null || s.pMax != null) facets.push({ label: 'Giá ' + (s.pMin != null ? money(s.pMin) : '0') + ' – ' + (s.pMax != null ? money(s.pMax) : '∞'), remove: () => this.setState({ pMin: null, pMax: null, pMinD: '', pMaxD: '' }) });
+    const codeEmpty = s.tried && !s.rCode.trim();
+    const codeDup = s.tried && all.some((r) => r.code.toLowerCase() === s.rCode.trim().toLowerCase());
+    const rentBad = s.tried && !(Number(s.rRent) > 0);
+    const depBad = s.tried && !(Number(s.rDep) > 0);
+    const tab = (t) => () => this.setState({ tab: t });
+    const open = (m) => () => this.setState({ modal: m, gear: false });
+    const fd = Number(s.floorDraft);
+    return {
+      isAdmin: role === 'admin', isManager: role === 'manager',
+      sideRole: role, sideActive: role === 'admin' ? 'buildings' : 'myBuilding',
+      topTitle: role === 'admin' ? 'Tòa nhà / Housify Cầu Giấy' : 'Tòa của tôi',
+      roomHref: role === 'admin' ? 'RoomDetail.dc.html' : 'ManagerRoomDetail.dc.html',
+      floorCount: s.floorCount, roomTotal: all.length, availCount: all.filter((r) => r.st === 'AVAILABLE').length,
+      tRoomsOn: s.tab === 'rooms' ? 'tab-on' : '', tPricesOn: s.tab === 'prices' ? 'tab-on' : '', tRulesOn: s.tab === 'rules' ? 'tab-on' : '',
+      isRooms: s.tab === 'rooms', isPrices: s.tab === 'prices', isRules: s.tab === 'rules',
+      tabRooms: tab('rooms'), tabPrices: tab('prices'), tabRules: tab('rules'),
+      gear: s.gear, toggleGear: () => this.setState({ gear: !s.gear }),
+      q: s.q, onQ: (e) => this.setState({ q: e.target.value }),
+      panel: s.panel, togglePanel: () => this.setState({ panel: !s.panel }),
+      facets,
+      stOpts: mk('st', [['AVAILABLE', 'Trống'], ['OCCUPIED', 'Đang thuê'], ['MAINTENANCE', 'Bảo trì']]),
+      tyOpts: mk('ty', [['Phòng đơn', 'Phòng đơn'], ['Phòng đôi', 'Phòng đôi'], ['Phòng gia đình', 'Phòng gia đình']]),
+      flOpts: mk('fl', floorNums.slice().reverse().map((n) => [n, 'Tầng ' + n])),
+      pMinD: s.pMinD, pMaxD: s.pMaxD, priceErr: s.priceErr,
+      onMin: (e) => this.setState({ pMinD: e.target.value }), onMax: (e) => this.setState({ pMaxD: e.target.value }),
+      applyPrice: () => {
+        const a = s.pMinD === '' ? null : Number(s.pMinD); const b = s.pMaxD === '' ? null : Number(s.pMaxD);
+        if (a != null && b != null && a > b) { this.setState({ priceErr: true }); return; }
+        this.setState({ pMin: a, pMax: b, priceErr: false });
+      },
+      vFloorOn: s.view === 'floor' ? 'vs-on' : '', vTableOn: s.view === 'table' ? 'vs-on' : '',
+      setFloorView: () => this.setState({ view: 'floor' }), setTableView: () => this.setState({ view: 'table' }),
+      isFloorView: s.view === 'floor', isTableView: s.view === 'table',
+      floors, tableRooms: shown.slice().sort((a, b) => a.floor - b.floor || a.code.localeCompare(b.code)),
+      noResult: filtering && shown.length === 0, shownText: shown.length + ' / ' + all.length + ' phòng',
+      prices: [
+        { name: 'Điện', unit: 'kWh', price: '3.500 đ', from: '01/10/2026', mode: 'Theo chỉ số', cls: 'b-plum' },
+        { name: 'Nước', unit: 'm³', price: '25.000 đ', from: '01/10/2026', mode: 'Theo chỉ số', cls: 'b-plum' },
+        { name: 'Gửi xe', unit: 'xe/tháng', price: '100.000 đ', from: '01/09/2026', mode: 'Cố định', cls: 'b-gray' },
+        { name: 'Wifi', unit: 'tháng', price: '50.000 đ', from: '01/09/2026', mode: 'Cố định', cls: 'b-gray' }
+      ],
+      rules: s.rules, draft: s.draft, viewRules: !s.editing, editingRules: s.editing,
+      rulesErr: s.rulesTried && !s.draft.trim(), rulesErrCls: s.rulesTried && !s.draft.trim() ? 'inp-err' : '',
+      editRules: () => this.setState({ editing: true, draft: s.rules, rulesTried: false }),
+      onDraft: (e) => this.setState({ draft: e.target.value }),
+      saveRules: () => { if (!s.draft.trim()) { this.setState({ rulesTried: true }); return; } this.setState({ editing: false, rules: s.draft }); },
+      cancelRules: () => this.setState({ editing: false }),
+      mEdit: s.modal === 'edit', mFloors: s.modal === 'floors', mRoom: s.modal === 'roomCreate', mDelete: s.modal === 'delete',
+      openEdit: open('edit'), openFloors: open('floors'), openDelete: open('delete'),
+      openRoomCreate: () => this.setState({ modal: 'roomCreate', tried: false, rCode: '', rRent: '', rDep: '' }),
+      closeModal: () => this.setState({ modal: null }),
+      floorDraft: s.floorDraft, onFloorDraft: (e) => this.setState({ floorDraft: e.target.value }),
+      topUsed, hasFloorErr: !!s.floorErr, floorErr: s.floorErr, floorErrCls: s.floorErr ? 'inp-err' : '',
+      saveFloors: () => {
+        if (!Number.isInteger(fd) || fd < 1) { this.setState({ floorErr: 'Số tầng phải là số nguyên lớn hơn hoặc bằng 1' }); return; }
+        if (fd < topUsed) { this.setState({ floorErr: 'Không thể giảm số tầng xuống dưới tầng ' + topUsed + ' – tầng cao nhất đang có phòng' }); return; }
+        this.setState({ floorCount: fd, floorErr: '' });
+      },
+      floorRows: floorNums.map((n) => ({ n, count: all.filter((r) => r.floor === n).length })),
+      topBlocked: all.some((r) => r.floor === s.floorCount),
+      removeTop: () => { if (s.floorCount > 1 && !all.some((r) => r.floor === s.floorCount)) this.setState({ floorCount: s.floorCount - 1, floorDraft: String(s.floorCount - 1) }); },
+      typeList: Object.keys(CAP).map((k) => ({ name: k, cap: CAP[k] })),
+      rCode: s.rCode, rType: s.rType, rRent: s.rRent, rDep: s.rDep, rTypeCap: CAP[s.rType],
+      onCode: (e) => this.setState({ rCode: e.target.value }), onType: (e) => this.setState({ rType: e.target.value }),
+      onRent: (e) => this.setState({ rRent: e.target.value }), onDep: (e) => this.setState({ rDep: e.target.value }),
+      hasCodeErr: codeEmpty || codeDup, codeErr: codeEmpty ? 'Vui lòng nhập mã phòng' : 'Mã phòng đã tồn tại trong tòa nhà', codeErrCls: codeEmpty || codeDup ? 'inp-err' : '',
+      rentErr: rentBad, rentErrCls: rentBad ? 'inp-err' : '', depErr: depBad, depErrCls: depBad ? 'inp-err' : '',
+      saveRoom: () => {
+        const c = s.rCode.trim();
+        if (!c || all.some((r) => r.code.toLowerCase() === c.toLowerCase()) || !(Number(s.rRent) > 0) || !(Number(s.rDep) > 0)) { this.setState({ tried: true }); return; }
+        this.setState({ modal: null, rooms: [...s.rooms, { code: c, floor: 4, type: s.rType, area: 20, rent: Number(s.rRent), st: 'AVAILABLE', occ: 0 }] });
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

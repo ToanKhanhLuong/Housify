@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Chi tiết phòng</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/8c542f24d703b19ce315047abd610531">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="hf app">
+  <div class="side"><dc-import name="Sidebar" role="{{ sideRole }}" active="{{ sideActive }}" hint-size="100%,900px"></dc-import></div>
+  <main class="main">
+    <dc-import name="Topbar" title="{{ topTitle }}" role="{{ sideRole }}" hint-size="100%,60px"></dc-import>
+    <div class="bar">
+      <a class="ib" href="{{ backHref }}" aria-label="Quay lại tòa nhà"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"></path></svg></a>
+      <sc-if value="{{ isAdmin }}" hint-placeholder-val="{{ true }}">
+        <button class="btn btn-p" onClick="{{ openEdit }}">Chỉnh sửa</button>
+        <sc-if value="{{ isAvail }}" hint-placeholder-val="{{ true }}"><button class="btn btn-s" onClick="{{ toMaint }}">Chuyển sang bảo trì</button></sc-if>
+        <sc-if value="{{ isMaint }}" hint-placeholder-val="{{ false }}"><button class="btn btn-s" onClick="{{ toAvail }}">Chuyển về trống</button></sc-if>
+        <button class="btn btn-d" onClick="{{ openDelete }}">Xóa</button>
+      </sc-if>
+      <div style="margin-left: auto; display: flex">
+        <span class="step {{ sAvail }}">Trống</span><span class="step {{ sOcc }}">Đang thuê</span><span class="step {{ sMaint }}">Bảo trì</span>
+      </div>
+    </div>
+    <div class="page">
+      <div class="paper">
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <span class="muted" style="font-size: 13px">Phòng · Housify Cầu Giấy · Tầng 1</span>
+          <span style="display: flex; align-items: center; gap: 10px"><h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #111827">P102</h1><span class="badge {{ stCls }}">{{ stLabel }}</span></span>
+        </div>
+        <div class="grid2" style="gap: 0 40px">
+          <div>
+            <div class="fr"><span class="fk">Mã phòng <span class="req">*</span></span><span>P102</span></div>
+            <div class="fr"><span class="fk">Tòa nhà</span><span><a href="{{ backHref }}">Housify Cầu Giấy</a></span></div>
+            <div class="fr"><span class="fk">Tầng <span class="req">*</span></span><span>Tầng 1</span></div>
+            <div class="fr"><span class="fk">Loại phòng <span class="req">*</span></span><span>Phòng đơn</span></div>
+            <div class="fr"><span class="fk">Sức chứa</span><span>Tối đa 1 người <span class="muted">(theo loại phòng)</span></span></div>
+          </div>
+          <div>
+            <div class="fr"><span class="fk">Đang ở</span><span>0 / 1 người</span></div>
+            <div class="fr"><span class="fk">Diện tích <span class="req">*</span></span><span>18 m²</span></div>
+            <div class="fr"><span class="fk">Giá thuê <span class="req">*</span></span><span style="font-weight: 600">2.300.000 đ / tháng</span></div>
+            <div class="fr"><span class="fk">Tiền cọc <span class="req">*</span></span><span>2.300.000 đ</span></div>
+            <div class="fr"><span class="fk">Ngày tạo</span><span>01/09/2026</span></div>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <span class="lb">Ảnh phòng</span>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap"><div class="cover" style="width: 160px; height: 110px; font-size: 11px">Ảnh 1</div><div class="cover" style="width: 160px; height: 110px; font-size: 11px; opacity: .75">Ảnh 2</div></div>
+        </div>
+        <sc-if value="{{ isManager }}" hint-placeholder-val="{{ false }}"><div class="alert a-info">Bạn chỉ xem được thông tin phòng. Cấu hình phòng do Admin chỉnh sửa.</div></sc-if>
+      </div>
+    </div>
+  </main>
+
+  <sc-if value="{{ mEdit }}" hint-placeholder-val="{{ false }}">
+    <div class="overlay"><div class="modal" role="dialog" aria-label="Chỉnh sửa phòng" style="max-width: 640px">
+      <div class="mh">Chỉnh sửa phòng P102<button class="ib" onClick="{{ close }}" aria-label="Đóng">✕</button></div>
+      <div class="mb"><div class="grid2">
+        <div class="field"><label class="lb" for="ec">Mã phòng</label><input id="ec" class="inp" value="P102" disabled="{{ true }}"><span class="hint">Mã phòng không sửa được sau khi tạo.</span></div>
+        <div class="field"><label class="lb" for="ef">Tầng <span class="req">*</span></label><select id="ef" class="inp"><option>Tầng 1</option><option>Tầng 2</option><option>Tầng 3</option><option>Tầng 4</option><option>Tầng 5</option></select></div>
+        <div class="field"><label class="lb" for="et">Loại phòng <span class="req">*</span></label><select id="et" class="inp"><option>Phòng đơn – tối đa 1 người</option><option>Phòng đôi – tối đa 2 người</option><option>Phòng gia đình – tối đa 4 người</option></select><span class="hint">Loại mới phải đủ chỗ cho số người đang ở.</span></div>
+        <div class="field"><label class="lb" for="ea">Diện tích (m²) <span class="req">*</span></label><input id="ea" class="inp" type="number" value="18"></div>
+        <div class="field"><label class="lb" for="ep">Giá thuê (đ/tháng) <span class="req">*</span></label><input id="ep" class="inp" type="number" value="2300000"></div>
+        <div class="field"><label class="lb" for="ed">Tiền cọc (đ) <span class="req">*</span></label><input id="ed" class="inp" type="number" value="2300000"></div>
+        <div class="field span2"><span class="lb">Trạng thái</span>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap">
+            <button class="seg {{ segAvail }}" onClick="{{ draftAvail }}"><span style="font-weight: 600">Trống</span><span class="hint">Sẵn sàng cho thuê</span></button>
+            <button class="seg {{ segMaint }}" onClick="{{ draftMaint }}"><span style="font-weight: 600">Bảo trì</span><span class="hint">Tạm ngừng cho thuê</span></button>
+          </div>
+          <span class="hint">"Đang thuê" do hệ thống đặt theo hợp đồng, không chọn tay được.</span></div>
+        <div class="field span2"><span class="lb">Ảnh phòng</span><div style="display: flex; gap: 10px; flex-wrap: wrap"><div class="cover" style="width: 110px; height: 76px; font-size: 11px">Ảnh 1</div><div class="cover" style="width: 110px; height: 76px; font-size: 11px; opacity: .75">Ảnh 2</div><button class="ph" style="width: 110px; height: 76px; cursor: pointer; font: inherit; font-size: 12px">+ Thêm ảnh</button></div></div>
+      </div></div>
+      <div class="mf"><button class="btn btn-p" onClick="{{ saveEdit }}">Lưu</button><button class="btn btn-s" onClick="{{ close }}">Hủy</button></div>
+    </div></div>
+  </sc-if>
+
+  <sc-if value="{{ mDelete }}" hint-placeholder-val="{{ false }}">
+    <div class="overlay"><div class="modal" role="dialog" aria-label="Xóa phòng" style="max-width: 440px">
+      <div class="mb"><div style="font-size: 16px; font-weight: 600">Xóa phòng P102?</div><div class="muted">Phòng sẽ bị ẩn khỏi danh sách. Mã P102 có thể dùng lại cho phòng mới trong tòa.</div></div>
+      <div class="mf"><a class="btn btn-p" href="BuildingDetail.dc.html">Xóa phòng</a><button class="btn btn-s" onClick="{{ close }}">Hủy</button></div>
+    </div></div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"role":{"editor":"enum","options":["admin","manager"],"default":"admin"},"startModal":{"editor":"enum","options":["none","edit","delete"],"default":"none"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const m = props.startModal;
+    this.state = { st: 'AVAILABLE', draft: 'AVAILABLE', modal: m && m !== 'none' ? m : null };
+  }
+  renderVals() {
+    const s = this.state;
+    const role = this.props.role === 'manager' ? 'manager' : 'admin';
+    const ST = { AVAILABLE: ['Trống', 'b-ok'], OCCUPIED: ['Đang thuê', 'b-plum'], MAINTENANCE: ['Bảo trì', 'b-warn'] };
+    return {
+      isAdmin: role === 'admin', isManager: role === 'manager',
+      sideRole: role, sideActive: role === 'admin' ? 'buildings' : 'myBuilding',
+      topTitle: role === 'admin' ? 'Tòa nhà / Housify Cầu Giấy / P102' : 'Tòa của tôi / P102',
+      backHref: role === 'admin' ? 'BuildingDetail.dc.html' : 'MyBuilding.dc.html',
+      stLabel: ST[s.st][0], stCls: ST[s.st][1],
+      sAvail: s.st === 'AVAILABLE' ? 'step-on' : '', sOcc: s.st === 'OCCUPIED' ? 'step-on' : '', sMaint: s.st === 'MAINTENANCE' ? 'step-on' : '',
+      isAvail: s.st === 'AVAILABLE', isMaint: s.st === 'MAINTENANCE',
+      toMaint: () => this.setState({ st: 'MAINTENANCE', draft: 'MAINTENANCE' }),
+      toAvail: () => this.setState({ st: 'AVAILABLE', draft: 'AVAILABLE' }),
+      mEdit: s.modal === 'edit', mDelete: s.modal === 'delete',
+      openEdit: () => this.setState({ modal: 'edit', draft: s.st }),
+      openDelete: () => this.setState({ modal: 'delete' }),
+      close: () => this.setState({ modal: null }),
+      segAvail: s.draft === 'AVAILABLE' ? 'seg-on' : '', segMaint: s.draft === 'MAINTENANCE' ? 'seg-on' : '',
+      draftAvail: () => this.setState({ draft: 'AVAILABLE' }), draftMaint: () => this.setState({ draft: 'MAINTENANCE' }),
+      saveEdit: () => this.setState({ modal: null, st: s.draft })
+    };
+  }
+}
+</script>
+</body>
+</html>

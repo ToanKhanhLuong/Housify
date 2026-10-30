@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Dịch vụ – Admin</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/8c542f24d703b19ce315047abd610531">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="hf app" style="min-height: 1000px">
+  <div class="side"><dc-import name="Sidebar" role="admin" active="services" hint-size="100%,1000px"></dc-import></div>
+  <main class="main">
+    <dc-import name="Topbar" title="Dịch vụ" role="admin" hint-size="100%,60px"></dc-import>
+    <div class="bar">
+      <button class="btn btn-p" onClick="{{ openNew }}">Thêm dịch vụ</button>
+      <div style="position: relative; flex: 1 1 360px; max-width: 640px; margin: 0 auto">
+        <div class="search">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4b5563" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14zM21 21l-4.3-4.3"></path></svg>
+          <sc-for list="{{ facets }}" as="f" hint-placeholder-count="1">
+            <span class="facet"><span class="facet-ic {{ f.icCls }}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" aria-hidden="true"><path d="{{ f.d }}"></path></svg></span><span style="padding: 0 8px">{{ f.label }}</span><button class="facet-x" onClick="{{ f.remove }}" aria-label="Bỏ mục này">✕</button></span>
+          </sc-for>
+          <input aria-label="Tìm dịch vụ" value="{{ q }}" onChange="{{ onQ }}" placeholder="Tìm dịch vụ...">
+          <button class="ib" style="width: 30px; height: 28px" onClick="{{ togglePanel }}" aria-label="Mở bộ lọc"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+        </div>
+        <sc-if value="{{ panel }}" hint-placeholder-val="{{ false }}">
+          <button class="scrim" onClick="{{ togglePanel }}" aria-label="Đóng bộ lọc"></button>
+          <div class="drop" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px">
+            <div style="border-right: 1px solid #eef0f2"><div class="colh" style="color: #714B67">Bộ lọc</div><div class="sub">Cách tính</div>
+              <sc-for list="{{ fOpts }}" as="o" hint-placeholder-count="2"><button class="opt" onClick="{{ o.pick }}"><span class="box {{ o.cls }}"><sc-if value="{{ o.on }}" hint-placeholder-val="{{ false }}">✓</sc-if></span>{{ o.label }}</button></sc-for></div>
+            <div><div class="colh" style="color: #017E84">Nhóm theo</div>
+              <sc-for list="{{ gOpts }}" as="o" hint-placeholder-count="2"><button class="opt" onClick="{{ o.pick }}"><span class="rd {{ o.cls }}"></span>{{ o.label }}</button></sc-for></div>
+          </div>
+        </sc-if>
+      </div>
+      <span class="muted" style="font-size: 13px">{{ countText }}</span>
+    </div>
+    <div class="page" style="gap: 22px">
+      <sc-for list="{{ groups }}" as="g" hint-placeholder-count="2">
+        <section style="display: flex; flex-direction: column; gap: 10px">
+          <sc-if value="{{ g.showHead }}" hint-placeholder-val="{{ true }}"><div style="display: flex; align-items: center; gap: 8px"><span style="font-weight: 700; font-size: 15px">{{ g.label }}</span><span class="badge b-gray">{{ g.count }}</span><span class="muted" style="font-size: 13px">{{ g.hint }}</span></div></sc-if>
+          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px">
+            <sc-for list="{{ g.items }}" as="v" hint-placeholder-count="2">
+              <button class="tcard" onClick="{{ v.open }}" style="flex-direction: row; align-items: center; justify-content: space-between">
+                <span style="display: flex; flex-direction: column; gap: 3px"><span style="font-weight: 700; font-size: 16px; color: #111827">{{ v.name }}</span><span class="muted" style="font-size: 13px">Đơn vị: {{ v.unit }}</span></span>
+                <span class="badge {{ v.modeCls }}">{{ v.mode }}</span>
+              </button>
+            </sc-for>
+          </div>
+        </section>
+      </sc-for>
+    </div>
+  </main>
+
+  <sc-if value="{{ modal }}" hint-placeholder-val="{{ false }}">
+    <div class="overlay"><div class="modal" role="dialog" aria-label="Dịch vụ" style="max-width: 780px">
+      <div class="mh">{{ mTitle }}<button class="ib" onClick="{{ close }}" aria-label="Đóng">✕</button></div>
+      <div class="mb">
+        <div class="grid2">
+          <div class="field"><label class="lb" for="sn">Tên dịch vụ <span class="req">*</span></label><input id="sn" class="inp" value="{{ cur.name }}" placeholder="VD: Máy giặt"></div>
+          <div class="field"><label class="lb" for="su">Đơn vị tính <span class="req">*</span></label><input id="su" class="inp" value="{{ cur.unit }}" placeholder="kWh, m³, tháng, người..."></div>
+          <div class="field span2"><span class="lb">Cách tính <span class="req">*</span></span>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap">
+              <button class="seg {{ meterOn }}" onClick="{{ setMeter }}"><span style="font-weight: 600">Theo chỉ số</span><span class="hint">Hóa đơn ghi chỉ số cũ / mới (điện, nước)</span></button>
+              <button class="seg {{ fixedOn }}" onClick="{{ setFixed }}"><span style="font-weight: 600">Cố định</span><span class="hint">Số lượng × đơn giá (gửi xe, wifi)</span></button>
+            </div></div>
+        </div>
+        <sc-if value="{{ isEdit }}" hint-placeholder-val="{{ true }}">
+          <div style="border-top: 1px solid #eef0f2; padding-top: 14px; display: flex; flex-direction: column; gap: 12px">
+            <div style="display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; align-items: baseline"><span style="font-weight: 600; font-size: 15px">Giá theo tòa nhà</span><span class="hint">Đổi giá không ảnh hưởng hóa đơn đã lập.</span></div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap"><sc-for list="{{ bPills }}" as="p" hint-placeholder-count="3"><button class="pill {{ p.cls }}" onClick="{{ p.pick }}">{{ p.name }}</button></sc-for></div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px">
+              <div class="card" style="padding: 12px 14px; background: #fafafb; display: flex; flex-direction: column; gap: 6px">
+                <span class="lb">Lịch sử giá – {{ bSel }}</span>
+                <sc-if value="{{ noHist }}" hint-placeholder-val="{{ false }}"><span class="muted" style="font-size: 13px">Chưa đặt giá ở tòa này – hóa đơn của tòa sẽ không có dòng dịch vụ này.</span></sc-if>
+                <sc-for list="{{ hist }}" as="h" hint-placeholder-count="2">
+                  <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #eef0f2"><span style="display: flex; flex-direction: column"><span style="font-weight: 600">{{ h.price }} / {{ cur.unit }}</span><span class="hint">Áp dụng từ {{ h.from }}</span></span><span class="badge {{ h.cls }}">{{ h.tag }}</span></div>
+                </sc-for>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 10px">
+                <span class="lb">Đặt giá mới</span>
+                <div class="field"><label class="lb" for="np" style="font-weight: 500">Đơn giá (đ) <span class="req">*</span></label><input id="np" class="inp {{ npErrCls }}" type="number" value="{{ npPrice }}" onChange="{{ onNp }}"><sc-if value="{{ npErr }}" hint-placeholder-val="{{ false }}"><span class="err">Đơn giá phải lớn hơn 0</span></sc-if></div>
+                <div class="field"><label class="lb" for="nd" style="font-weight: 500">Áp dụng từ <span class="req">*</span></label><input id="nd" class="inp" type="date" value="{{ npDate }}" onChange="{{ onNd }}"></div>
+                <sc-if value="{{ pastWarn }}" hint-placeholder-val="{{ false }}"><div class="alert a-warn">Ngày áp dụng đã ở quá khứ. Giá này chỉ dùng cho hóa đơn lập từ bây giờ, hóa đơn đã lập không đổi.</div></sc-if>
+                <sc-if value="{{ sameDay }}" hint-placeholder-val="{{ false }}"><div class="alert a-info">Đã có giá áp dụng từ ngày này – lưu sẽ cập nhật mức giá đó.</div></sc-if>
+                <div><button class="btn btn-s" onClick="{{ addPrice }}">Lưu giá</button></div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ confirmDel }}" hint-placeholder-val="{{ false }}"><div class="alert a-warn">Xóa dịch vụ "{{ cur.name }}"? Dịch vụ sẽ không còn khi lập hóa đơn mới; hóa đơn đã lập giữ nguyên. <button class="lnk" onClick="{{ doDelete }}" style="font-weight: 600">Xác nhận xóa</button></div></sc-if>
+      </div>
+      <div class="mf">
+        <button class="btn btn-p" onClick="{{ close }}">Lưu</button><button class="btn btn-s" onClick="{{ close }}">Hủy</button>
+        <sc-if value="{{ isEdit }}" hint-placeholder-val="{{ true }}"><button class="btn btn-d" onClick="{{ askDelete }}">Xóa dịch vụ</button></sc-if>
+      </div>
+    </div></div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"startModal":{"editor":"enum","options":["none","create","price"],"default":"none"},"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const m = props.startModal;
+    this.state = {
+      q: '', panel: false, f: [], group: 'mode',
+      modal: m === 'create' || m === 'price', sel: m === 'price' ? 's1' : null, isFixedDraft: false,
+      bSel: 'Housify Cầu Giấy', npPrice: m === 'price' ? '3800' : '', npDate: m === 'price' ? '2026-10-15' : '2026-11-01', npTried: false, confirmDel: false,
+      services: [
+        { id: 's1', name: 'Điện', unit: 'kWh', isFixed: false },
+        { id: 's2', name: 'Nước', unit: 'm³', isFixed: false },
+        { id: 's3', name: 'Gửi xe', unit: 'xe/tháng', isFixed: true },
+        { id: 's4', name: 'Wifi', unit: 'tháng', isFixed: true }
+      ],
+      prices: {
+        s1: { 'Housify Cầu Giấy': [['2026-10-01', 3500], ['2026-09-01', 3200]], 'Housify Thanh Xuân': [['2026-09-01', 3800]] },
+        s2: { 'Housify Cầu Giấy': [['2026-10-01', 25000]] },
+        s3: { 'Housify Cầu Giấy': [['2026-09-01', 100000]] },
+        s4: { 'Housify Cầu Giấy': [['2026-09-01', 50000]], 'Housify Thanh Xuân': [['2026-11-15', 60000]] }
+      }
+    };
+  }
+  renderVals() {
+    const s = this.state;
+    const TODAY = '2026-10-30';
+    const B = ['Housify Cầu Giấy', 'Housify Đống Đa', 'Housify Thanh Xuân'];
+    const money = (n) => n.toLocaleString('vi-VN') + ' đ';
+    const dmy = (iso) => iso.split('-').reverse().join('/');
+    const q = s.q.trim().toLowerCase();
+    const items = s.services.filter((v) => (!q || v.name.toLowerCase().includes(q)) && (!s.f.length || s.f.includes(v.isFixed ? 'fixed' : 'meter'))).sort((a, b) => a.name.localeCompare(b.name)).map((v) => ({
+      ...v, mode: v.isFixed ? 'Cố định' : 'Theo chỉ số', modeCls: v.isFixed ? 'b-gray' : 'b-plum',
+      open: () => this.setState({ modal: true, sel: v.id, isFixedDraft: v.isFixed, bSel: B[0], npPrice: '', npTried: false, confirmDel: false })
+    }));
+    let groups;
+    if (s.group === 'mode') {
+      groups = [];
+      const m = items.filter((x) => !x.isFixed); const f = items.filter((x) => x.isFixed);
+      if (m.length) groups.push({ label: 'Theo chỉ số', hint: 'Hóa đơn ghi chỉ số cũ / mới', count: m.length, items: m, showHead: true });
+      if (f.length) groups.push({ label: 'Cố định', hint: 'Hóa đơn tính số lượng × đơn giá', count: f.length, items: f, showHead: true });
+    } else groups = [{ label: '', hint: '', count: items.length, items, showHead: false }];
+    const tog = (v) => () => this.setState({ f: s.f.includes(v) ? s.f.filter((x) => x !== v) : [...s.f, v] });
+    const FL = { meter: 'Theo chỉ số', fixed: 'Cố định' };
+    const facets = [];
+    if (s.f.length) facets.push({ label: s.f.map((x) => FL[x]).join(' hoặc '), icCls: '', d: 'M3 5h18l-7 8v6l-4 2v-8z', remove: () => this.setState({ f: [] }) });
+    if (s.group === 'mode') facets.push({ label: 'Nhóm: Cách tính', icCls: 'facet-gb', d: 'm12 3 9 5-9 5-9-5zM3 13l9 5 9-5', remove: () => this.setState({ group: 'none' }) });
+    const cur = s.services.find((x) => x.id === s.sel) || { name: '', unit: '' };
+    const list = s.sel ? (s.prices[s.sel][s.bSel] || []) : [];
+    const valid = list.filter((x) => x[0] <= TODAY).sort((a, b) => (a[0] < b[0] ? 1 : -1));
+    const curP = valid[0];
+    const hist = list.slice().sort((a, b) => (a[0] < b[0] ? 1 : -1)).map((x) => {
+      const fut = x[0] > TODAY; const on = curP && x[0] === curP[0];
+      return { price: money(x[1]), from: dmy(x[0]), tag: fut ? 'Sắp áp dụng' : on ? 'Đang áp dụng' : 'Đã thay', cls: fut ? 'b-info' : on ? 'b-ok' : 'b-gray' };
+    });
+    const npBad = s.npTried && !(Number(s.npPrice) > 0);
+    return {
+      q: s.q, onQ: (e) => this.setState({ q: e.target.value }),
+      panel: s.panel, togglePanel: () => this.setState({ panel: !s.panel }),
+      facets, groups, countText: items.length + ' dịch vụ',
+      fOpts: ['meter', 'fixed'].map((v) => ({ label: FL[v], on: s.f.includes(v), cls: s.f.includes(v) ? 'box-on' : '', pick: tog(v) })),
+      gOpts: [['mode', 'Cách tính'], ['none', 'Không nhóm']].map(([v, l]) => ({ label: l, cls: s.group === v ? 'rd-on' : '', pick: () => this.setState({ group: v }) })),
+      modal: s.modal, isEdit: !!s.sel, mTitle: s.sel ? 'Dịch vụ: ' + cur.name : 'Thêm dịch vụ', cur,
+      meterOn: s.isFixedDraft ? '' : 'seg-on', fixedOn: s.isFixedDraft ? 'seg-on' : '',
+      setMeter: () => this.setState({ isFixedDraft: false }), setFixed: () => this.setState({ isFixedDraft: true }),
+      openNew: () => this.setState({ modal: true, sel: null, isFixedDraft: false, confirmDel: false }),
+      close: () => this.setState({ modal: false }),
+      bPills: B.map((b) => ({ name: b, cls: s.bSel === b ? 'pill-on' : '', pick: () => this.setState({ bSel: b }) })),
+      bSel: s.bSel, hist, noHist: hist.length === 0,
+      npPrice: s.npPrice, npDate: s.npDate, npErr: npBad, npErrCls: npBad ? 'inp-err' : '',
+      onNp: (e) => this.setState({ npPrice: e.target.value }), onNd: (e) => this.setState({ npDate: e.target.value }),
+      pastWarn: !!s.npDate && s.npDate < TODAY,
+      sameDay: list.some((x) => x[0] === s.npDate),
+      addPrice: () => {
+        const p = Number(s.npPrice);
+        if (!(p > 0) || !s.npDate) { this.setState({ npTried: true }); return; }
+        const old = (s.prices[s.sel][s.bSel] || []).filter((x) => x[0] !== s.npDate);
+        this.setState({ npPrice: '', npTried: false, prices: { ...s.prices, [s.sel]: { ...s.prices[s.sel], [s.bSel]: [...old, [s.npDate, p]] } } });
+      },
+      confirmDel: s.confirmDel, askDelete: () => this.setState({ confirmDel: true }),
+      doDelete: () => this.setState({ modal: false, services: s.services.filter((x) => x.id !== s.sel) })
+    };
+  }
+}
+</script>
+</body>
+</html>

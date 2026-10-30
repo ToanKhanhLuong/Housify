@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Hồ sơ cá nhân</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/8c542f24d703b19ce315047abd610531">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="hf app" style="min-height: 1000px">
+  <div class="side"><dc-import name="Sidebar" role="{{ role }}" active="" hint-size="100%,1000px"></dc-import></div>
+  <main class="main">
+    <dc-import name="Topbar" title="Hồ sơ cá nhân" role="{{ role }}" hint-size="100%,60px"></dc-import>
+    <sc-if value="{{ noBuilding }}" hint-placeholder-val="{{ false }}"><div class="alert a-warn" style="border-radius: 0; padding: 12px 24px">Bạn chưa được phân công tòa nhà nào. Hiện chỉ dùng được Hồ sơ, Đổi mật khẩu và Thông báo. Vui lòng liên hệ Admin.</div></sc-if>
+    <div class="bar">
+      <sc-if value="{{ viewing }}" hint-placeholder-val="{{ true }}"><button class="btn btn-p" onClick="{{ startEdit }}">Chỉnh sửa</button></sc-if>
+      <sc-if value="{{ editing }}" hint-placeholder-val="{{ false }}"><button class="btn btn-p" onClick="{{ save }}">Lưu</button><button class="btn btn-s" onClick="{{ cancel }}">Hủy</button></sc-if>
+    </div>
+    <div class="page">
+      <sc-if value="{{ saved }}" hint-placeholder-val="{{ false }}"><div class="alert a-ok" style="max-width: 1240px; width: 100%; margin: 0 auto">Đã cập nhật hồ sơ.</div></sc-if>
+      <div class="paper">
+        <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; align-items: center">
+          <div style="display: flex; align-items: center; gap: 14px"><span class="av" style="width: 60px; height: 60px; font-size: 20px">{{ p.ini }}</span><div style="display: flex; flex-direction: column; gap: 6px"><h1 style="margin: 0; font-size: 24px; font-weight: 700">{{ p.name }}</h1><div><span class="badge b-plum">{{ p.roleLabel }}</span></div></div></div>
+          <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px; padding-left: 16px; border-left: 1px solid #eef0f2"><span style="font-size: 16px; font-weight: 600">{{ p.place }}</span><span class="muted" style="font-size: 12px">{{ p.placeLabel }}</span></div>
+        </div>
+        <div>
+          <div style="font-weight: 600; padding-bottom: 6px; border-bottom: 1px solid #eef0f2; margin-bottom: 8px">Thông tin cá nhân</div>
+          <sc-if value="{{ viewing }}" hint-placeholder-val="{{ true }}">
+            <div class="grid2" style="gap: 0 40px">
+              <div>
+                <div class="fr"><span class="fk">Họ tên</span><span>{{ p.name }}</span></div>
+                <sc-if value="{{ isCustomer }}" hint-placeholder-val="{{ false }}"><div class="fr"><span class="fk">Số CCCD</span><span>{{ p.cccd }}</span></div></sc-if>
+                <div class="fr"><span class="fk">Email <span class="req">*</span></span><span>{{ f.email }}</span></div>
+              </div>
+              <div>
+                <div class="fr"><span class="fk">Số điện thoại <span class="req">*</span></span><span>{{ f.phone }}</span></div>
+                <div class="fr"><span class="fk">Ngày sinh</span><span>{{ dobText }}</span></div>
+                <div class="fr"><span class="fk">Địa chỉ</span><span>{{ addrText }}</span></div>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ editing }}" hint-placeholder-val="{{ false }}">
+            <div class="grid2">
+              <div class="field"><label class="lb" for="pn">Họ tên</label><input id="pn" class="inp" value="{{ p.name }}" disabled="{{ true }}"><span class="hint">{{ nameHint }}</span></div>
+              <sc-if value="{{ isCustomer }}" hint-placeholder-val="{{ false }}"><div class="field"><label class="lb" for="pc">Số CCCD</label><input id="pc" class="inp" value="{{ p.cccd }}" disabled="{{ true }}"><span class="hint">Số CCCD do Manager của tòa sửa.</span></div></sc-if>
+              <div class="field"><label class="lb" for="pe">Email <span class="req">*</span></label><input id="pe" class="inp {{ emErrCls }}" value="{{ f.email }}" onChange="{{ onEmail }}" disabled="{{ emailLocked }}"><sc-if value="{{ emailLocked }}" hint-placeholder-val="{{ true }}"><span class="hint">Email của Manager do Admin sửa.</span></sc-if><sc-if value="{{ emErr }}" hint-placeholder-val="{{ false }}"><span class="err">{{ emErrText }}</span></sc-if></div>
+              <div class="field"><label class="lb" for="pp">Số điện thoại <span class="req">*</span></label><input id="pp" class="inp {{ phErrCls }}" value="{{ f.phone }}" onChange="{{ onPhone }}"><sc-if value="{{ phErr }}" hint-placeholder-val="{{ false }}"><span class="err">{{ phErrText }}</span></sc-if></div>
+              <div class="field"><label class="lb" for="pd">Ngày sinh</label><input id="pd" class="inp" type="date" value="{{ f.dob }}" onChange="{{ onDob }}"></div>
+              <div class="field span2"><label class="lb" for="pa">Địa chỉ</label><input id="pa" class="inp" value="{{ f.address }}" onChange="{{ onAddr }}"></div>
+            </div>
+          </sc-if>
+        </div>
+        <div>
+          <div style="font-weight: 600; padding-bottom: 6px; border-bottom: 1px solid #eef0f2; margin-bottom: 10px">Ảnh CCCD <span class="muted" style="font-weight: 400; font-size: 13px">· {{ cccdNote }}</span></div>
+          <div class="grid2">
+            <div class="field"><span class="lb">Mặt trước</span><div class="ph" style="height: 150px">{{ cccdText }}<sc-if value="{{ editing }}" hint-placeholder-val="{{ false }}"><button class="btn btn-s btn-sm" style="margin-top: 6px">Tải ảnh lên</button></sc-if></div></div>
+            <div class="field"><span class="lb">Mặt sau</span><div class="ph" style="height: 150px">{{ cccdText }}<sc-if value="{{ editing }}" hint-placeholder-val="{{ false }}"><button class="btn btn-s btn-sm" style="margin-top: 6px">Tải ảnh lên</button></sc-if></div></div>
+          </div>
+          <sc-if value="{{ editing }}" hint-placeholder-val="{{ false }}"><span class="hint">Ảnh rõ nét, tối thiểu 500×500 px, tối đa 5MB.</span></sc-if>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"role":{"editor":"enum","options":["manager","managerNoBuilding","customer"],"default":"manager"},"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const r = props.role || 'manager';
+    const F = {
+      manager: { email: 'tung.tv@example.com', phone: '0912000001', dob: '1990-03-12', address: '45 Xuân Thủy, Cầu Giấy, Hà Nội' },
+      managerNoBuilding: { email: 'testhai@example.com', phone: '0912000002', dob: '', address: '' },
+      customer: { email: 'minhanh.ng@example.com', phone: '0987000111', dob: '2003-07-21', address: 'Thôn Đông, Ý Yên, Nam Định' }
+    };
+    this.state = { mode: 'view', f: F[r] || F.manager, draft: F[r] || F.manager, tried: false, saved: false };
+  }
+  renderVals() {
+    const s = this.state;
+    const role = this.props.role || 'manager';
+    const P = {
+      manager: { name: 'Trần Văn Tùng', ini: 'VT', roleLabel: 'Manager', place: 'Housify Cầu Giấy', placeLabel: 'Tòa phụ trách', cccdUp: true },
+      managerNoBuilding: { name: 'Quản lý Test Hai', ini: 'TH', roleLabel: 'Manager', place: 'Chưa phân công', placeLabel: 'Tòa phụ trách', cccdUp: false },
+      customer: { name: 'Nguyễn Minh Anh', ini: 'MA', roleLabel: 'Khách thuê', place: 'P101 · Housify Cầu Giấy', placeLabel: 'Phòng đang thuê', cccd: '001203004567', cccdUp: true }
+    };
+    const p = P[role] || P.manager;
+    const isCustomer = role === 'customer';
+    const editing = s.mode === 'edit';
+    const f = editing ? s.draft : s.f;
+    const dmy = (iso) => (iso ? iso.split('-').reverse().join('/') : '—');
+    const emBad = s.tried && !/^\S+@\S+\.\S+$/.test(f.email.trim());
+    const emDup = s.tried && isCustomer && f.email.trim() === 'tung.tv@example.com';
+    const phBad = s.tried && !/^0\d{9}$/.test(f.phone.trim());
+    const phDup = s.tried && f.phone.trim() === '0912000004';
+    const set = (k) => (e) => this.setState({ draft: { ...s.draft, [k]: e.target.value } });
+    return {
+      role, p, f, isCustomer, noBuilding: role === 'managerNoBuilding',
+      viewing: !editing, editing, saved: s.saved,
+      dobText: dmy(s.f.dob), addrText: s.f.address || '—',
+      nameHint: isCustomer ? 'Họ tên do Manager của tòa sửa.' : 'Họ tên do Admin sửa.',
+      emailLocked: !isCustomer,
+      cccdNote: isCustomer ? 'chỉ bạn và Manager của tòa xem được' : 'chỉ bạn và Admin xem được',
+      cccdText: p.cccdUp ? 'Ảnh đã tải lên' : 'Chưa có ảnh CCCD',
+      onEmail: set('email'), onPhone: set('phone'), onDob: set('dob'), onAddr: set('address'),
+      emErr: emBad || emDup, emErrCls: emBad || emDup ? 'inp-err' : '', emErrText: emBad ? 'Email không đúng định dạng' : 'Email đã được sử dụng',
+      phErr: phBad || phDup, phErrCls: phBad || phDup ? 'inp-err' : '', phErrText: phBad ? 'Số điện thoại gồm 10 số, bắt đầu bằng 0' : 'Số điện thoại đã được sử dụng',
+      startEdit: () => this.setState({ mode: 'edit', draft: s.f, tried: false, saved: false }),
+      cancel: () => this.setState({ mode: 'view', tried: false }),
+      save: () => {
+        const d = s.draft;
+        const bad = !/^\S+@\S+\.\S+$/.test(d.email.trim()) || (isCustomer && d.email.trim() === 'tung.tv@example.com') || !/^0\d{9}$/.test(d.phone.trim()) || d.phone.trim() === '0912000004';
+        if (bad) { this.setState({ tried: true }); return; }
+        this.setState({ mode: 'view', f: d, saved: true });
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

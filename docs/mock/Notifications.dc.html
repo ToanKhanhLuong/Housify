@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Thông báo</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/8c542f24d703b19ce315047abd610531">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="hf app">
+  <div class="side"><dc-import name="Sidebar" role="{{ role }}" active="" hint-size="100%,900px"></dc-import></div>
+  <main class="main">
+    <dc-import name="Topbar" title="Thông báo" role="{{ role }}" hint-size="100%,60px"></dc-import>
+    <div class="bar">
+      <div class="vsw"><button class="vs {{ allOn }}" onClick="{{ showAll }}">Tất cả</button><button class="vs {{ unOn }}" onClick="{{ showUnread }}">Chưa đọc ({{ unread }})</button></div>
+      <button class="btn btn-s" onClick="{{ readAll }}" disabled="{{ noUnread }}">Đánh dấu tất cả đã đọc</button>
+      <div style="margin-left: auto; display: flex; align-items: center; gap: 6px"><span class="muted" style="font-size: 13px">{{ pager }}</span><button class="ib" aria-label="Trang trước" disabled="{{ true }}">‹</button><button class="ib" aria-label="Trang sau">›</button></div>
+    </div>
+    <div class="page">
+      <div class="card" style="overflow: hidden; max-width: 900px">
+        <sc-if value="{{ empty }}" hint-placeholder-val="{{ false }}"><div style="padding: 32px; text-align: center" class="muted">Không có thông báo chưa đọc.</div></sc-if>
+        <sc-for list="{{ list }}" as="n" hint-placeholder-count="4">
+          <button class="noti {{ n.cls }}" onClick="{{ n.read }}" style="padding: 14px 18px">
+            <span class="dot" style="margin-top: 7px; background: {{ n.dot }}"></span>
+            <span style="display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0">
+              <span style="display: flex; justify-content: space-between; gap: 10px"><span style="font-weight: 600">{{ n.title }}</span><span class="muted" style="font-size: 12px; white-space: nowrap">{{ n.time }}</span></span>
+              <span style="font-size: 13px; color: #374151">{{ n.message }}</span>
+              <span><span class="badge b-gray">{{ n.kind }}</span></span>
+            </span>
+          </button>
+        </sc-for>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"role":{"editor":"enum","options":["admin","manager","customer"],"default":"admin"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { filter: 'all', read: {} };
+  }
+  renderVals() {
+    const s = this.state;
+    const role = this.props.role || 'admin';
+    const N = {
+      admin: [
+        ['a1', 'Đơn chấm dứt', 'Đơn chấm dứt đơn phương chờ duyệt', 'Phòng P301 · Housify Cầu Giấy – Trần Văn Tùng vừa gửi đơn.', '10 phút trước', false],
+        ['a2', 'Thanh toán', 'Thanh toán thành công', 'Hóa đơn HD2610K7QX – 3.150.000 đ đã về tài khoản.', '2 giờ trước', false],
+        ['a3', 'Thanh toán', 'Thanh toán thành công', 'Hóa đơn HD2610B2MN – 2.680.000 đ đã về tài khoản.', 'Hôm qua', true],
+        ['a4', 'Thanh toán', 'Thanh toán thành công', 'Hóa đơn HD2610QW8E – 4.950.000 đ đã về tài khoản.', '27/10/2026', true]
+      ],
+      manager: [
+        ['m1', 'Thông báo chung', 'Nội quy mới', 'Admin vừa cập nhật nội quy tòa Housify Cầu Giấy.', '1 giờ trước', false],
+        ['m2', 'Phân công', 'Bạn được phân công tòa nhà', 'Admin đã phân công bạn phụ trách Housify Cầu Giấy.', '28/10/2026', true]
+      ],
+      customer: [
+        ['c1', 'Thông báo chung', 'Lịch cắt nước', 'Tòa Housify Cầu Giấy cắt nước 8h–11h thứ Bảy 02/11.', '3 giờ trước', false],
+        ['c2', 'Hóa đơn', 'Hóa đơn tháng 10/2026', 'Hóa đơn HD2610K7QX – 3.150.000 đ, hạn thanh toán 07/11/2026.', '25/10/2026', true]
+      ]
+    };
+    const src = N[role] || N.admin;
+    const all = src.map(([id, kind, title, message, time, isRead]) => {
+      const r = isRead || !!s.read[id];
+      return { id, kind, title, message, time, isRead: r, cls: r ? '' : 'noti-new', dot: r ? '#d1d5db' : '#714B67', read: () => this.setState({ read: { ...s.read, [id]: true } }) };
+    });
+    const list = s.filter === 'unread' ? all.filter((n) => !n.isRead) : all;
+    const unread = all.filter((n) => !n.isRead).length;
+    const ids = {}; src.forEach((n) => { ids[n[0]] = true; });
+    return {
+      role, list, unread, noUnread: unread === 0, empty: list.length === 0,
+      pager: list.length ? '1–' + list.length + ' / ' + list.length : '0',
+      allOn: s.filter === 'all' ? 'vs-on' : '', unOn: s.filter === 'unread' ? 'vs-on' : '',
+      showAll: () => this.setState({ filter: 'all' }), showUnread: () => this.setState({ filter: 'unread' }),
+      readAll: () => this.setState({ read: ids })
+    };
+  }
+}
+</script>
+</body>
+</html>

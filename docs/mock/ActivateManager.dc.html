@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Kích hoạt tài khoản Manager</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/8c542f24d703b19ce315047abd610531">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="hf auth">
+  <div class="auth-card">
+    <div class="brand"><div class="logo">H</div><span style="font-weight: 700; font-size: 17px">Housify</span></div>
+    <sc-if value="{{ isValid }}" hint-placeholder-val="{{ true }}">
+      <div><div style="font-size: 20px; font-weight: 700">Kích hoạt tài khoản Manager</div><div class="muted" style="font-size: 13px">Đặt mật khẩu để bắt đầu sử dụng hệ thống.</div></div>
+      <div class="card" style="padding: 12px 14px; background: #fafafb; display: flex; flex-direction: column; gap: 4px">
+        <div class="fr" style="grid-template-columns: 90px 1fr; padding: 2px 0"><span class="fk">Họ tên</span><span>Phạm Quốc Bảo</span></div>
+        <div class="fr" style="grid-template-columns: 90px 1fr; padding: 2px 0"><span class="fk">Email</span><span>bao.pq@example.com</span></div>
+      </div>
+      <div class="field"><label class="lb" for="np">Mật khẩu <span class="req">*</span></label><input id="np" class="inp {{ npErrCls }}" type="password" value="{{ np }}" onChange="{{ onNp }}"><span class="{{ npHintCls }}">Ít nhất 6 ký tự, có cả chữ và số.</span></div>
+      <div class="field"><label class="lb" for="cp">Nhập lại mật khẩu <span class="req">*</span></label><input id="cp" class="inp {{ cpErrCls }}" type="password" value="{{ cp }}" onChange="{{ onCp }}"><sc-if value="{{ cpErr }}" hint-placeholder-val="{{ false }}"><span class="err">Mật khẩu nhập lại không khớp</span></sc-if></div>
+      <button class="btn btn-p btn-blk" onClick="{{ activate }}">Kích hoạt tài khoản</button>
+    </sc-if>
+    <sc-if value="{{ isDone }}" hint-placeholder-val="{{ false }}">
+      <div style="font-size: 20px; font-weight: 700">Kích hoạt thành công</div>
+      <div class="alert a-ok">Tài khoản đã sẵn sàng. Đăng nhập bằng email bao.pq@example.com và mật khẩu vừa đặt.</div>
+      <a class="btn btn-p btn-blk" href="Login.dc.html">Đến trang đăng nhập</a>
+    </sc-if>
+    <sc-if value="{{ isInvalid }}" hint-placeholder-val="{{ false }}">
+      <div style="font-size: 20px; font-weight: 700">Link không còn hiệu lực</div>
+      <div class="alert a-err">Link kích hoạt không hợp lệ, đã được sử dụng hoặc đã hết hạn (24 giờ).</div>
+      <div class="muted" style="font-size: 13px">Vui lòng liên hệ Admin để được gửi lại link kích hoạt mới.</div>
+      <a class="btn btn-s btn-blk" href="Login.dc.html">Về trang đăng nhập</a>
+    </sc-if>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"state":{"editor":"enum","options":["valid","invalid"],"default":"valid"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { st: props.state === 'invalid' ? 'invalid' : 'valid', np: '', cp: '', tried: false };
+  }
+  renderVals() {
+    const s = this.state;
+    const npOk = s.np.length >= 6 && /[A-Za-z]/.test(s.np) && /\d/.test(s.np);
+    const npBad = s.tried && !npOk; const cpBad = s.tried && s.np !== s.cp;
+    return {
+      isValid: s.st === 'valid', isDone: s.st === 'done', isInvalid: s.st === 'invalid',
+      np: s.np, cp: s.cp, onNp: (e) => this.setState({ np: e.target.value }), onCp: (e) => this.setState({ cp: e.target.value }),
+      npErrCls: npBad ? 'inp-err' : '', npHintCls: npBad ? 'err' : 'hint', cpErr: cpBad, cpErrCls: cpBad ? 'inp-err' : '',
+      activate: () => { if (!npOk || s.np !== s.cp) { this.setState({ tried: true }); return; } this.setState({ st: 'done' }); }
+    };
+  }
+}
+</script>
+</body>
+</html>

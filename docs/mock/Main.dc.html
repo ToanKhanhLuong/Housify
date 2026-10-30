@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Tòa nhà – Admin</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/8c542f24d703b19ce315047abd610531">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="hf app">
+  <div class="side"><dc-import name="Sidebar" role="admin" active="buildings" hint-size="100%,900px"></dc-import></div>
+  <main class="main">
+    <dc-import name="Topbar" title="Tòa nhà" role="admin" hint-size="100%,60px"></dc-import>
+    <div class="bar">
+      <button class="btn btn-p" onClick="{{ openAdd }}">Thêm tòa nhà</button>
+      <div style="position: relative; flex: 1 1 360px; max-width: 640px; margin: 0 auto">
+        <div class="search">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4b5563" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14zM21 21l-4.3-4.3"></path></svg>
+          <sc-for list="{{ facets }}" as="f" hint-placeholder-count="0">
+            <span class="facet"><span class="facet-ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4 2v-8z"></path></svg></span><span style="padding: 0 8px">{{ f.label }}</span><button class="facet-x" onClick="{{ f.remove }}" aria-label="Bỏ bộ lọc"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></button></span>
+          </sc-for>
+          <input aria-label="Tìm tòa nhà" value="{{ q }}" onChange="{{ onQ }}" placeholder="Tìm theo tên hoặc địa chỉ...">
+          <button class="ib" style="width: 30px; height: 28px" onClick="{{ togglePanel }}" aria-label="Mở bộ lọc"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+        </div>
+        <sc-if value="{{ panel }}" hint-placeholder-val="{{ false }}">
+          <button class="scrim" onClick="{{ togglePanel }}" aria-label="Đóng bộ lọc"></button>
+          <div class="drop" style="right: auto; width: min(320px, 100%)">
+            <div class="colh" style="color: #714B67">Bộ lọc</div>
+            <div class="sub">Manager phụ trách</div>
+            <sc-for list="{{ mgrOpts }}" as="o" hint-placeholder-count="2">
+              <button class="opt" onClick="{{ o.pick }}"><span class="box {{ o.cls }}"><sc-if value="{{ o.on }}" hint-placeholder-val="{{ false }}">✓</sc-if></span>{{ o.label }}</button>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+      <span class="muted" style="font-size: 13px">{{ countText }}</span>
+      <div class="vsw">
+        <button class="vs {{ kbOn }}" onClick="{{ setKanban }}" aria-label="Dạng thẻ"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z"></path></svg></button>
+        <button class="vs {{ lsOn }}" onClick="{{ setList }}" aria-label="Dạng bảng"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"></path></svg></button>
+      </div>
+    </div>
+
+    <div class="page">
+      <sc-if value="{{ empty }}" hint-placeholder-val="{{ false }}">
+        <div class="card" style="padding: 40px; text-align: center" ><div style="font-weight: 600">Không có tòa nhà nào phù hợp</div><div class="muted">Thử đổi từ khóa hoặc bỏ bớt bộ lọc.</div></div>
+      </sc-if>
+      <sc-if value="{{ isKanban }}" hint-placeholder-val="{{ true }}">
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px">
+          <sc-for list="{{ list }}" as="b" hint-placeholder-count="3">
+            <a class="tcard" href="BuildingDetail.dc.html" style="padding: 0; overflow: hidden; gap: 0">
+              <sc-if value="{{ b.hasImg }}" hint-placeholder-val="{{ true }}"><div class="cover" style="height: 130px; border-radius: 0; font-size: 12px; font-weight: 600">Ảnh đại diện tòa nhà</div></sc-if>
+              <sc-if value="{{ b.noImg }}" hint-placeholder-val="{{ false }}"><div class="ph" style="height: 130px; border: 0; border-bottom: 1px dashed #d1d5db; border-radius: 0">Chưa có ảnh</div></sc-if>
+              <div style="padding: 14px; display: flex; flex-direction: column; gap: 8px">
+                <div style="display: flex; justify-content: space-between; gap: 8px; align-items: flex-start"><span style="font-weight: 700; font-size: 16px; color: #111827">{{ b.name }}</span><span class="badge b-gray">{{ b.floorCount }} tầng</span></div>
+                <div class="muted" style="font-size: 13px">{{ b.address }}</div>
+                <div style="display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: #374151">
+                  <span style="display: inline-flex; align-items: center; gap: 6px"><span class="dot" style="background: #12936b"></span>{{ b.available }} trống</span>
+                  <span style="display: inline-flex; align-items: center; gap: 6px"><span class="dot" style="background: #714B67"></span>{{ b.occupied }} đang thuê</span>
+                  <span style="display: inline-flex; align-items: center; gap: 6px"><span class="dot" style="background: #d49a00"></span>{{ b.maintenance }} bảo trì</span>
+                  <span class="muted">· {{ b.total }} phòng</span>
+                </div>
+                <div style="height: 1px; background: #eef0f2"></div>
+                <sc-if value="{{ b.hasMgr }}" hint-placeholder-val="{{ true }}"><div style="display: flex; align-items: center; gap: 8px; font-size: 13px"><span class="av" style="width: 24px; height: 24px; font-size: 10px">{{ b.mgrIni }}</span>{{ b.manager }}</div></sc-if>
+                <sc-if value="{{ b.noMgr }}" hint-placeholder-val="{{ false }}"><div><span class="badge b-warn">Chưa có Manager</span></div></sc-if>
+              </div>
+            </a>
+          </sc-for>
+        </div>
+      </sc-if>
+      <sc-if value="{{ isList }}" hint-placeholder-val="{{ false }}">
+        <div class="card" style="overflow-x: auto">
+          <table class="tbl">
+            <thead><tr><th>Tên tòa nhà</th><th>Địa chỉ</th><th class="r">Số tầng</th><th class="r">Số phòng</th><th>Phòng trống</th><th>Manager phụ trách</th></tr></thead>
+            <tbody>
+              <sc-for list="{{ list }}" as="b" hint-placeholder-count="3">
+                <tr class="row"><td><a href="BuildingDetail.dc.html" style="font-weight: 600">{{ b.name }}</a></td><td>{{ b.address }}</td><td class="r">{{ b.floorCount }}</td><td class="r">{{ b.total }}</td><td>{{ b.available }}</td><td>{{ b.managerText }}</td></tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </sc-if>
+    </div>
+  </main>
+
+  <sc-if value="{{ modal }}" hint-placeholder-val="{{ false }}">
+    <div class="overlay">
+      <div class="modal" role="dialog" aria-label="Thêm tòa nhà" style="max-width: 640px">
+        <div class="mh">Thêm tòa nhà<button class="ib" onClick="{{ closeAdd }}" aria-label="Đóng"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></button></div>
+        <div class="mb">
+          <div class="grid2">
+            <div class="field span2"><label class="lb" for="bn">Tên tòa nhà <span class="req">*</span></label><input id="bn" class="inp {{ nameErrCls }}" value="{{ fName }}" onChange="{{ onName }}" placeholder="VD: Housify Cầu Giấy"><sc-if value="{{ hasNameErr }}" hint-placeholder-val="{{ false }}"><span class="err">{{ nameErr }}</span></sc-if></div>
+            <div class="field span2"><label class="lb" for="ba">Địa chỉ <span class="req">*</span></label><input id="ba" class="inp {{ addrErrCls }}" value="{{ fAddr }}" onChange="{{ onAddr }}" placeholder="Số nhà, đường, quận, thành phố"><sc-if value="{{ hasAddrErr }}" hint-placeholder-val="{{ false }}"><span class="err">Vui lòng nhập địa chỉ</span></sc-if></div>
+            <div class="field"><label class="lb" for="bf">Số tầng <span class="req">*</span></label><input id="bf" class="inp" type="number" min="1" value="{{ fFloors }}" onChange="{{ onFloors }}"><span class="hint">Tầng 1 đến N, sửa được sau trong chi tiết tòa.</span></div>
+            <div></div>
+            <div class="field span2"><label class="lb" for="bd">Mô tả</label><textarea id="bd" class="inp" rows="3"></textarea></div>
+            <div class="field span2">
+              <span class="lb">Ảnh tòa nhà</span>
+              <div style="display: flex; gap: 10px; flex-wrap: wrap">
+                <button class="ph" style="width: 120px; height: 84px; cursor: pointer; font: inherit; font-size: 12px">+ Tải ảnh lên</button>
+              </div>
+              <span class="hint">Ảnh đầu tiên là ảnh đại diện của tòa. Mỗi ảnh tối đa 5MB.</span>
+            </div>
+          </div>
+        </div>
+        <div class="mf"><button class="btn btn-p" onClick="{{ save }}">Lưu</button><button class="btn btn-s" onClick="{{ closeAdd }}">Hủy</button></div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"startModal":{"editor":"enum","options":["none","create"],"default":"none"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { view: 'kanban', panel: false, q: '', fMgr: [], modal: props.startModal === 'create', fName: '', fAddr: '', fFloors: '1', tried: false, extra: [] };
+  }
+  renderVals() {
+    const s = this.state;
+    const base = [
+      { name: 'Housify Cầu Giấy', address: '12 Trần Thái Tông, Cầu Giấy, Hà Nội', floorCount: 5, total: 4, available: 1, occupied: 2, maintenance: 1, manager: 'Trần Văn Tùng', img: true },
+      { name: 'Housify Đống Đa', address: '25 Tây Sơn, Đống Đa, Hà Nội', floorCount: 4, total: 0, available: 0, occupied: 0, maintenance: 0, manager: 'Lê Thị Hoa', img: true },
+      { name: 'Housify Thanh Xuân', address: '88 Nguyễn Trãi, Thanh Xuân, Hà Nội', floorCount: 3, total: 1, available: 1, occupied: 0, maintenance: 0, manager: '', img: false }
+    ].concat(s.extra);
+    const q = s.q.trim().toLowerCase();
+    const list = base.filter((b) => {
+      if (q && !(b.name.toLowerCase().includes(q) || b.address.toLowerCase().includes(q))) return false;
+      if (s.fMgr.length === 1 && s.fMgr[0] === 'has' && !b.manager) return false;
+      if (s.fMgr.length === 1 && s.fMgr[0] === 'none' && b.manager) return false;
+      return true;
+    }).sort((a, b) => a.name.localeCompare(b.name)).map((b) => ({
+      ...b, hasImg: b.img, noImg: !b.img, hasMgr: !!b.manager, noMgr: !b.manager,
+      managerText: b.manager || 'Chưa có Manager',
+      mgrIni: b.manager ? b.manager.split(' ').slice(-2).map((w) => w[0]).join('') : ''
+    }));
+    const L = { has: 'Đã có Manager', none: 'Chưa có Manager' };
+    const tog = (v) => () => this.setState({ fMgr: s.fMgr.includes(v) ? s.fMgr.filter((x) => x !== v) : [...s.fMgr, v] });
+    const mgrOpts = ['has', 'none'].map((v) => ({ label: L[v], on: s.fMgr.includes(v), cls: s.fMgr.includes(v) ? 'box-on' : '', pick: tog(v) }));
+    const facets = s.fMgr.length ? [{ label: s.fMgr.map((x) => L[x]).join(' hoặc '), remove: () => this.setState({ fMgr: [] }) }] : [];
+    const nameEmpty = s.tried && !s.fName.trim();
+    const nameDup = s.tried && base.some((b) => b.name.toLowerCase() === s.fName.trim().toLowerCase());
+    const addrEmpty = s.tried && !s.fAddr.trim();
+    return {
+      q: s.q, onQ: (e) => this.setState({ q: e.target.value }),
+      panel: s.panel, togglePanel: () => this.setState({ panel: !s.panel }),
+      facets, mgrOpts, list, empty: list.length === 0,
+      countText: list.length + ' tòa nhà',
+      isKanban: s.view === 'kanban', isList: s.view === 'list',
+      kbOn: s.view === 'kanban' ? 'vs-on' : '', lsOn: s.view === 'list' ? 'vs-on' : '',
+      setKanban: () => this.setState({ view: 'kanban' }), setList: () => this.setState({ view: 'list' }),
+      modal: s.modal,
+      openAdd: () => this.setState({ modal: true, tried: false, fName: '', fAddr: '', fFloors: '1' }),
+      closeAdd: () => this.setState({ modal: false }),
+      fName: s.fName, fAddr: s.fAddr, fFloors: s.fFloors,
+      onName: (e) => this.setState({ fName: e.target.value }),
+      onAddr: (e) => this.setState({ fAddr: e.target.value }),
+      onFloors: (e) => this.setState({ fFloors: e.target.value }),
+      hasNameErr: nameEmpty || nameDup, nameErr: nameEmpty ? 'Vui lòng nhập tên tòa nhà' : 'Tên tòa nhà đã tồn tại',
+      nameErrCls: nameEmpty || nameDup ? 'inp-err' : '',
+      hasAddrErr: addrEmpty, addrErrCls: addrEmpty ? 'inp-err' : '',
+      save: () => {
+        const n = s.fName.trim(); const a = s.fAddr.trim();
+        if (!n || !a || base.some((b) => b.name.toLowerCase() === n.toLowerCase())) { this.setState({ tried: true }); return; }
+        this.setState({ modal: false, extra: [...s.extra, { name: n, address: a, floorCount: Number(s.fFloors) || 1, total: 0, available: 0, occupied: 0, maintenance: 0, manager: '', img: false }] });
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>
