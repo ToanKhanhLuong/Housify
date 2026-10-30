@@ -36,10 +36,12 @@ export const createBuildingSchema = Joi.object({
       "any.required": "Vui lòng nhập địa chỉ tòa nhà",
     }),
 
-  floorCount: Joi.number().integer().min(1).default(1).messages({
+  // UC-12: số tầng bắt buộc nhập lúc tạo
+  floorCount: Joi.number().integer().min(1).required().messages({
     "number.base": "Số tầng phải là số nguyên",
     "number.integer": "Số tầng phải là số nguyên",
     "number.min": "Số tầng phải lớn hơn hoặc bằng 1",
+    "any.required": "Vui lòng nhập số tầng",
   }),
 
   description: Joi.string()
