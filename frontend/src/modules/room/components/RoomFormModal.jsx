@@ -18,9 +18,13 @@ const STATUS_OPTIONS = [ROOM_STATUS.AVAILABLE, ROOM_STATUS.MAINTENANCE].map((sta
   label: ROOM_STATUS_LABEL[status].label,
 }));
 
-const RoomFormModal = ({ room, building, roomTypes, onHide, onSaved }) => {
+// building: tòa đang xem; không có (đang xem "Tất cả tòa nhà") thì form cho chọn tòa trong buildings
+const RoomFormModal = ({ room, building, buildings = [], roomTypes, onHide, onSaved }) => {
   const isEdit = Boolean(room._id);
   const isOccupied = room.status === ROOM_STATUS.OCCUPIED;
+  const chooseBuilding = !isEdit && !building;
+  const [buildingId, setBuildingId] = useState(building?._id ?? '');
+  const selectedBuilding = building ?? buildings.find((item) => item._id === buildingId);
   const [form, setForm] = useState({
     roomNumber: room.roomNumber ?? '',
     floorNumber: room.floorNumber ? String(room.floorNumber) : '',
@@ -35,7 +39,7 @@ const RoomFormModal = ({ room, building, roomTypes, onHide, onSaved }) => {
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
-  const floorOptions = Array.from({ length: building?.floorCount ?? 0 }, (_, index) => ({
+  const floorOptions = Array.from({ length: selectedBuilding?.floorCount ?? 0 }, (_, index) => ({
     value: String(index + 1),
     label: `Tầng ${index + 1}`,
   }));
@@ -43,9 +47,16 @@ const RoomFormModal = ({ room, building, roomTypes, onHide, onSaved }) => {
 
   const handleChange = (event) => setForm({ ...form, [event.target.name]: event.target.value });
 
+  // đổi tòa thì chọn lại tầng (mỗi tòa số tầng khác nhau)
+  const handleChangeBuilding = (event) => {
+    setBuildingId(event.target.value);
+    setForm({ ...form, floorNumber: '' });
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     const clientErrors = validateRoom(form, isEdit);
+    if (chooseBuilding && !buildingId) clientErrors.buildingId = 'Vui lòng chọn tòa nhà';
     setErrors(clientErrors);
     if (hasErrors(clientErrors)) return;
 
@@ -65,7 +76,7 @@ const RoomFormModal = ({ room, building, roomTypes, onHide, onSaved }) => {
     try {
       const response = isEdit
         ? await roomApi.update(room._id, data)
-        : await roomApi.create(building._id, data);
+        : await roomApi.create(selectedBuilding._id, data);
       toast.success(isEdit ? 'Cập nhật phòng thành công' : 'Tạo phòng thành công');
       onSaved(response.data);
     } catch (error) {
@@ -80,11 +91,28 @@ const RoomFormModal = ({ room, building, roomTypes, onHide, onSaved }) => {
       <Form onSubmit={handleSubmit} noValidate>
         <Modal.Header closeButton={!submitting}>
           <Modal.Title className="h5">
-            {isEdit ? `Chỉnh sửa phòng ${room.roomNumber}` : `Thêm phòng · ${building?.name ?? ''}`}
+            {isEdit
+              ? `Chỉnh sửa phòng ${room.roomNumber}`
+              : building
+                ? `Thêm phòng · ${building.name}`
+                : 'Thêm phòng'}
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <Row>
+            {chooseBuilding && (
+              <Col xs={12}>
+                <Select
+                  label="Tòa nhà"
+                  name="buildingId"
+                  options={buildings.map((item) => ({ value: item._id, label: item.name }))}
+                  value={buildingId}
+                  onChange={handleChangeBuilding}
+                  error={errors.buildingId}
+                  required
+                />
+              </Col>
+            )}
             <Col md={4}>
               <Input
                 label="Mã phòng"
@@ -148,7 +176,7 @@ const RoomFormModal = ({ room, building, roomTypes, onHide, onSaved }) => {
             </Col>
             <Col md={6}>
               <Input
-                label="Giá thuê (đ/tháng)"
+                label="Giá thuê (₫/tháng)"
                 name="rentPrice"
                 type="number"
                 min={0}
@@ -161,7 +189,7 @@ const RoomFormModal = ({ room, building, roomTypes, onHide, onSaved }) => {
             </Col>
             <Col md={6}>
               <Input
-                label="Tiền cọc (đ)"
+                label="Tiền cọc (₫)"
                 name="deposit"
                 type="number"
                 min={0}

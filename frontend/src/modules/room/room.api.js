@@ -33,6 +33,12 @@ let mockRooms = [
     status: ROOM_STATUS.OCCUPIED,
     contractStatus: CONTRACT_STATUS.ACTIVE,
     occupantCount: 2,
+    // ảnh mẫu chỉ để xem khung ảnh khi chưa nối Cloudinary; BE thật trả url Cloudinary
+    images: [
+      'https://picsum.photos/id/1068/1200/800',
+      'https://picsum.photos/id/1048/1200/800',
+      'https://picsum.photos/id/1076/1200/800',
+    ],
   },
   {
     _id: 'r2',
@@ -75,6 +81,7 @@ let mockRooms = [
     status: ROOM_STATUS.OCCUPIED,
     contractStatus: CONTRACT_STATUS.ACTIVE,
     occupantCount: 3,
+    images: ['https://picsum.photos/id/1059/1200/800'],
   },
   {
     _id: 'r5',
@@ -109,10 +116,11 @@ const toResponse = (room) => {
   return response;
 };
 
+// buildingId rỗng: phòng của mọi tòa (GET /rooms)
 const mockList = (buildingId, { floor, status, roomTypeId } = {}) => {
   const rooms = mockRooms.filter(
     (room) =>
-      room.buildingId === buildingId &&
+      (!buildingId || room.buildingId === buildingId) &&
       (!floor || room.floorNumber === Number(floor)) &&
       (!status || room.status === status) &&
       (!roomTypeId || room.roomTypeId === roomTypeId),
@@ -189,6 +197,8 @@ const roomApi = {
   // UC-19: ?floor=&status=&roomTypeId=
   list: (buildingId, params) =>
     MOCK ? mockList(buildingId, params) : api.get(`/buildings/${buildingId}/rooms`, { params }),
+  // "Tất cả tòa nhà": phòng mọi tòa, mỗi phòng kèm building { _id, name }; Manager chỉ thấy tòa mình
+  listAll: (params) => (MOCK ? mockList('', params) : api.get('/rooms', { params })),
   create: (buildingId, data) =>
     MOCK ? mockCreate(buildingId, data) : api.post(`/buildings/${buildingId}/rooms`, data),
   detail: (id) =>

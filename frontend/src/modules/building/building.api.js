@@ -39,6 +39,7 @@ let mockBuildings = [
 const mockRooms = [
   {
     buildingId: 'b1',
+    _id: 'r1',
     roomNumber: 'P101',
     floorNumber: 1,
     status: ROOM_STATUS.OCCUPIED,
@@ -46,6 +47,7 @@ const mockRooms = [
   },
   {
     buildingId: 'b1',
+    _id: 'r2',
     roomNumber: 'P102',
     floorNumber: 1,
     status: ROOM_STATUS.AVAILABLE,
@@ -53,6 +55,7 @@ const mockRooms = [
   },
   {
     buildingId: 'b1',
+    _id: 'r3',
     roomNumber: 'P201',
     floorNumber: 2,
     status: ROOM_STATUS.MAINTENANCE,
@@ -60,6 +63,7 @@ const mockRooms = [
   },
   {
     buildingId: 'b1',
+    _id: 'r4',
     roomNumber: 'P301',
     floorNumber: 3,
     status: ROOM_STATUS.OCCUPIED,
@@ -67,6 +71,7 @@ const mockRooms = [
   },
   {
     buildingId: 'b2',
+    _id: 'r5',
     roomNumber: 'A101',
     floorNumber: 1,
     status: ROOM_STATUS.AVAILABLE,
@@ -177,6 +182,18 @@ const buildingApi = {
   remove: (id) => (MOCK ? mockRemove(id) : api.delete(`/buildings/${id}`)),
 
   // UC-15: tầng 1..n kèm số phòng theo trạng thái; sửa tổng số tầng
+  // sơ đồ tầng: phòng của tòa (GET /buildings/:buildingId/rooms trong api.md), mỗi phòng có _id, roomNumber, floorNumber, status
+  rooms: (id) =>
+    MOCK
+      ? fake(
+          roomsOf(id).map(({ _id, roomNumber, floorNumber, status }) => ({
+            _id,
+            roomNumber,
+            floorNumber,
+            status,
+          })),
+        ) // không trả hasContract (chỉ để giả lập)
+      : api.get(`/buildings/${id}/rooms`),
   floors: (id) => (MOCK ? mockFloors(id) : api.get(`/buildings/${id}/floors`)),
   updateFloorCount: (id, data) =>
     MOCK ? mockUpdateFloorCount(id, data) : api.patch(`/buildings/${id}/floor-count`, data),
