@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Button, Form, InputGroup } from 'react-bootstrap';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { BiBuildings } from 'react-icons/bi';
+import { BiBuildings, BiReset } from 'react-icons/bi';
 import PageHeader from '../../components/PageHeader';
 import DataTable from '../../components/DataTable';
 import EmptyState from '../../components/EmptyState';
@@ -110,6 +110,23 @@ const RoomListPage = () => {
     setSearchParams({ buildingId: event.target.value });
     saveBuilding(event.target.value);
     setFilters({ ...filters, floor: '' });
+  };
+
+  // có ô nào đang lọc không (Manager không đổi được tòa nên không tính tòa)
+  const isFiltered =
+    (isAdmin && Boolean(buildingId)) ||
+    Object.values(filters).some(Boolean) ||
+    price.min !== '' ||
+    price.max !== '';
+
+  // đưa mọi ô lọc về "Tất cả", kể cả tòa nhà và khoảng giá
+  const handleResetFilters = () => {
+    if (isAdmin) {
+      setSearchParams({ buildingId: '' });
+      saveBuilding('');
+    }
+    setFilters({ floor: '', roomTypeId: '', status: '' });
+    setPrice({ min: '', max: '' });
   };
 
   const floorOptions = Array.from({ length: building?.floorCount ?? 0 }, (_, index) => ({
@@ -229,6 +246,15 @@ const RoomListPage = () => {
           />
           <InputGroup.Text className="text-secondary">đ</InputGroup.Text>
         </InputGroup>
+        <Button
+          variant="secondary"
+          className="flex items-center gap-1"
+          onClick={handleResetFilters}
+          disabled={!isFiltered}
+        >
+          <BiReset size={16} />
+          Xóa bộ lọc
+        </Button>
       </div>
 
       {noRoomType && (
