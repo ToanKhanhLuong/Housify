@@ -3,6 +3,7 @@ import Building from "../../models/Building.js";
 import Contract from "../../models/Contract.js";
 import Room from "../../models/Room.js";
 import Occupant from "../../models/Occupant.js";
+import Manager from "../../models/Manager.js";
 import { AppError } from "../../utils/AppError.js";
 import {
   ROLE,
@@ -14,13 +15,61 @@ import {
 import { withTransaction } from "../../helpers/withTransaction.js";
 import { notify } from "../../helpers/notify.js";
 
+// Tên người dùng nhập có thể chứa ( ) . + … nên phải escape trước khi đưa vào regex
+const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// So tên không phân biệt hoa thường, khớp nguyên chuỗi (BR-034)
+const sameNameFilter = (name) => ({
+  $regex: new RegExp(`^${escapeRegex(name)}$`, "i"),
+});
+
+// Thêm roomCount (số phòng chưa xóa) và manager { _id, name } | null cho từng tòa (UC-13)
+// manager._id là _id của users, giống managerId
+const withDetails = async (buildings) => {
+  const buildingIds = buildings.map((building) => building._id);
+  const managerIds = buildings
+    .map((building) => building.managerId)
+    .filter(Boolean);
+
+  const [roomCounts, managers] = await Promise.all([
+    Room.aggregate([
+      { $match: { buildingId: { $in: buildingIds }, isDeleted: false } },
+      { $group: { _id: "$buildingId", count: { $sum: 1 } } },
+    ]),
+    Manager.find({ userId: { $in: managerIds } })
+      .select("userId name")
+      .lean(),
+  ]);
+
+  const roomCountByBuilding = new Map(
+    roomCounts.map((item) => [String(item._id), item.count]),
+  );
+  const managerByUser = new Map(
+    managers.map((manager) => [String(manager.userId), manager]),
+  );
+
+  return buildings.map((building) => {
+    const manager = building.managerId
+      ? managerByUser.get(String(building.managerId))
+      : null;
+
+    return {
+      ...building.toObject(),
+      roomCount: roomCountByBuilding.get(String(building._id)) ?? 0,
+      manager: manager ? { _id: building.managerId, name: manager.name } : null,
+    };
+  });
+};
+
+const withDetail = async (building) => (await withDetails([building]))[0];
+
 // 1. Tạo tòa nhà (UC-12)
 export const createBuilding = async (data) => {
   const name = data.name.trim();
 
   // Kiểm tra tên đã tồn tại chưa
   const existing = await Building.findOne({
-    name,
+    name: sameNameFilter(name),
     isDeleted: false,
   });
 
@@ -34,10 +83,10 @@ export const createBuilding = async (data) => {
     address: data.address.trim(),
     description: data.description,
     images: data.images || [],
-    floorCount: data.floorCount ?? 1,
+    floorCount: data.floorCount,
   });
 
-  return building;
+  return withDetail(building);
 };
 
 // 2. Lấy danh sách tòa nhà (UC-13)
@@ -49,9 +98,10 @@ export const getBuildings = async (user) => {
     filter.managerId = user.id;
   }
 
-  const buildings = await Building.find(filter);
+  // Tòa mới tạo hiện trước
+  const buildings = await Building.find(filter).sort({ createdAt: -1 });
 
-  return buildings;
+  return withDetails(buildings);
 };
 
 // 3. Lấy chi tiết tòa nhà (UC-13)
@@ -73,7 +123,7 @@ export const getBuildingById = async (id, user) => {
     }
   }
 
-  return building;
+  return withDetail(building);
 };
 
 // 4. Cập nhật tòa nhà (UC-13)
@@ -92,9 +142,9 @@ export const updateBuilding = async (id, data) => {
   if (data.name !== undefined) {
     const name = data.name.trim();
 
-    if (name !== building.name) {
+    if (name.toLowerCase() !== building.name.toLowerCase()) {
       const existing = await Building.findOne({
-        name,
+        name: sameNameFilter(name),
         isDeleted: false,
         _id: { $ne: id },
       });
@@ -123,7 +173,7 @@ export const updateBuilding = async (id, data) => {
   // Lưu thay đổi vào MongoDB
   await building.save();
 
-  return building;
+  return withDetail(building);
 };
 
 // 5. Xóa mềm tòa nhà (UC-14)
@@ -143,33 +193,35 @@ export const deleteBuilding = async (id) => {
     throw new AppError("Vui lòng gỡ Manager trước khi xóa", 400);
   }
 
-  // Lấy danh sách phòng thuộc tòa nhà
-  const rooms = await Room.find({
-    buildingId: id,
-    isDeleted: false,
-  });
-
-  const roomIds = rooms.map((room) => room._id);
-
-  // Kiểm tra hợp đồng DRAFT hoặc ACTIVE
-  const activeContracts = await Contract.find({
-    roomId: { $in: roomIds },
-    status: { $in: [CONTRACT_STATUS.DRAFT, CONTRACT_STATUS.ACTIVE] },
-  }).populate("roomId", "roomNumber");
-
-  if (activeContracts.length > 0) {
-    const stuckRooms = activeContracts.map((c) => c.roomId.roomNumber);
-
-    throw new AppError(
-      `Không thể xóa vì các phòng sau đang có hợp đồng: ${stuckRooms.join(", ")}`,
-      400,
-    );
-  }
-
-  // Xóa mềm tòa nhà và các phòng cùng lúc
+  // Kiểm tra hợp đồng và xóa mềm trong cùng 1 transaction: lỗi giữa chừng thì không thay đổi gì
   const now = new Date();
 
   await withTransaction(async (session) => {
+    // Lấy danh sách phòng thuộc tòa nhà
+    const roomIds = await Room.find({ buildingId: id, isDeleted: false })
+      .session(session)
+      .distinct("_id");
+
+    // Kiểm tra hợp đồng DRAFT hoặc ACTIVE
+    const activeContracts = await Contract.find({
+      roomId: { $in: roomIds },
+      status: { $in: [CONTRACT_STATUS.DRAFT, CONTRACT_STATUS.ACTIVE] },
+    })
+      .populate("roomId", "roomNumber")
+      .session(session);
+
+    if (activeContracts.length > 0) {
+      const stuckRooms = activeContracts.map(
+        (contract) => contract.roomId.roomNumber,
+      );
+
+      throw new AppError(
+        `Không thể xóa vì các phòng sau đang có hợp đồng: ${stuckRooms.join(", ")}`,
+        400,
+      );
+    }
+
+    // Xóa mềm tòa nhà và các phòng cùng lúc
     building.isDeleted = true;
     building.deletedAt = now;
 
@@ -259,7 +311,7 @@ export const updateFloorCount = async (id, floorCount) => {
   building.floorCount = floorCount;
   await building.save();
 
-  return building;
+  return withDetail(building);
 };
 
 // 8. Lấy nội quy tòa nhà (UC-23 - Admin xem mọi tòa, Manager xem tòa mình, Customer xem tòa đang ở)

@@ -67,12 +67,20 @@ Chỉ Admin (Manager, Customer gọi → 403). Id sai định dạng → 404 nh�
 
 | Method             | Path                           | Role           | Ghi chú                                   |
 | ------------------ | ------------------------------ | -------------- | ------------------------------------------ |
-| GET                | `/buildings`                 | A M            | Manager chỉ thấy tòa mình              |
-| POST               | `/buildings`                 | A              | `{ name, address, description, images }` |
-| GET / PUT / DELETE | `/buildings/:id`             | A (GET: A M)   |                                            |
-| GET                | `/buildings/:id/floors`      | A M            | Tầng 1..n + số phòng theo trạng thái  |
-| PATCH              | `/buildings/:id/floor-count` | A              | `{ floorCount }`                         |
-| GET / PUT          | `/buildings/:id/rules`       | A (GET: A M C) | `{ rules }`                              |
+| GET                | `/buildings`                 | A M            | Tòa chưa xóa, mới tạo trước; Manager chỉ thấy tòa mình (mảng rỗng nếu chưa được phân công). Không phân trang, `data` là mảng **tòa** (dạng ở dưới bảng) |
+| POST               | `/buildings`                 | A              | `{ name, address, floorCount, description?, images? }` – `name` 2–100 ký tự, `address` 5–255, `floorCount` số nguyên ≥ 1 (bắt buộc, UC-12), `description` ≤ 1000 không chứa `<` `>`, `images` mảng url từ `POST /uploads`. 201 trả **tòa**. Lỗi: 409 "Tên tòa nhà đã tồn tại" (so không phân biệt hoa thường, trong các tòa chưa xóa – BR-034); 422 thiếu / sai định dạng |
+| GET                | `/buildings/:id`             | A M            | Trả **tòa**. Lỗi: 404 "Tòa nhà không tồn tại" (gồm tòa đã xóa); 403 "Bạn không có quyền xem tòa nhà này" (Manager mở tòa khác) |
+| PUT                | `/buildings/:id`             | A              | Gửi field muốn đổi: `name, address, description, images` (ít nhất 1). Không sửa số tầng (dùng `floor-count`) và Manager (dùng `PUT /buildings/:id/manager`). Trả **tòa**. Lỗi: 404; 409 "Tên tòa nhà đã tồn tại"; 422 |
+| DELETE             | `/buildings/:id`             | A              | Xóa mềm tòa và toàn bộ phòng của tòa (1 transaction). Lỗi: 400 "Vui lòng gỡ Manager trước khi xóa"; 400 "Không thể xóa vì các phòng sau đang có hợp đồng: P101, P102" (hợp đồng DRAFT hoặc ACTIVE – UC-14); 404 |
+| GET                | `/buildings/:id/floors`      | A M            | `[{ floorNumber, roomCount, statusCounts: { AVAILABLE, OCCUPIED, MAINTENANCE } }]` – tầng 1..`floorCount`, chỉ đếm phòng chưa xóa. Lỗi: 404; 403 như GET chi tiết |
+| PATCH              | `/buildings/:id/floor-count` | A              | `{ floorCount }` số nguyên ≥ 1. "Xóa tầng" (UC-15 A2) = gửi `floorCount` giảm 1. Trả **tòa**. Lỗi: 400 "Không thể giảm số tầng: còn [n] phòng ở các tầng bị bỏ" (BR-042); 404; 422 |
+| GET                | `/buildings/:id/rules`       | A M C          | `{ rules }` – chuỗi rỗng nếu chưa có. Manager chỉ tòa mình (403 "Bạn không có quyền xem nội quy của tòa nhà này"). Customer chỉ tòa đang ở theo hợp đồng ACTIVE (403 "Bạn chưa có phòng đang thuê" / "Bạn không có hợp đồng đang hiệu lực" / "Bạn chỉ được xem nội quy của tòa nhà mình đang ở"). Lỗi: 404 |
+| PUT                | `/buildings/:id/rules`       | A              | `{ rules }` không rỗng, ghi đè bản cũ (BR-060). Trả `{ rules }`. Tòa có Manager thì Manager nhận chuông ANNOUNCEMENT "Nội quy mới" (`refId` = id tòa). Lỗi: 404; 422 "Nội quy không được để trống" |
+
+**Tòa** (dạng trả về ở danh sách, chi tiết, tạo, sửa, đổi số tầng): `{ _id, name, address, description, images, floorCount, rules, managerId, manager: { _id, name } | null, roomCount, isDeleted, createdAt, updatedAt }` – `roomCount` = số phòng chưa xóa; `manager._id` là `_id` của users (giống `managerId`).
+
+- `:id` sai định dạng ObjectId → 422, `errors: [{ field: 'id', message: 'Mã tòa nhà không đúng định dạng' }]`.
+- Customer chưa có cách lấy `_id` tòa đang ở để gọi `GET /buildings/:id/rules` (`/auth/me` của Customer trả `building: null`) – **chưa chốt**, cần An quyết.
 
 ## Phòng, loại phòng – `room`, `roomType` (UC-16..20)
 
