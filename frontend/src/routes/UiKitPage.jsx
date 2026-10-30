@@ -18,6 +18,8 @@ import FilterSelect from '../components/FilterSelect';
 import ConfirmModal from '../components/ConfirmModal';
 import ImageUpload from '../components/ImageUpload';
 import EmptyState from '../components/EmptyState';
+import ErrorState from '../components/ErrorState';
+import SkeletonRows from '../components/SkeletonRows';
 import Loading from '../components/Loading';
 import { CONTRACT_STATUS } from '../constants/enums';
 import { PHONE_REGEX } from '../constants/regex';
@@ -233,8 +235,18 @@ const UiKitPage = () => {
                             </Section>
                         </Col>
                         <Col md={6}>
-                            <Section title="Trống và đang tải">
-                                <EmptyState message="Không tìm thấy phòng phù hợp" />
+                            <Section title="Trống, đang tải, lỗi">
+                                <EmptyState message="Chưa có phòng nào. Bấm Thêm phòng để bắt đầu.">
+                                    <Button variant="secondary" size="sm">
+                                        Thêm phòng
+                                    </Button>
+                                </EmptyState>
+                                <SkeletonRows rows={2} columns={3} media />
+                                <ErrorState
+                                    message="Không tải được danh sách phòng."
+                                    detail="Không kết nối được máy chủ"
+                                    onRetry={() => toast.info('Tải lại')}
+                                />
                                 <Loading />
                             </Section>
                         </Col>

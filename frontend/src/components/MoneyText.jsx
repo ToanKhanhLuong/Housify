@@ -1,4 +1,4 @@
-// Hiện số tiền đã định dạng, không bị xuống dòng: <MoneyText value={room.price} /> → 1.200.000 đ
+// Hiện số tiền đã định dạng, không bị xuống dòng: <MoneyText value={room.price} /> → 1.200.000 ₫
 import { formatMoney } from '../utils/format';
 
 const MoneyText = ({ value, className = '' }) => (

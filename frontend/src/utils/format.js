@@ -7,9 +7,9 @@ const toDate = (value) => {
     return Number.isNaN(date.getTime()) ? null : date;
 };
 
-// 1200000 → "1.200.000 đ"
+// 1200000 → "1.200.000 ₫"
 export const formatMoney = (value) =>
-    typeof value === 'number' ? `${new Intl.NumberFormat('vi-VN').format(value)} đ` : EMPTY;
+    typeof value === 'number' ? `${new Intl.NumberFormat('vi-VN').format(value)} ₫` : EMPTY;
 
 // "2026-10-21T..." → "21/10/2026"
 export const formatDate = (value) => toDate(value)?.toLocaleDateString('vi-VN') ?? EMPTY;

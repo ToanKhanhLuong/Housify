@@ -1,10 +1,11 @@
 // UC-23: Admin soạn nội quy tòa nhà trên ô văn bản, "Lưu & Đăng" ghi đè bản cũ và báo Manager của tòa
 // A1: bấm Hủy thì trả lại nội quy hiện hành, không lưu gì
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Alert, Button, Form, Spinner } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import Input from '../../../components/Input';
-import Loading from '../../../components/Loading';
+import ErrorState from '../../../components/ErrorState';
+import SkeletonRows from '../../../components/SkeletonRows';
 import { hasErrors, toFieldErrors } from '../../../utils/formErrors';
 import buildingApi from '../building.api';
 import { validateRules } from '../building.validate';
@@ -13,19 +14,32 @@ const BuildingRulesTab = ({ building }) => {
   const [savedRules, setSavedRules] = useState(''); // bản đang áp dụng
   const [rules, setRules] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
+  const loadRules = useCallback(
+    () =>
+      buildingApi
+        .rules(building._id)
+        .then((response) => {
+          setSavedRules(response.data.rules ?? '');
+          setRules(response.data.rules ?? '');
+          setLoadError('');
+        })
+        .catch((error) => setLoadError(error.message))
+        .finally(() => setLoading(false)),
+    [building._id],
+  );
+
   useEffect(() => {
-    buildingApi
-      .rules(building._id)
-      .then((response) => {
-        setSavedRules(response.data.rules ?? '');
-        setRules(response.data.rules ?? '');
-      })
-      .catch((error) => toast.error(error.message))
-      .finally(() => setLoading(false));
-  }, [building._id]);
+    loadRules();
+  }, [loadRules]);
+
+  const handleRetry = () => {
+    setLoading(true);
+    loadRules();
+  };
 
   const isChanged = rules !== savedRules;
 
@@ -56,7 +70,12 @@ const BuildingRulesTab = ({ building }) => {
     }
   };
 
-  if (loading) return <Loading />;
+  if (loading) return <SkeletonRows rows={4} columns={1} />;
+  if (loadError) {
+    return (
+      <ErrorState message="Không tải được nội quy." detail={loadError} onRetry={handleRetry} />
+    );
+  }
 
   return (
     <Form onSubmit={handleSubmit} noValidate>

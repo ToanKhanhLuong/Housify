@@ -176,7 +176,7 @@ const RoomFormModal = ({ room, building, buildings = [], roomTypes, onHide, onSa
             </Col>
             <Col md={6}>
               <Input
-                label="Giá thuê (đ/tháng)"
+                label="Giá thuê (₫/tháng)"
                 name="rentPrice"
                 type="number"
                 min={0}
@@ -189,7 +189,7 @@ const RoomFormModal = ({ room, building, buildings = [], roomTypes, onHide, onSa
             </Col>
             <Col md={6}>
               <Input
-                label="Tiền cọc (đ)"
+                label="Tiền cọc (₫)"
                 name="deposit"
                 type="number"
                 min={0}

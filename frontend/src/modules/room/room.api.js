@@ -33,6 +33,12 @@ let mockRooms = [
     status: ROOM_STATUS.OCCUPIED,
     contractStatus: CONTRACT_STATUS.ACTIVE,
     occupantCount: 2,
+    // ảnh mẫu chỉ để xem khung ảnh khi chưa nối Cloudinary; BE thật trả url Cloudinary
+    images: [
+      'https://picsum.photos/id/1068/1200/800',
+      'https://picsum.photos/id/1048/1200/800',
+      'https://picsum.photos/id/1076/1200/800',
+    ],
   },
   {
     _id: 'r2',
@@ -75,6 +81,7 @@ let mockRooms = [
     status: ROOM_STATUS.OCCUPIED,
     contractStatus: CONTRACT_STATUS.ACTIVE,
     occupantCount: 3,
+    images: ['https://picsum.photos/id/1059/1200/800'],
   },
   {
     _id: 'r5',

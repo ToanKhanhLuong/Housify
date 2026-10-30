@@ -1,22 +1,25 @@
 // UC-19: chi tiết phòng. Admin có nút "Chỉnh sửa" (UC-17), "Xóa" (UC-18); Manager chỉ xem (BR-052)
 // Hợp đồng hiện tại, cư dân, lịch sử hợp đồng lấy từ module contract / occupant – bổ sung ở iter 3
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Card, Image } from 'react-bootstrap';
+import { Button, Card } from 'react-bootstrap';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import PageHeader from '../../components/PageHeader';
 import FieldRow from '../../components/FieldRow';
-import Loading from '../../components/Loading';
+import ErrorState from '../../components/ErrorState';
+import SkeletonRows from '../../components/SkeletonRows';
 import EmptyState from '../../components/EmptyState';
 import ConfirmModal from '../../components/ConfirmModal';
 import MoneyText from '../../components/MoneyText';
-import StatusBadge from '../../components/StatusBadge';
+import StatusSteps from '../../components/StatusSteps';
 import { useAuth } from '../../context/AuthContext';
-import { ROLE } from '../../constants/enums';
+import { ROLE, ROOM_STATUS } from '../../constants/enums';
 import { ROOM_STATUS_LABEL } from '../../constants/statusLabels';
 import { formatDate } from '../../utils/format';
 import roomApi from './room.api';
 import RoomFormModal from './components/RoomFormModal';
+import RoomFloorMap from './components/RoomFloorMap';
+import RoomGallery from './components/RoomGallery';
 
 const RoomDetailPage = () => {
   const { id } = useParams();
@@ -26,6 +29,7 @@ const RoomDetailPage = () => {
 
   const [room, setRoom] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null); // { notFound, message } khi tải lỗi
   const [roomTypes, setRoomTypes] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
@@ -35,8 +39,12 @@ const RoomDetailPage = () => {
     () =>
       roomApi
         .detail(id)
-        .then((response) => setRoom(response.data))
-        .catch((error) => toast.error(error.message)) // vd E01 Manager mở phòng tòa khác
+        .then((response) => {
+          setRoom(response.data);
+          setLoadError(null);
+        })
+        // 404: phòng không còn; lỗi khác (vd E01 Manager mở phòng tòa khác, mất mạng): báo kèm thử lại
+        .catch((error) => setLoadError({ notFound: error.status === 404, message: error.message }))
         .finally(() => setLoading(false)),
     [id],
   );
@@ -54,6 +62,18 @@ const RoomDetailPage = () => {
       .catch((error) => toast.error(error.message));
   }, [isAdmin]);
 
+  // phòng cùng tầng: chuyển nhanh sang phòng bên cạnh mà không phải quay lại danh sách
+  const [neighbours, setNeighbours] = useState(null); // null: đang tải
+  const buildingId = room?.buildingId;
+  const floorNumber = room?.floorNumber;
+  useEffect(() => {
+    if (!buildingId || !floorNumber) return;
+    roomApi
+      .list(buildingId, { floor: floorNumber })
+      .then((response) => setNeighbours(response.data?.items ?? response.data ?? []))
+      .catch(() => setNeighbours([]));
+  }, [buildingId, floorNumber]);
+
   const backTo = room ? `/rooms?buildingId=${room.buildingId}` : '/rooms';
 
   // UC-18: BE chặn khi phòng còn hợp đồng đang hiệu lực hoặc nháp, message nêu lý do
@@ -70,13 +90,59 @@ const RoomDetailPage = () => {
     }
   };
 
-  if (loading) return <Loading />;
-  if (!room) return <EmptyState message="Không tìm thấy phòng" />;
+  const handleRetry = () => {
+    setLoading(true);
+    loadRoom();
+  };
+
+  if (loading) {
+    // khung xương giữ đúng bố cục: tiêu đề, dải số liệu, 2 khung
+    return (
+      <div aria-busy="true" aria-label="Đang tải phòng">
+        <Card className="mb-3">
+          <SkeletonRows rows={1} columns={4} />
+        </Card>
+        <div className="grid lg:grid-cols-2 gap-3">
+          <Card>
+            <SkeletonRows rows={5} columns={2} />
+          </Card>
+          <Card>
+            <SkeletonRows rows={3} columns={1} />
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError?.notFound || (!loadError && !room)) {
+    return (
+      <EmptyState message="Không tìm thấy phòng. Có thể phòng đã bị xóa.">
+        <Button variant="secondary" onClick={() => navigate('/rooms')}>
+          Về danh sách phòng
+        </Button>
+      </EmptyState>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <Card>
+        <ErrorState
+          message="Không tải được thông tin phòng."
+          detail={loadError.message}
+          onRetry={handleRetry}
+        />
+      </Card>
+    );
+  }
 
   return (
     <>
+      {/* h1 là tên phòng, dòng phụ nói phòng ở đâu; trạng thái bên phải như thanh trạng thái kiểu Odoo */}
       <PageHeader
         backTo={backTo}
+        title={`Phòng ${room.roomNumber}`}
+        subtitle={`${room.building?.name ?? '—'} · Tầng ${room.floorNumber} · ${room.roomType?.name ?? '—'}`}
         actions={
           isAdmin && (
             <>
@@ -89,63 +155,89 @@ const RoomDetailPage = () => {
             </>
           )
         }
-      />
+      >
+        {/* thanh trạng thái kiểu Odoo: Trống › Đang thuê; Bảo trì nằm ngoài luồng nên tự hiện ở cuối */}
+        <StatusSteps
+          map={ROOM_STATUS_LABEL}
+          steps={[ROOM_STATUS.AVAILABLE, ROOM_STATUS.OCCUPIED]}
+          current={room.status}
+        />
+      </PageHeader>
 
-      <Card>
-        <Card.Body className="p-4">
-          <div className="small text-secondary">Phòng · {room.building?.name}</div>
-          <h2 className="h3 fw-semibold mb-4">{room.roomNumber}</h2>
+      {/* dải số liệu chính: giá, cọc, diện tích, sức chứa – thứ người xem phòng hỏi đầu tiên */}
+      <Card className="mb-3">
+        <Card.Body className="grid grid-cols-2 md:grid-cols-4 gap-3 px-4 py-3">
+          {[
+            ['Giá thuê / tháng', <MoneyText key="rent" value={room.rentPrice} />],
+            ['Tiền cọc', <MoneyText key="deposit" value={room.deposit} />],
+            [
+              'Diện tích',
+              <span key="area">
+                {room.area} <span className="fs-6 text-secondary">m²</span>
+              </span>,
+            ],
+            [
+              'Sức chứa tối đa',
+              <span key="capacity">
+                {room.capacity} <span className="fs-6 text-secondary">người</span>
+              </span>,
+            ],
+          ].map(([label, value]) => (
+            <div key={label}>
+              <div className="small text-secondary">{label}</div>
+              <div className="h4 fw-semibold mb-0 tabular-nums">{value}</div>
+            </div>
+          ))}
+        </Card.Body>
+      </Card>
 
-          <div className="grid lg:grid-cols-2 column-gap-5 mb-4">
-            <div>
-              <FieldRow label="Mã phòng" required>
-                {room.roomNumber}
-              </FieldRow>
-              <FieldRow label="Tòa nhà">{room.building?.name}</FieldRow>
-              <FieldRow label="Tầng" required>
-                Tầng {room.floorNumber}
-              </FieldRow>
-              <FieldRow label="Loại phòng" required>
-                {room.roomType?.name}
-              </FieldRow>
-              <FieldRow label="Trạng thái">
-                <StatusBadge map={ROOM_STATUS_LABEL} value={room.status} />
-              </FieldRow>
-            </div>
-            <div>
-              <FieldRow label="Diện tích" required>
-                {room.area} m²
-              </FieldRow>
-              <FieldRow label="Sức chứa tối đa" required>
-                {room.capacity} người
-              </FieldRow>
-              <FieldRow label="Giá thuê" required>
-                <MoneyText value={room.rentPrice} />
-              </FieldRow>
-              <FieldRow label="Tiền cọc" required>
-                <MoneyText value={room.deposit} />
-              </FieldRow>
-              <FieldRow label="Ngày tạo">{formatDate(room.createdAt)}</FieldRow>
-            </div>
-          </div>
+      {/* thông tin và ảnh: 2 khung giữ chiều cao riêng (items-start), không kéo giãn bằng nhau */}
+      <div className="grid lg:grid-cols-2 gap-3 items-start">
+        <Card>
+          <Card.Header className="fw-semibold">Thông tin phòng</Card.Header>
+          <Card.Body className="px-4 py-3">
+            <FieldRow label="Mã phòng" required>
+              {room.roomNumber}
+            </FieldRow>
+            <FieldRow label="Tòa nhà">{room.building?.name}</FieldRow>
+            <FieldRow label="Tầng" required>
+              Tầng {room.floorNumber}
+            </FieldRow>
+            <FieldRow label="Loại phòng" required>
+              {room.roomType?.name}
+            </FieldRow>
+            <FieldRow label="Ngày tạo">{formatDate(room.createdAt)}</FieldRow>
+          </Card.Body>
+        </Card>
 
-          {room.images?.length > 0 ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              {room.images.map((url) => (
-                <div
-                  key={url}
-                  className="group h-32 overflow-hidden rounded border bg-body-tertiary"
-                >
-                  <Image
-                    src={url}
-                    alt={room.roomNumber}
-                    className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105 motion-reduce:transition-none"
-                  />
-                </div>
-              ))}
-            </div>
+        <Card>
+          <Card.Header className="fw-semibold">
+            Ảnh phòng <span className="text-secondary fw-normal">({room.images?.length ?? 0})</span>
+          </Card.Header>
+          <Card.Body className="p-3">
+            {/* Admin chưa có ảnh thì bấm "Thêm ảnh" mở form sửa để tải */}
+            <RoomGallery
+              images={room.images}
+              name={`Phòng ${room.roomNumber}`}
+              onAdd={isAdmin ? () => setShowForm(true) : undefined}
+            />
+          </Card.Body>
+        </Card>
+      </div>
+
+      {/* phòng cùng tầng: phòng đang xem được viền đậm, bấm ô khác để chuyển phòng */}
+      <Card className="mt-3">
+        <Card.Header className="fw-semibold">
+          Phòng cùng tầng{' '}
+          <span className="text-secondary fw-normal">· Tầng {room.floorNumber}</span>
+        </Card.Header>
+        <Card.Body className="p-3">
+          {neighbours === null ? (
+            <SkeletonRows rows={1} columns={3} />
+          ) : neighbours.length <= 1 ? (
+            <p className="mb-0 text-secondary">Tầng {room.floorNumber} chỉ có phòng này.</p>
           ) : (
-            <div className="small text-secondary">Phòng chưa có ảnh</div>
+            <RoomFloorMap rooms={neighbours} currentId={room._id} framed={false} />
           )}
         </Card.Body>
       </Card>
