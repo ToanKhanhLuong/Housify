@@ -2,10 +2,11 @@
 import api from '../../api/axios';
 import { ROOM_STATUS } from '../../constants/enums';
 
-// BE chưa xong: xóa MOCK, mockBuildings, mockRooms, fake, fail, các hàm mock* và các nhánh giả
-// Hình dạng response chưa có trong api.md, đang tạm theo docs/database.md:
-//   tòa: field của buildings + roomCount (số phòng chưa xóa) + manager { _id, name } | null
-//   tầng: [{ floorNumber, roomCount, statusCounts: { AVAILABLE, OCCUPIED, MAINTENANCE } }]
+// Dữ liệu giả theo đúng response và câu lỗi trong docs/api.md (mục Tòa nhà, Toàn ghi ngày 30/10):
+//   tòa: { _id, name, address, description, images, floorCount, rules, managerId, manager: { _id, name } | null, roomCount, ... }
+// Bản BE trả roomCount + manager nằm trên nhánh be/feature/roomType: gộp xong thì đặt MOCK = false,
+// rồi xóa mockBuildings, mockRooms, fake, fail, các hàm mock* và các nhánh giả.
+// Riêng rooms() (sơ đồ tầng) cần BE module room – chưa có thì tab Sơ đồ tầng báo lỗi, có nút Thử lại.
 const MOCK = true;
 
 let mockBuildings = [
@@ -95,7 +96,7 @@ const isDuplicateName = (name, exceptId) =>
 
 const mockDetail = (id) => {
   const building = findBuilding(id);
-  return building ? fake(withRoomCount(building)) : fail(404, 'Không tìm thấy tòa nhà');
+  return building ? fake(withRoomCount(building)) : fail(404, 'Tòa nhà không tồn tại');
 };
 
 const mockCreate = (data) => {
@@ -120,16 +121,15 @@ const mockUpdate = (id, data) => {
   return mockDetail(id);
 };
 
-// UC-14: chặn khi còn phòng có hợp đồng đang hiệu lực / nháp, hoặc còn Manager phụ trách
+// UC-14: chặn khi còn Manager phụ trách (kiểm trước, như BE), rồi khi còn phòng có hợp đồng hiệu lực / nháp
 const mockRemove = (id) => {
   const building = findBuilding(id);
+  if (!building) return fail(404, 'Tòa nhà không tồn tại');
+  if (building.managerId) return fail(400, 'Vui lòng gỡ Manager trước khi xóa');
   const blockedRooms = roomsOf(id).filter((room) => room.hasContract);
   if (blockedRooms.length > 0) {
     const roomNumbers = blockedRooms.map((room) => room.roomNumber).join(', ');
-    return fail(400, `Không thể xóa tòa nhà vì còn phòng đang có hợp đồng: ${roomNumbers}`);
-  }
-  if (building?.managerId) {
-    return fail(400, 'Tòa nhà còn Manager phụ trách, vui lòng gỡ phân công trước khi xóa');
+    return fail(400, `Không thể xóa vì các phòng sau đang có hợp đồng: ${roomNumbers}`);
   }
   mockBuildings = mockBuildings.filter((item) => item._id !== id);
   return fake(null, 'Xóa tòa nhà thành công');
@@ -137,7 +137,7 @@ const mockRemove = (id) => {
 
 const mockFloors = (id) => {
   const building = findBuilding(id);
-  if (!building) return fail(404, 'Không tìm thấy tòa nhà');
+  if (!building) return fail(404, 'Tòa nhà không tồn tại');
   const floors = Array.from({ length: building.floorCount }, (_, index) => {
     const rooms = roomsOf(id).filter((room) => room.floorNumber === index + 1);
     const countOf = (status) => rooms.filter((room) => room.status === status).length;

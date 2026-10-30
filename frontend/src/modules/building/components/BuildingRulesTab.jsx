@@ -10,7 +10,8 @@ import { hasErrors, toFieldErrors } from '../../../utils/formErrors';
 import buildingApi from '../building.api';
 import { validateRules } from '../building.validate';
 
-const BuildingRulesTab = ({ building }) => {
+// readOnly (Manager xem tòa mình): chỉ hiện nội quy để đọc, không có ô sửa
+const BuildingRulesTab = ({ building, readOnly = false }) => {
   const [savedRules, setSavedRules] = useState(''); // bản đang áp dụng
   const [rules, setRules] = useState('');
   const [loading, setLoading] = useState(true);
@@ -74,6 +75,16 @@ const BuildingRulesTab = ({ building }) => {
   if (loadError) {
     return (
       <ErrorState message="Không tải được nội quy." detail={loadError} onRetry={handleRetry} />
+    );
+  }
+
+  if (readOnly) {
+    return savedRules ? (
+      <div className="whitespace-pre-line leading-relaxed">{savedRules}</div>
+    ) : (
+      <p className="mb-0 text-secondary">
+        Tòa nhà chưa có nội quy. Admin sẽ soạn và đăng nội quy tại đây.
+      </p>
     );
   }
 

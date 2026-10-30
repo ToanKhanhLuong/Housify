@@ -1,6 +1,7 @@
 // UC-13: chi tiết tòa nhà (Admin). Nút: "Chỉnh sửa" (UC-13), "Xóa" (UC-14)
 // Dải số liệu (tầng, phòng, lấp đầy, trống) → tờ giấy thông tin → tab "Sơ đồ tầng" (UC-15) và "Nội quy" (UC-23)
 // Phân công Manager làm ở module manager (UC-11)
+// Manager mở qua /my-building (buildingId = tòa được phân công): chỉ xem, không có nút sửa / xóa / sửa số tầng / sửa nội quy
 import { useCallback, useEffect, useState } from 'react';
 import { Button, Card, Image, Placeholder, Tab, Tabs } from 'react-bootstrap';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -11,15 +12,19 @@ import EmptyState from '../../components/EmptyState';
 import ErrorState from '../../components/ErrorState';
 import SkeletonRows from '../../components/SkeletonRows';
 import ConfirmModal from '../../components/ConfirmModal';
-import { ROOM_STATUS } from '../../constants/enums';
+import { useAuth } from '../../context/AuthContext';
+import { ROLE, ROOM_STATUS } from '../../constants/enums';
 import { formatDate } from '../../utils/format';
 import buildingApi from './building.api';
 import BuildingFormModal from './components/BuildingFormModal';
 import BuildingFloorsTab from './components/BuildingFloorsTab';
 import BuildingRulesTab from './components/BuildingRulesTab';
 
-const BuildingDetailPage = () => {
-  const { id } = useParams();
+const BuildingDetailPage = ({ buildingId }) => {
+  const params = useParams();
+  const id = buildingId ?? params.id;
+  const { user } = useAuth();
+  const isAdmin = user.role === ROLE.ADMIN;
   const navigate = useNavigate();
   // trạng thái tải: loading → ok | notFound | error
   const [state, setState] = useState({ status: 'loading', building: null, error: '' });
@@ -113,9 +118,11 @@ const BuildingDetailPage = () => {
   if (state.status === 'notFound') {
     return (
       <EmptyState message="Không tìm thấy tòa nhà. Có thể tòa đã bị xóa.">
-        <Button variant="secondary" onClick={() => navigate('/buildings')}>
-          Về danh sách tòa nhà
-        </Button>
+        {isAdmin && (
+          <Button variant="secondary" onClick={() => navigate('/buildings')}>
+            Về danh sách tòa nhà
+          </Button>
+        )}
       </EmptyState>
     );
   }
@@ -149,18 +156,20 @@ const BuildingDetailPage = () => {
   return (
     <>
       <PageHeader
-        backTo="/buildings"
+        backTo={isAdmin ? '/buildings' : undefined}
         title={building.name}
         subtitle={building.address}
         actions={
-          <>
-            <Button variant="secondary" onClick={() => setShowForm(true)}>
-              Chỉnh sửa
-            </Button>
-            <Button variant="secondary" onClick={() => setShowDelete(true)}>
-              Xóa
-            </Button>
-          </>
+          isAdmin && (
+            <>
+              <Button variant="secondary" onClick={() => setShowForm(true)}>
+                Chỉnh sửa
+              </Button>
+              <Button variant="secondary" onClick={() => setShowDelete(true)}>
+                Xóa
+              </Button>
+            </>
+          )
         }
       />
 
@@ -201,7 +210,13 @@ const BuildingDetailPage = () => {
               <FieldRow label="Manager phụ trách">
                 {building.manager?.name ?? (
                   <span className="text-secondary">
-                    Chưa có Manager · <Link to="/managers">Phân công ở Quản lý Manager</Link>
+                    Chưa có Manager
+                    {isAdmin && (
+                      <>
+                        {' · '}
+                        <Link to="/managers">Phân công ở Quản lý Manager</Link>
+                      </>
+                    )}
                   </span>
                 )}
               </FieldRow>
@@ -232,13 +247,13 @@ const BuildingDetailPage = () => {
                 building={building}
                 rooms={rooms}
                 error={roomsError}
-                canEdit
+                canEdit={isAdmin}
                 onRetry={handleRetryRooms}
                 onChanged={(updated) => setBuilding({ ...building, ...updated })}
               />
             </Tab>
             <Tab eventKey="rules" title="Nội quy">
-              <BuildingRulesTab building={building} />
+              <BuildingRulesTab building={building} readOnly={!isAdmin} />
             </Tab>
           </Tabs>
         </Card.Body>
