@@ -3,6 +3,7 @@ import Service from "../../models/Service.js";
 import ServicePrice from "../../models/ServicePrice.js";
 import Building from "../../models/Building.js";
 import { AppError } from "../../utils/AppError.js";
+import { startOfVietnamDay } from "../../helpers/date.js";
 
 // Tên người dùng nhập có thể chứa ( ) . + … nên phải escape trước khi đưa vào regex
 const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -60,10 +61,10 @@ const ensureNameAvailable = async (name, exceptId) => {
 
 // ===== UC-21: danh mục dịch vụ =====
 
-// 1. Lấy danh sách dịch vụ
+// 1. Lấy danh sách dịch vụ, mới tạo trước (giống danh sách tòa, loại phòng)
 export const getServices = async () => {
   const services = await Service.find({ isDeleted: false }).sort({
-    createdAt: 1,
+    createdAt: -1,
   });
   return services;
 };
@@ -137,10 +138,14 @@ export const saveServicePrice = async (buildingId, data, user) => {
   await findBuilding(buildingId);
   await findService(data.serviceId);
 
+  // Lưu ngày bắt đầu là 00:00 giờ Việt Nam: giá có hiệu lực ngay đầu ngày,
+  // và gửi kèm giờ phút thì vẫn tính là cùng một ngày, không sinh mức giá trùng
+  const effectiveFrom = startOfVietnamDay(data.effectiveFrom);
+
   const existing = await ServicePrice.findOne({
     serviceId: data.serviceId,
     buildingId,
-    effectiveFrom: data.effectiveFrom,
+    effectiveFrom,
   });
 
   if (existing) {
@@ -155,7 +160,7 @@ export const saveServicePrice = async (buildingId, data, user) => {
     serviceId: data.serviceId,
     buildingId,
     unitPrice: data.unitPrice,
-    effectiveFrom: data.effectiveFrom,
+    effectiveFrom,
     createdBy: user.id,
   });
 
