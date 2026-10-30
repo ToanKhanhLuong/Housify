@@ -39,10 +39,21 @@ export const listRoomsQuerySchema = Joi.object({
     "number.base": "Giá từ phải là số",
     "number.min": "Giá từ không được âm",
   }),
-  maxPrice: Joi.number().min(0).messages({
-    "number.base": "Giá đến phải là số",
-    "number.min": "Giá đến không được âm",
-  }),
+  maxPrice: Joi.number()
+    .min(0)
+    .messages({
+      "number.base": "Giá đến phải là số",
+      "number.min": "Giá đến không được âm",
+    })
+    // Có cả 2 đầu thì giá đến không được nhỏ hơn giá từ
+    .when("minPrice", {
+      is: Joi.exist(),
+      then: Joi.number()
+        .min(Joi.ref("minPrice"))
+        .messages({
+          "number.min": "Giá đến phải lớn hơn hoặc bằng giá từ",
+        }),
+    }),
 });
 
 // Các field dùng chung cho tạo và sửa phòng
