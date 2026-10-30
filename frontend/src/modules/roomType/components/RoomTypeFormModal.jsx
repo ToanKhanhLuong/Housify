@@ -1,4 +1,5 @@
 // UC-20: form thêm / sửa loại phòng. roomType = {} là thêm mới, có _id là sửa; nút "Xóa" nằm trong form sửa
+// Tên và Sức chứa (capacity ≥ 1) là bắt buộc
 import { useState } from 'react';
 import { Button, Form, Modal, Spinner } from 'react-bootstrap';
 import { toast } from 'react-toastify';
@@ -7,9 +8,12 @@ import { hasErrors, toFieldErrors } from '../../../utils/formErrors';
 import roomTypeApi from '../roomType.api';
 import { validateRoomType } from '../roomType.validate';
 
-const RoomTypeFormModal = ({ roomType, onHide, onSaved, onDelete }) => {
+const RoomTypeFormModal = ({ roomType = {}, onHide, onSaved, onDelete }) => {
   const isEdit = Boolean(roomType._id);
-  const [form, setForm] = useState({ name: roomType.name ?? '' });
+  const [form, setForm] = useState({
+    name: roomType.name ?? '',
+    capacity: roomType.capacity !== undefined ? String(roomType.capacity) : '',
+  });
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
@@ -21,14 +25,26 @@ const RoomTypeFormModal = ({ roomType, onHide, onSaved, onDelete }) => {
 
     setSubmitting(true);
     try {
-      const data = { name: form.name.trim() };
-      if (isEdit) await roomTypeApi.update(roomType._id, data);
-      else await roomTypeApi.create(data);
+      const data = {
+        name: form.name.trim(),
+        capacity: Number(form.capacity),
+      };
+      if (isEdit) {
+        await roomTypeApi.update(roomType._id, data);
+      } else {
+        await roomTypeApi.create(data);
+      }
       toast.success(isEdit ? 'Cập nhật loại phòng thành công' : 'Thêm loại phòng thành công');
       onSaved();
     } catch (error) {
       setErrors(toFieldErrors(error.errors)); // 422: lỗi hiện dưới ô
-      if (!error.errors) toast.error(error.message); // vd E01 trùng tên
+      if (error.status === 409) {
+        // Trùng tên loại phòng (409) -> hiện dưới ô tên
+        setErrors((prev) => ({ ...prev, name: error.message }));
+      } else if (!error.errors) {
+        // 400: sửa sức chứa nhỏ hơn số người đang ở, v.v.
+        toast.error(error.message);
+      }
       setSubmitting(false);
     }
   };
@@ -44,7 +60,7 @@ const RoomTypeFormModal = ({ roomType, onHide, onSaved, onDelete }) => {
             label="Tên loại phòng"
             name="name"
             value={form.name}
-            onChange={(event) => setForm({ name: event.target.value })}
+            onChange={(event) => setForm({ ...form, name: event.target.value })}
             error={errors.name}
             helpText={
               isEdit
@@ -53,6 +69,18 @@ const RoomTypeFormModal = ({ roomType, onHide, onSaved, onDelete }) => {
             }
             required
             autoFocus
+          />
+          <Input
+            label="Sức chứa tối đa (người)"
+            name="capacity"
+            type="number"
+            min={1}
+            step={1}
+            value={form.capacity}
+            onChange={(event) => setForm({ ...form, capacity: event.target.value })}
+            error={errors.capacity}
+            helpText="Sức chứa tối đa cho phép của mọi phòng thuộc loại này"
+            required
             className="mb-0"
           />
         </Modal.Body>

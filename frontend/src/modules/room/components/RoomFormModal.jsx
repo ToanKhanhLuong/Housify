@@ -1,5 +1,6 @@
-// UC-16 thêm / UC-17 sửa phòng. room = {} là thêm mới, có _id là sửa
-// Mã phòng khóa sau khi tạo (BR-046). Trạng thái chỉ sửa khi phòng Trống / Bảo trì; Đang thuê do hợp đồng quyết định
+// UC-16 thêm / UC-17 sửa phòng. room = {} hoặc undefined là thêm mới, có _id là sửa
+// Mã phòng khóa sau khi tạo. Trạng thái chỉ sửa khi phòng Trống / Bảo trì; Đang thuê chỉ đọc
+// Bỏ trường capacity, hiển thị dòng chỉ đọc sức chứa theo loại phòng đã chọn
 import { useState } from 'react';
 import { Button, Col, Form, Modal, Row, Spinner } from 'react-bootstrap';
 import { toast } from 'react-toastify';
@@ -12,25 +13,22 @@ import roomApi from '../room.api';
 import { validateRoom } from '../room.validate';
 import RoomImagesInput from './RoomImagesInput';
 
-// UC-17 A2: Admin chỉ chọn được Trống hoặc Bảo trì
+// Admin chỉ chọn được Trống hoặc Bảo trì (UC-17 A2)
 const STATUS_OPTIONS = [ROOM_STATUS.AVAILABLE, ROOM_STATUS.MAINTENANCE].map((status) => ({
   value: status,
   label: ROOM_STATUS_LABEL[status].label,
 }));
 
-// building: tòa đang xem; không có (đang xem "Tất cả tòa nhà") thì form cho chọn tòa trong buildings
-const RoomFormModal = ({ room, building, buildings = [], roomTypes, onHide, onSaved }) => {
+const RoomFormModal = ({ room = {}, building, roomTypes = [], onHide, onSaved }) => {
   const isEdit = Boolean(room._id);
   const isOccupied = room.status === ROOM_STATUS.OCCUPIED;
-  const chooseBuilding = !isEdit && !building;
-  const [buildingId, setBuildingId] = useState(building?._id ?? '');
-  const selectedBuilding = building ?? buildings.find((item) => item._id === buildingId);
+  const currentBuilding = building ?? room.building;
+
   const [form, setForm] = useState({
     roomNumber: room.roomNumber ?? '',
     floorNumber: room.floorNumber ? String(room.floorNumber) : '',
-    roomTypeId: room.roomTypeId ?? '',
+    roomTypeId: room.roomTypeId ?? room.roomType?._id ?? '',
     area: room.area ?? '',
-    capacity: room.capacity ?? '',
     rentPrice: room.rentPrice ?? '',
     deposit: room.deposit ?? '',
     status: room.status ?? ROOM_STATUS.AVAILABLE,
@@ -39,32 +37,29 @@ const RoomFormModal = ({ room, building, buildings = [], roomTypes, onHide, onSa
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
-  const floorOptions = Array.from({ length: selectedBuilding?.floorCount ?? 0 }, (_, index) => ({
+  const floorOptions = Array.from({ length: currentBuilding?.floorCount ?? 0 }, (_, index) => ({
     value: String(index + 1),
     label: `Tầng ${index + 1}`,
   }));
+
   const roomTypeOptions = roomTypes.map((type) => ({ value: type._id, label: type.name }));
 
-  const handleChange = (event) => setForm({ ...form, [event.target.name]: event.target.value });
+  // Tìm loại phòng đang chọn để hiển thị sức chứa chỉ đọc
+  const selectedRoomType = roomTypes.find((type) => type._id === form.roomTypeId);
 
-  // đổi tòa thì chọn lại tầng (mỗi tòa số tầng khác nhau)
-  const handleChangeBuilding = (event) => {
-    setBuildingId(event.target.value);
-    setForm({ ...form, floorNumber: '' });
-  };
+  const handleChange = (event) => setForm({ ...form, [event.target.name]: event.target.value });
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     const clientErrors = validateRoom(form, isEdit);
-    if (chooseBuilding && !buildingId) clientErrors.buildingId = 'Vui lòng chọn tòa nhà';
     setErrors(clientErrors);
     if (hasErrors(clientErrors)) return;
 
+    // Body gửi lên BE: TUYỆT ĐỐI KHÔNG GỬI capacity
     const data = {
       floorNumber: Number(form.floorNumber),
       roomTypeId: form.roomTypeId,
       area: Number(form.area),
-      capacity: Number(form.capacity),
       rentPrice: Number(form.rentPrice),
       deposit: Number(form.deposit),
       images: form.images,
@@ -76,12 +71,18 @@ const RoomFormModal = ({ room, building, buildings = [], roomTypes, onHide, onSa
     try {
       const response = isEdit
         ? await roomApi.update(room._id, data)
-        : await roomApi.create(selectedBuilding._id, data);
+        : await roomApi.create(currentBuilding._id, data);
       toast.success(isEdit ? 'Cập nhật phòng thành công' : 'Tạo phòng thành công');
       onSaved(response.data);
     } catch (error) {
       setErrors(toFieldErrors(error.errors)); // 422: lỗi hiện dưới từng ô
-      if (!error.errors) toast.error(error.message); // vd UC-16 E01 trùng mã, UC-17 E02 sức chứa
+      if (error.status === 409) {
+        // Trùng mã phòng
+        setErrors((prev) => ({ ...prev, roomNumber: error.message }));
+      } else if (!error.errors) {
+        // 400 / 403 / 404: toast nội dung message BE (vd: sức chứa mới không đủ chỗ)
+        toast.error(error.message);
+      }
       setSubmitting(false);
     }
   };
@@ -93,26 +94,13 @@ const RoomFormModal = ({ room, building, buildings = [], roomTypes, onHide, onSa
           <Modal.Title className="h5">
             {isEdit
               ? `Chỉnh sửa phòng ${room.roomNumber}`
-              : building
-                ? `Thêm phòng · ${building.name}`
+              : currentBuilding
+                ? `Thêm phòng · ${currentBuilding.name}`
                 : 'Thêm phòng'}
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <Row>
-            {chooseBuilding && (
-              <Col xs={12}>
-                <Select
-                  label="Tòa nhà"
-                  name="buildingId"
-                  options={buildings.map((item) => ({ value: item._id, label: item.name }))}
-                  value={buildingId}
-                  onChange={handleChangeBuilding}
-                  error={errors.buildingId}
-                  required
-                />
-              </Col>
-            )}
+          <Row className="g-3">
             <Col md={4}>
               <Input
                 label="Mã phòng"
@@ -120,7 +108,7 @@ const RoomFormModal = ({ room, building, buildings = [], roomTypes, onHide, onSa
                 value={form.roomNumber}
                 onChange={handleChange}
                 error={errors.roomNumber}
-                helpText={isEdit ? 'Mã phòng không đổi được sau khi tạo' : undefined}
+                helpText={isEdit ? 'Mã phòng không sửa được sau khi tạo' : undefined}
                 disabled={isEdit}
                 readOnly={isEdit}
                 required
@@ -147,8 +135,13 @@ const RoomFormModal = ({ room, building, buildings = [], roomTypes, onHide, onSa
                 error={errors.roomTypeId}
                 required
               />
+              {selectedRoomType && (
+                <div className="small text-secondary mt-1">
+                  Sức chứa: tối đa {selectedRoomType.capacity ?? '—'} người (theo loại phòng)
+                </div>
+              )}
             </Col>
-            <Col md={6}>
+            <Col md={4}>
               <Input
                 label="Diện tích (m²)"
                 name="area"
@@ -161,20 +154,7 @@ const RoomFormModal = ({ room, building, buildings = [], roomTypes, onHide, onSa
                 required
               />
             </Col>
-            <Col md={6}>
-              <Input
-                label="Sức chứa tối đa (người)"
-                name="capacity"
-                type="number"
-                min={1}
-                step={1}
-                value={form.capacity}
-                onChange={handleChange}
-                error={errors.capacity}
-                required
-              />
-            </Col>
-            <Col md={6}>
+            <Col md={4}>
               <Input
                 label="Giá thuê (₫/tháng)"
                 name="rentPrice"
@@ -183,11 +163,11 @@ const RoomFormModal = ({ room, building, buildings = [], roomTypes, onHide, onSa
                 value={form.rentPrice}
                 onChange={handleChange}
                 error={errors.rentPrice}
-                helpText={isEdit ? 'Giá mới chỉ áp dụng cho hợp đồng tạo sau này' : undefined}
+                helpText={isEdit ? 'Giá mới chỉ áp dụng cho hợp đồng sau này' : undefined}
                 required
               />
             </Col>
-            <Col md={6}>
+            <Col md={4}>
               <Input
                 label="Tiền cọc (₫)"
                 name="deposit"

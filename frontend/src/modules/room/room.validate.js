@@ -1,34 +1,40 @@
 // Kiểm tra dữ liệu nhập form phòng (UC-16, UC-17). Trả { field: message }, rỗng là hợp lệ
-// Chỉ để người dùng thấy lỗi ngay; BE vẫn kiểm tra lại (trùng mã phòng, sức chứa < số người đang ở…)
+// Sức chứa đã chuyển sang loại phòng, phòng không còn capacity
 
 const isBlank = (value) => value === '' || value === null || value === undefined;
 
-// số > 0 (diện tích, giá thuê, tiền cọc – BR-045)
-const positiveError = (value, name) => {
-  if (isBlank(value)) return `Vui lòng nhập ${name}`;
-  return Number(value) > 0 ? '' : `${name[0].toUpperCase()}${name.slice(1)} phải lớn hơn 0`;
-};
-
 export const validateRoom = (form, isEdit) => {
   const errors = {};
-  if (!isEdit && !form.roomNumber.trim()) errors.roomNumber = 'Vui lòng nhập mã phòng';
-  if (!form.floorNumber) errors.floorNumber = 'Vui lòng chọn tầng';
-  if (!form.roomTypeId) errors.roomTypeId = 'Vui lòng chọn loại phòng';
+  if (!isEdit && !String(form.roomNumber ?? '').trim()) {
+    errors.roomNumber = 'Vui lòng nhập mã phòng';
+  }
+  if (!form.floorNumber) {
+    errors.floorNumber = 'Vui lòng chọn tầng';
+  }
+  if (!form.roomTypeId) {
+    errors.roomTypeId = 'Vui lòng chọn loại phòng';
+  }
 
-  const fields = [
-    ['area', 'diện tích'],
-    ['rentPrice', 'giá thuê'],
-    ['deposit', 'tiền cọc'],
-  ];
-  fields.forEach(([field, name]) => {
-    const error = positiveError(form[field], name);
-    if (error) errors[field] = error;
-  });
+  // Diện tích > 0
+  if (isBlank(form.area)) {
+    errors.area = 'Vui lòng nhập diện tích';
+  } else if (!(Number(form.area) > 0)) {
+    errors.area = 'Diện tích phải lớn hơn 0';
+  }
 
-  // BR-045: sức chứa là số nguyên ≥ 1
-  if (isBlank(form.capacity)) errors.capacity = 'Vui lòng nhập sức chứa';
-  else if (!Number.isInteger(Number(form.capacity)) || Number(form.capacity) < 1)
-    errors.capacity = 'Sức chứa phải là số nguyên lớn hơn hoặc bằng 1';
+  // Giá thuê > 0
+  if (isBlank(form.rentPrice)) {
+    errors.rentPrice = 'Vui lòng nhập giá thuê';
+  } else if (!(Number(form.rentPrice) > 0)) {
+    errors.rentPrice = 'Giá thuê phải lớn hơn 0';
+  }
+
+  // Tiền cọc > 0
+  if (isBlank(form.deposit)) {
+    errors.deposit = 'Vui lòng nhập tiền cọc';
+  } else if (!(Number(form.deposit) > 0)) {
+    errors.deposit = 'Tiền cọc phải lớn hơn 0';
+  }
 
   return errors;
 };

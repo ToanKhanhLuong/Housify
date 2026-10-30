@@ -1,4 +1,4 @@
-// UC-13: danh sách tòa nhà đang hoạt động (Admin). Tab theo việc phân công Manager có số đếm, ô tìm tên / địa chỉ
+// UC-13: danh sách tòa nhà đang hoạt động (Admin). Tab theo việc phân công Manager, ô tìm tên / địa chỉ
 // Bấm dòng mở chi tiết; "Thêm tòa nhà" mở form UC-12
 import { useCallback, useEffect, useState } from 'react';
 import { Button, Card, Form, InputGroup, ListGroup, Nav } from 'react-bootstrap';
@@ -12,11 +12,10 @@ import SkeletonRows from '../../components/SkeletonRows';
 import buildingApi from './building.api';
 import BuildingFormModal from './components/BuildingFormModal';
 
-// tab theo việc phân công: Admin cần thấy ngay tòa nào chưa có người phụ trách (UC-11)
 const TABS = [
-  { key: 'all', label: 'Tất cả', match: () => true },
-  { key: 'assigned', label: 'Có Manager', match: (building) => Boolean(building.manager) },
-  { key: 'unassigned', label: 'Chưa có Manager', match: (building) => !building.manager },
+  { key: 'all', label: 'Tất cả' },
+  { key: 'assigned', label: 'Có Manager' },
+  { key: 'unassigned', label: 'Chưa có Manager' },
 ];
 
 const BuildingListPage = () => {
@@ -27,44 +26,33 @@ const BuildingListPage = () => {
   const [keyword, setKeyword] = useState('');
   const [showForm, setShowForm] = useState(false);
 
-  const loadBuildings = useCallback(
-    () =>
-      buildingApi
-        .list()
-        .then((response) => {
-          setBuildings(response.data?.items ?? response.data ?? []);
-          setLoadError('');
-        })
-        .catch((error) => {
-          setBuildings([]);
-          setLoadError(error.message);
-        }),
-    [],
-  );
+  const loadBuildings = useCallback(() => {
+    const params = {};
+    if (keyword.trim()) params.q = keyword.trim();
+    if (tab === 'assigned') params.hasManager = 'true';
+    if (tab === 'unassigned') params.hasManager = 'false';
+
+    buildingApi
+      .list(params)
+      .then((response) => {
+        setBuildings(Array.isArray(response.data) ? response.data : []);
+        setLoadError('');
+      })
+      .catch((error) => {
+        setBuildings([]);
+        setLoadError(error.message);
+      });
+  }, [keyword, tab]);
 
   useEffect(() => {
-    loadBuildings();
+    const timer = setTimeout(loadBuildings, 300);
+    return () => clearTimeout(timer);
   }, [loadBuildings]);
 
   const handleRetry = () => {
     setBuildings(null);
     loadBuildings();
   };
-
-  // tìm theo tên hoặc địa chỉ → đếm theo tab → lọc theo tab đang chọn
-  const search = keyword.trim().toLowerCase();
-  const inScope = (buildings ?? []).filter(
-    (building) =>
-      !search ||
-      building.name.toLowerCase().includes(search) ||
-      building.address.toLowerCase().includes(search),
-  );
-  const counts = Object.fromEntries(
-    TABS.map((item) => [item.key, inScope.filter(item.match).length]),
-  );
-  const shown = inScope.filter(TABS.find((item) => item.key === tab).match);
-  const isFiltered = Boolean(search) || tab !== 'all';
-  const loading = buildings === null;
 
   const handleReset = () => {
     setKeyword('');
@@ -86,13 +74,28 @@ const BuildingListPage = () => {
       ),
     },
     { key: 'floorCount', title: 'Số tầng', align: 'end' },
-    { key: 'roomCount', title: 'Số phòng', align: 'end', render: (row) => row.roomCount ?? 0 },
+    {
+      key: 'roomStats',
+      title: 'Số phòng',
+      align: 'end',
+      render: (row) => (
+        <span>
+          {row.roomStats?.total ?? 0} phòng{' '}
+          <span className="small text-secondary">
+            ({row.roomStats?.available ?? 0} trống)
+          </span>
+        </span>
+      ),
+    },
     { key: 'manager', title: 'Manager phụ trách', render: managerOf },
   ];
 
-  // trống: chưa có tòa nào thì gợi ý tạo; có tòa mà lọc không ra thì gợi ý xóa lọc
+  const loading = buildings === null;
+  const isFiltered = Boolean(keyword.trim()) || tab !== 'all';
+  const shown = buildings ?? [];
+
   const renderEmpty = () =>
-    buildings.length === 0 ? (
+    !isFiltered ? (
       <EmptyState message="Chưa có tòa nhà nào. Bấm Thêm tòa nhà để bắt đầu.">
         <Button variant="secondary" onClick={() => setShowForm(true)}>
           Thêm tòa nhà
@@ -148,7 +151,7 @@ const BuildingListPage = () => {
                 <div className="flex items-center justify-between gap-2">
                   <span className="fw-semibold">{building.name}</span>
                   <span className="small text-secondary whitespace-nowrap tabular-nums">
-                    {building.floorCount} tầng · {building.roomCount ?? 0} phòng
+                    {building.floorCount} tầng · {building.roomStats?.total ?? 0} phòng ({building.roomStats?.available ?? 0} trống)
                   </span>
                 </div>
                 <div className="text-secondary truncate">{building.address}</div>
@@ -168,7 +171,7 @@ const BuildingListPage = () => {
         subtitle={
           loading || loadError
             ? undefined
-            : `${counts.all} tòa · ${counts.unassigned} tòa chưa có Manager`
+            : `${shown.length} tòa nhà`
         }
         actions={
           <Button variant="primary" onClick={() => setShowForm(true)}>
@@ -177,7 +180,7 @@ const BuildingListPage = () => {
         }
       />
 
-      {/* hàng trên: tab có số đếm; bên phải: số tòa + xóa bộ lọc khi đang lọc */}
+      {/* hàng trên: tab lọc theo trạng thái phân công Manager */}
       <div className="flex items-center gap-3 border-bottom mb-3">
         <div className="min-w-0 flex-1 overflow-x-auto">
           <Nav variant="underline" className="flex-nowrap" activeKey={tab} onSelect={setTab}>
@@ -188,9 +191,6 @@ const BuildingListPage = () => {
                   className={`flex items-center gap-2 whitespace-nowrap ${tab === item.key ? '' : 'text-secondary'}`}
                 >
                   {item.label}
-                  <span className="small text-secondary tabular-nums">
-                    {loading ? '…' : counts[item.key]}
-                  </span>
                 </Nav.Link>
               </Nav.Item>
             ))}
@@ -218,29 +218,25 @@ const BuildingListPage = () => {
             <Button
               variant="secondary"
               size="sm"
-              className="flex items-center gap-1 whitespace-nowrap"
               onClick={handleReset}
+              className="flex items-center gap-1"
             >
-              <BiReset size={16} />
+              <BiReset />
               Xóa bộ lọc
             </Button>
-          )}
-          {!loading && !loadError && (
-            <span className="text-secondary whitespace-nowrap tabular-nums">
-              {shown.length} tòa
-            </span>
           )}
         </div>
       </div>
 
       {renderBody()}
 
-      {/* UC-12 bước 4: tạo xong chuyển sang trang chi tiết tòa */}
       {showForm && (
         <BuildingFormModal
-          building={{}}
           onHide={() => setShowForm(false)}
-          onSaved={(building) => navigate(`/buildings/${building._id}`)}
+          onSaved={() => {
+            setShowForm(false);
+            loadBuildings();
+          }}
         />
       )}
     </>

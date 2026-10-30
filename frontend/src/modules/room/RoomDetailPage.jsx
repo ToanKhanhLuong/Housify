@@ -1,5 +1,6 @@
 // UC-19: chi tiết phòng. Admin có nút "Chỉnh sửa" (UC-17), "Xóa" (UC-18); Manager chỉ xem (BR-052)
-// Hợp đồng hiện tại, cư dân, lịch sử hợp đồng lấy từ module contract / occupant – bổ sung ở iter 3
+// Sức chứa lấy từ roomType.capacity, số người đang ở từ occupantCount
+// Nút quay lại và xóa phòng đều chuyển hướng về chi tiết tòa nhà của phòng đó
 import { useCallback, useEffect, useState } from 'react';
 import { Button, Card } from 'react-bootstrap';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -29,7 +30,7 @@ const RoomDetailPage = () => {
 
   const [room, setRoom] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(null); // { notFound, message } khi tải lỗi
+  const [loadError, setLoadError] = useState(null);
   const [roomTypes, setRoomTypes] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
@@ -43,7 +44,6 @@ const RoomDetailPage = () => {
           setRoom(response.data);
           setLoadError(null);
         })
-        // 404: phòng không còn; lỗi khác (vd E01 Manager mở phòng tòa khác, mất mạng): báo kèm thử lại
         .catch((error) => setLoadError({ notFound: error.status === 404, message: error.message }))
         .finally(() => setLoading(false)),
     [id],
@@ -53,30 +53,38 @@ const RoomDetailPage = () => {
     loadRoom();
   }, [loadRoom]);
 
-  // loại phòng cho form sửa, chỉ Admin cần
+  // Tải danh mục loại phòng cho modal sửa
   useEffect(() => {
     if (!isAdmin) return;
     roomApi
       .listRoomTypes()
-      .then((response) => setRoomTypes(response.data?.items ?? response.data ?? []))
-      .catch((error) => toast.error(error.message));
+      .then((res) => setRoomTypes(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setRoomTypes([]));
   }, [isAdmin]);
 
-  // phòng cùng tầng: chuyển nhanh sang phòng bên cạnh mà không phải quay lại danh sách
-  const [neighbours, setNeighbours] = useState(null); // null: đang tải
-  const buildingId = room?.buildingId;
+  // Phòng cùng tầng: chuyển nhanh sang phòng bên cạnh
+  const [neighbours, setNeighbours] = useState(null);
+  const buildingId = room?.buildingId ?? room?.building?._id;
   const floorNumber = room?.floorNumber;
+
   useEffect(() => {
     if (!buildingId || !floorNumber) return;
     roomApi
       .list(buildingId, { floor: floorNumber })
-      .then((response) => setNeighbours(response.data?.items ?? response.data ?? []))
+      .then((response) => setNeighbours(Array.isArray(response.data) ? response.data : []))
       .catch(() => setNeighbours([]));
   }, [buildingId, floorNumber]);
 
-  const backTo = room ? `/rooms?buildingId=${room.buildingId}` : '/rooms';
+  // Đường dẫn quay lại chi tiết tòa nhà của phòng đó (không về /rooms)
+  const backTo = buildingId
+    ? isAdmin
+      ? `/buildings/${buildingId}`
+      : '/my-building'
+    : isAdmin
+      ? '/buildings'
+      : '/my-building';
 
-  // UC-18: BE chặn khi phòng còn hợp đồng đang hiệu lực hoặc nháp, message nêu lý do
+  // UC-18: Xóa phòng, bị chặn thì hiện đúng message BE trả về
   const handleDelete = async () => {
     setDeleting(true);
     try {
@@ -96,7 +104,6 @@ const RoomDetailPage = () => {
   };
 
   if (loading) {
-    // khung xương giữ đúng bố cục: tiêu đề, dải số liệu, 2 khung
     return (
       <div aria-busy="true" aria-label="Đang tải phòng">
         <Card className="mb-3">
@@ -117,8 +124,8 @@ const RoomDetailPage = () => {
   if (loadError?.notFound || (!loadError && !room)) {
     return (
       <EmptyState message="Không tìm thấy phòng. Có thể phòng đã bị xóa.">
-        <Button variant="secondary" onClick={() => navigate('/rooms')}>
-          Về danh sách phòng
+        <Button variant="secondary" onClick={() => navigate(backTo)}>
+          Về chi tiết tòa nhà
         </Button>
       </EmptyState>
     );
@@ -136,9 +143,11 @@ const RoomDetailPage = () => {
     );
   }
 
+  const roomCapacity = room.roomType?.capacity ?? '—';
+  const occupantCount = room.occupantCount ?? 0;
+
   return (
     <>
-      {/* h1 là tên phòng, dòng phụ nói phòng ở đâu; trạng thái bên phải như thanh trạng thái kiểu Odoo */}
       <PageHeader
         backTo={backTo}
         title={`Phòng ${room.roomNumber}`}
@@ -156,7 +165,6 @@ const RoomDetailPage = () => {
           )
         }
       >
-        {/* thanh trạng thái kiểu Odoo: Trống › Đang thuê; Bảo trì nằm ngoài luồng nên tự hiện ở cuối */}
         <StatusSteps
           map={ROOM_STATUS_LABEL}
           steps={[ROOM_STATUS.AVAILABLE, ROOM_STATUS.OCCUPIED]}
@@ -164,7 +172,7 @@ const RoomDetailPage = () => {
         />
       </PageHeader>
 
-      {/* dải số liệu chính: giá, cọc, diện tích, sức chứa – thứ người xem phòng hỏi đầu tiên */}
+      {/* Dải số liệu chính: Giá, cọc, diện tích, sức chứa và đang ở */}
       <Card className="mb-3">
         <Card.Body className="grid grid-cols-2 md:grid-cols-4 gap-3 px-4 py-3">
           {[
@@ -177,9 +185,9 @@ const RoomDetailPage = () => {
               </span>,
             ],
             [
-              'Sức chứa tối đa',
-              <span key="capacity">
-                {room.capacity} <span className="fs-6 text-secondary">người</span>
+              'Đang ở',
+              <span key="occupants">
+                {occupantCount} / {roomCapacity} <span className="fs-6 text-secondary">người</span>
               </span>,
             ],
           ].map(([label, value]) => (
@@ -191,7 +199,7 @@ const RoomDetailPage = () => {
         </Card.Body>
       </Card>
 
-      {/* thông tin và ảnh: 2 khung giữ chiều cao riêng (items-start), không kéo giãn bằng nhau */}
+      {/* Thông tin phòng và ảnh phòng */}
       <div className="grid lg:grid-cols-2 gap-3 items-start">
         <Card>
           <Card.Header className="fw-semibold">Thông tin phòng</Card.Header>
@@ -206,6 +214,8 @@ const RoomDetailPage = () => {
             <FieldRow label="Loại phòng" required>
               {room.roomType?.name}
             </FieldRow>
+            <FieldRow label="Sức chứa">Tối đa {roomCapacity} người</FieldRow>
+            <FieldRow label="Đang ở">{occupantCount} / {roomCapacity} người</FieldRow>
             <FieldRow label="Ngày tạo">{formatDate(room.createdAt)}</FieldRow>
           </Card.Body>
         </Card>
@@ -215,7 +225,6 @@ const RoomDetailPage = () => {
             Ảnh phòng <span className="text-secondary fw-normal">({room.images?.length ?? 0})</span>
           </Card.Header>
           <Card.Body className="p-3">
-            {/* Admin chưa có ảnh thì bấm "Thêm ảnh" mở form sửa để tải */}
             <RoomGallery
               images={room.images}
               name={`Phòng ${room.roomNumber}`}
@@ -225,7 +234,7 @@ const RoomDetailPage = () => {
         </Card>
       </div>
 
-      {/* phòng cùng tầng: phòng đang xem được viền đậm, bấm ô khác để chuyển phòng */}
+      {/* Phòng cùng tầng */}
       <Card className="mt-3">
         <Card.Header className="fw-semibold">
           Phòng cùng tầng{' '}

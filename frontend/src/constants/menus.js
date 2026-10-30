@@ -1,6 +1,6 @@
 // Menu sidebar và trang chủ theo role. Path ở đây là CHUẨN: module khai báo route phải dùng đúng path này
 import {
-    BiBarChartAlt2, BiBook, BiBuildings, BiCategory, BiDoorOpen, BiErrorCircle,
+    BiBarChartAlt2, BiBook, BiBuildings, BiCategory, BiErrorCircle,
     BiFile, BiGridAlt, BiGroup, BiHistory, BiIdCard, BiPlug, BiReceipt, BiSend, BiXCircle,
 } from 'react-icons/bi';
 import { ROLE } from './enums';
@@ -20,7 +20,6 @@ export const MENUS = {
     [ROLE.ADMIN]: [
         { label: 'Tổng quan', path: '/dashboard', icon: BiGridAlt }, // UC-07
         { label: 'Tòa nhà', path: '/buildings', icon: BiBuildings }, // UC-12→15, 23
-        { label: 'Phòng', path: '/rooms', icon: BiDoorOpen }, // UC-16→19
         { label: 'Loại phòng', path: '/room-types', icon: BiCategory }, // UC-20
         { label: 'Dịch vụ', path: '/services', icon: BiPlug }, // UC-21, 22 (/services/prices)
         { label: 'Quản lý Manager', path: '/managers', icon: BiIdCard }, // UC-08→11
@@ -29,8 +28,7 @@ export const MENUS = {
     ],
     [ROLE.MANAGER]: [
         { label: 'Tổng quan', path: '/dashboard', icon: BiGridAlt }, // UC-47
-        { label: 'Tòa nhà', path: '/my-building', icon: BiBuildings }, // UC-13 chỉ xem
-        { label: 'Phòng', path: '/rooms', icon: BiDoorOpen }, // UC-19
+        { label: 'Tòa của tôi', path: '/my-building', icon: BiBuildings }, // UC-13 chỉ xem
         { label: 'Hợp đồng', path: '/contracts', icon: BiFile }, // UC-24→29, 45, 46
         { label: 'Cư dân', path: '/occupants', icon: BiGroup }, // UC-30→33
         { label: 'Hóa đơn', path: '/invoices', icon: BiReceipt }, // UC-34→37

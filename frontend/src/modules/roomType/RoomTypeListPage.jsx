@@ -1,5 +1,5 @@
-// UC-20: quản lý loại phòng (Admin). Bấm dòng mở form sửa, nút "Xóa" nằm trong form sửa (khuôn danh mục 9.1)
-// Loại phòng dùng để phân loại khi tạo phòng (UC-16) và để lọc danh sách phòng (UC-19)
+// UC-20: quản lý loại phòng (Admin). Bấm dòng mở form sửa, nút "Xóa" nằm trong form sửa
+// Danh sách hiển thị: tên, sức chứa, số phòng đang dùng (roomCount)
 import { useCallback, useEffect, useState } from 'react';
 import { Button, Card, Form, InputGroup } from 'react-bootstrap';
 import { toast } from 'react-toastify';
@@ -27,7 +27,7 @@ const RoomTypeListPage = () => {
       roomTypeApi
         .list()
         .then((response) => {
-          setRoomTypes(response.data?.items ?? response.data ?? []);
+          setRoomTypes(Array.isArray(response.data) ? response.data : []);
           setLoadError('');
         })
         .catch((error) => {
@@ -46,7 +46,7 @@ const RoomTypeListPage = () => {
     loadRoomTypes();
   };
 
-  // UC-20 E02: loại phòng đang được phòng dùng thì BE từ chối, message nêu số phòng
+  // UC-20: Xóa loại phòng. Bị chặn khi còn phòng sử dụng → hiện đúng message BE trả về
   const handleDelete = async () => {
     setSubmitting(true);
     try {
@@ -55,8 +55,8 @@ const RoomTypeListPage = () => {
       setDeleting(null);
       loadRoomTypes();
     } catch (error) {
-      toast.error(error.message); // vd đang có 3 phòng dùng loại này
-      setDeleting(null); // đóng hộp xác nhận để người dùng thao tác tiếp
+      toast.error(error.message); // vd: "Không thể xóa loại phòng đang được dùng bởi 3 phòng"
+      setDeleting(null);
     } finally {
       setSubmitting(false);
     }
@@ -70,6 +70,17 @@ const RoomTypeListPage = () => {
   const columns = [
     { key: 'name', title: 'Tên loại phòng', className: 'fw-semibold' },
     {
+      key: 'capacity',
+      title: 'Sức chứa',
+      render: (row) => `Tối đa ${row.capacity} người`,
+    },
+    {
+      key: 'roomCount',
+      title: 'Số phòng đang dùng',
+      align: 'center',
+      render: (row) => `${row.roomCount ?? 0} phòng`,
+    },
+    {
       key: 'createdAt',
       title: 'Ngày tạo',
       align: 'end',
@@ -81,7 +92,7 @@ const RoomTypeListPage = () => {
     if (roomTypes === null) {
       return (
         <Card>
-          <SkeletonRows rows={3} columns={2} />
+          <SkeletonRows rows={3} columns={4} />
         </Card>
       );
     }
@@ -99,7 +110,7 @@ const RoomTypeListPage = () => {
     if (roomTypes.length === 0) {
       return (
         <Card>
-          <EmptyState message="Chưa có loại phòng nào. Bấm Thêm loại phòng để bắt đầu, rồi mới tạo được phòng.">
+          <EmptyState message="Chưa có loại phòng nào. Bấm Thêm loại phòng để bắt đầu.">
             <Button variant="secondary" onClick={() => setEditing({})}>
               Thêm loại phòng
             </Button>
@@ -127,7 +138,7 @@ const RoomTypeListPage = () => {
         title="Loại phòng"
         subtitle={
           roomTypes && !loadError
-            ? `${roomTypes.length} loại · dùng để phân loại và lọc phòng`
+            ? `${roomTypes.length} loại · dùng để phân loại và quy định sức chứa phòng`
             : undefined
         }
         actions={
@@ -158,7 +169,6 @@ const RoomTypeListPage = () => {
 
       {renderBody()}
 
-      {/* render có điều kiện: mỗi lần mở là một form mới, không sót dữ liệu lần trước */}
       {editing && (
         <RoomTypeFormModal
           roomType={editing}
@@ -168,7 +178,7 @@ const RoomTypeListPage = () => {
             loadRoomTypes();
           }}
           onDelete={() => {
-            setDeleting(editing); // đóng form rồi mới mở hộp xác nhận, không chồng 2 modal
+            setDeleting(editing);
             setEditing(null);
           }}
         />

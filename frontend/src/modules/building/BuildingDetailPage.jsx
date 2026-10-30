@@ -1,7 +1,7 @@
 // UC-13: chi tiết tòa nhà (Admin). Nút: "Chỉnh sửa" (UC-13), "Xóa" (UC-14)
-// Dải số liệu (tầng, phòng, lấp đầy, trống) → tờ giấy thông tin → tab "Sơ đồ tầng" (UC-15) và "Nội quy" (UC-23)
-// Phân công Manager làm ở module manager (UC-11)
-// Manager mở qua /my-building (buildingId = tòa được phân công): chỉ xem, không có nút sửa / xóa / sửa số tầng / sửa nội quy
+// Dải số liệu (tầng, phòng, lấp đầy, trống) lấy trực tiếp từ building.roomStats
+// Tab "Danh sách phòng" (UC-16..19), "Sơ đồ tầng" (UC-15) và "Nội quy" (UC-23)
+// Manager mở qua /my-building: chỉ xem, không có nút sửa / xóa / thêm phòng
 import { useCallback, useEffect, useState } from 'react';
 import { Button, Card, Image, Placeholder, Tab, Tabs } from 'react-bootstrap';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -13,10 +13,11 @@ import ErrorState from '../../components/ErrorState';
 import SkeletonRows from '../../components/SkeletonRows';
 import ConfirmModal from '../../components/ConfirmModal';
 import { useAuth } from '../../context/AuthContext';
-import { ROLE, ROOM_STATUS } from '../../constants/enums';
+import { ROLE } from '../../constants/enums';
 import { formatDate } from '../../utils/format';
 import buildingApi from './building.api';
 import BuildingFormModal from './components/BuildingFormModal';
+import BuildingRoomsTab from './components/BuildingRoomsTab';
 import BuildingFloorsTab from './components/BuildingFloorsTab';
 import BuildingRulesTab from './components/BuildingRulesTab';
 
@@ -26,9 +27,10 @@ const BuildingDetailPage = ({ buildingId }) => {
   const { user } = useAuth();
   const isAdmin = user.role === ROLE.ADMIN;
   const navigate = useNavigate();
-  // trạng thái tải: loading → ok | notFound | error
+
+  // trạng thái tải tòa: loading → ok | notFound | error
   const [state, setState] = useState({ status: 'loading', building: null, error: '' });
-  const [rooms, setRooms] = useState(null); // null: đang tải phòng
+  const [rooms, setRooms] = useState(null); // phòng cho sơ đồ tầng
   const [roomsError, setRoomsError] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
@@ -52,12 +54,13 @@ const BuildingDetailPage = ({ buildingId }) => {
     [id],
   );
 
-  const loadRooms = useCallback(
+  // Chỉ tải rooms cho Sơ đồ tầng (BuildingFloorsTab)
+  const loadRoomsForFloors = useCallback(
     () =>
       buildingApi
         .rooms(id)
         .then((response) => {
-          setRooms(response.data?.items ?? response.data ?? []);
+          setRooms(Array.isArray(response.data) ? response.data : []);
           setRoomsError('');
         })
         .catch((error) => {
@@ -69,8 +72,8 @@ const BuildingDetailPage = ({ buildingId }) => {
 
   useEffect(() => {
     loadBuilding();
-    loadRooms();
-  }, [loadBuilding, loadRooms]);
+    loadRoomsForFloors();
+  }, [loadBuilding, loadRoomsForFloors]);
 
   const handleRetry = () => {
     setState({ status: 'loading', building: null, error: '' });
@@ -80,11 +83,10 @@ const BuildingDetailPage = ({ buildingId }) => {
   const handleRetryRooms = () => {
     setRooms(null);
     setRoomsError('');
-    loadRooms();
+    loadRoomsForFloors();
   };
 
-  // UC-14: BE kiểm 2 điều kiện (không phòng nào còn hợp đồng hiệu lực / nháp, không còn Manager)
-  // bị chặn thì message của BE nêu lý do và danh sách phòng đang vướng
+  // UC-14: Xóa tòa nhà (xóa mềm). Bị chặn thì hiển thị đúng message BE trả về
   const handleDelete = async () => {
     setDeleting(true);
     try {
@@ -99,7 +101,6 @@ const BuildingDetailPage = ({ buildingId }) => {
   };
 
   if (state.status === 'loading') {
-    // khung xương giữ đúng bố cục: tiêu đề, dải số liệu, tờ giấy
     return (
       <div aria-busy="true" aria-label="Đang tải tòa nhà">
         <Placeholder as="div" className="mb-3">
@@ -139,18 +140,18 @@ const BuildingDetailPage = ({ buildingId }) => {
     );
   }
 
-  // dải số liệu tính từ phòng thật của tòa
-  const occupied = rooms?.filter((room) => room.status === ROOM_STATUS.OCCUPIED).length ?? 0;
-  const available = rooms?.filter((room) => room.status === ROOM_STATUS.AVAILABLE).length ?? 0;
-  const roomTotal = rooms?.length ?? 0;
+  // Dải số liệu lấy TRỰC TIẾP từ roomStats do BE trả về trong chi tiết tòa
+  const roomStats = building.roomStats ?? { total: 0, available: 0, occupied: 0, maintenance: 0 };
+  const roomTotal = roomStats.total ?? 0;
+  const occupied = roomStats.occupied ?? 0;
+  const available = roomStats.available ?? 0;
   const occupancy = roomTotal ? Math.round((occupied / roomTotal) * 100) : 0;
-  const pending = rooms === null ? '…' : null; // đang tải phòng thì số liệu hiện "…"
 
   const stats = [
     ['Số tầng', building.floorCount, 'tầng'],
-    ['Số phòng', pending ?? roomTotal, 'phòng'],
-    ['Đang thuê', pending ?? `${occupied}/${roomTotal}`, pending ? '' : `· ${occupancy}%`],
-    ['Phòng trống', pending ?? available, 'phòng'],
+    ['Số phòng', roomTotal, 'phòng'],
+    ['Đang thuê', `${occupied}/${roomTotal}`, `· ${occupancy}%`],
+    ['Phòng trống', available, 'phòng'],
   ];
 
   return (
@@ -173,7 +174,7 @@ const BuildingDetailPage = ({ buildingId }) => {
         }
       />
 
-      {/* dải số liệu: tòa có bao nhiêu phòng, đang lấp đầy bao nhiêu – câu Admin hỏi đầu tiên */}
+      {/* Dải số liệu chính của tòa từ roomStats */}
       <Card className="mb-3">
         <Card.Body className="grid grid-cols-2 md:grid-cols-4 gap-3 px-4 py-3">
           {stats.map(([label, value, unit]) => (
@@ -187,8 +188,8 @@ const BuildingDetailPage = ({ buildingId }) => {
         </Card.Body>
       </Card>
 
-      {/* tờ giấy kiểu Odoo: nhãn – giá trị 2 cột, ảnh, rồi tab */}
-      <Card>
+      {/* Thông tin tòa nhà và ảnh */}
+      <Card className="mb-3">
         <Card.Body className="p-4">
           <div className="grid lg:grid-cols-2 column-gap-5 mb-4">
             <div>
@@ -225,7 +226,7 @@ const BuildingDetailPage = ({ buildingId }) => {
           </div>
 
           {building.images?.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
               {building.images.map((url) => (
                 <div
                   key={url}
@@ -240,8 +241,23 @@ const BuildingDetailPage = ({ buildingId }) => {
               ))}
             </div>
           )}
+        </Card.Body>
+      </Card>
 
-          <Tabs defaultActiveKey="floors" className="mb-3" mountOnEnter>
+      {/* Khu vực Tabs: Phòng, Sơ đồ tầng, Nội quy */}
+      <Card>
+        <Card.Body className="p-4">
+          <Tabs defaultActiveKey="rooms" className="mb-3" mountOnEnter>
+            <Tab eventKey="rooms" title={`Danh sách phòng (${roomTotal})`}>
+              <BuildingRoomsTab
+                building={building}
+                canEdit={isAdmin}
+                onRoomChanged={() => {
+                  loadBuilding();
+                  loadRoomsForFloors();
+                }}
+              />
+            </Tab>
             <Tab eventKey="floors" title={`Sơ đồ tầng (${building.floorCount})`}>
               <BuildingFloorsTab
                 building={building}
@@ -249,7 +265,10 @@ const BuildingDetailPage = ({ buildingId }) => {
                 error={roomsError}
                 canEdit={isAdmin}
                 onRetry={handleRetryRooms}
-                onChanged={(updated) => setBuilding({ ...building, ...updated })}
+                onChanged={(updated) => {
+                  setBuilding({ ...building, ...updated });
+                  loadRoomsForFloors();
+                }}
               />
             </Tab>
             <Tab eventKey="rules" title="Nội quy">
@@ -273,7 +292,7 @@ const BuildingDetailPage = ({ buildingId }) => {
       <ConfirmModal
         show={showDelete}
         title="Xóa tòa nhà"
-        message="Thao tác này sẽ xóa toàn bộ tầng và phòng thuộc tòa nhà. Bạn có chắc chắn?"
+        message="Thao tác này sẽ xóa tòa nhà và các dữ liệu liên quan. Bạn có chắc chắn?"
         confirmText="Xóa"
         variant="danger"
         loading={deleting}
