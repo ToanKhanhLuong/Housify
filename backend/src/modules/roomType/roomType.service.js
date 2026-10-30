@@ -3,6 +3,14 @@ import RoomType from "../../models/RoomType.js";
 import Room from "../../models/Room.js";
 import { AppError } from "../../utils/AppError.js";
 
+// Tên người dùng nhập có thể chứa ( ) . + … nên phải escape trước khi đưa vào regex
+const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// So tên không phân biệt hoa thường, khớp nguyên chuỗi
+const sameNameFilter = (name) => ({
+  $regex: new RegExp(`^${escapeRegex(name)}$`, "i"),
+});
+
 // 1. Lấy danh sách loại phòng (UC-20)
 export const getRoomTypes = async () => {
   const roomTypes = await RoomType.find({ isDeleted: false }).sort({
@@ -31,7 +39,7 @@ export const createRoomType = async (data) => {
 
   // Kiểm tra tên trùng trong các loại phòng chưa xóa (BR-053)
   const existing = await RoomType.findOne({
-    name: { $regex: new RegExp(`^${name}$`, "i") },
+    name: sameNameFilter(name),
     isDeleted: false,
   });
 
@@ -59,7 +67,7 @@ export const updateRoomType = async (id, data) => {
   // Nếu tên thay đổi thì kiểm tra trùng với các loại phòng khác (BR-053)
   if (name.toLowerCase() !== roomType.name.toLowerCase()) {
     const existing = await RoomType.findOne({
-      name: { $regex: new RegExp(`^${name}$`, "i") },
+      name: sameNameFilter(name),
       isDeleted: false,
       _id: { $ne: id },
     });
