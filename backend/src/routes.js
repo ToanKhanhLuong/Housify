@@ -9,7 +9,7 @@ import managerRoutes from './modules/manager/manager.routes.js';            // A
 import activationRoutes from './modules/activation/activation.routes.js';   // An    | iter 1: link kích hoạt Manager (UC-08), iter 2: thêm Customer (UC-06)
 import notificationRoutes from './modules/notification/notification.routes.js'; // An | UC-41
 import buildingRoutes from './modules/building/building.routes.js';         // Toàn  | UC-12..15, 23
-// import roomRoutes from './modules/room/room.routes.js';                     // Toàn  | UC-16..19
+import roomRoutes from './modules/room/room.routes.js';                     // Toàn  | UC-16..19
 // import roomTypeRoutes from './modules/roomType/roomType.routes.js';         // Toàn  | UC-20
 // import serviceRoutes from './modules/service/service.routes.js';            // Toàn  | UC-21, 22
 import uploadRoutes from './modules/upload/upload.routes.js';               // Toàn  | Cloudinary
@@ -36,7 +36,7 @@ router.use(managerRoutes);
 router.use(activationRoutes);
 router.use(notificationRoutes);
 router.use(buildingRoutes);
-// router.use(roomRoutes);
+router.use(roomRoutes);
 // router.use(roomTypeRoutes);
 // router.use(serviceRoutes);
 router.use(uploadRoutes);
