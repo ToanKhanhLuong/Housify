@@ -91,13 +91,16 @@ Chỉ Admin (Manager, Customer gọi → 403). Id sai định dạng → 404 nh�
 | GET                | `/rooms/:id`                   | A M          | Trả **phòng** (iter 1 chỉ thông tin phòng; hợp đồng, cư dân, lịch sử hợp đồng bổ sung ở iter 3). Lỗi: 404 "Phòng không tồn tại" (gồm phòng đã xóa); 403 như GET danh sách |
 | PUT                | `/rooms/:id`                   | A            | Gửi field muốn đổi (ít nhất 1): `floorNumber, roomTypeId, area, capacity, rentPrice, deposit, images, status`. Không sửa `roomNumber` (BR-046, gửi lên bị bỏ qua). `status` chỉ AVAILABLE hoặc MAINTENANCE. Giá mới chỉ áp dụng cho hợp đồng tạo sau. Trả **phòng**. Lỗi: 400 "Phòng đang thuê, không thể đổi trạng thái"; 400 "Phòng đang có hợp đồng nháp, Manager cần hủy hợp đồng nháp trước khi chuyển sang Bảo trì" (UC-17 A2); 400 "Sức chứa không được nhỏ hơn số người đang cư trú hiện tại ([n] người)"; 400 "Tầng phải nằm trong khoảng 1 đến [n]"; 404 "Phòng không tồn tại"; 404 "Loại phòng không tồn tại"; 422 |
 | DELETE             | `/rooms/:id`                   | A            | Xóa mềm. Lỗi: 400 "Không thể xóa phòng đang có khách thuê" (hợp đồng ACTIVE); 400 "Phòng đang có hợp đồng chờ kích hoạt, Manager cần hủy hợp đồng nháp trước khi xóa" (hợp đồng DRAFT – UC-18); 404 "Phòng không tồn tại" |
-| GET                | `/room-types`                  | A M          |                                                                                   |
-| POST               | `/room-types`                  | A            |                                                                                   |
-| PUT / DELETE       | `/room-types/:id`              | A            |                                                                                   |
+| GET                | `/room-types`                  | A M          | Loại phòng chưa xóa, mới tạo trước. Không phân trang, `data` là mảng `[{ _id, name, createdAt, updatedAt }]`. Danh sách trống → `[]` |
+| GET                | `/room-types/:id`              | A            | Một loại phòng, cùng dạng 1 phần tử ở danh sách. Lỗi: 404 "Loại phòng không tồn tại" (gồm loại đã xóa) |
+| POST               | `/room-types`                  | A            | `{ name }` – 2–50 ký tự. 201 trả loại phòng vừa tạo. Lỗi: 409 "Tên loại phòng đã tồn tại" (so không phân biệt hoa thường, loại đã xóa không tính – BR-053); 422 thiếu / sai độ dài |
+| PUT                | `/room-types/:id`              | A            | `{ name }` – như POST, trả loại phòng sau khi sửa. Phòng chỉ trỏ tới loại nên tên mới hiện ngay ở mọi phòng. Lỗi: 404 "Loại phòng không tồn tại"; 409 "Tên loại phòng đã tồn tại"; 422 |
+| DELETE             | `/room-types/:id`              | A            | Xóa mềm. Lỗi: 400 "Không thể xóa loại phòng vì đang có [n] phòng sử dụng" (phòng chưa xóa – BR-054); 404 "Loại phòng không tồn tại" |
 
 **Phòng** (dạng trả về ở danh sách, chi tiết, tạo, sửa): `{ _id, buildingId, roomNumber, floorNumber, roomTypeId, area, capacity, rentPrice, deposit, images, status, isDeleted, createdAt, updatedAt, building: { _id, name, floorCount }, roomType: { _id, name } }` – `buildingId`, `roomTypeId` vẫn là id; `building`, `roomType` ghép thêm để hiển thị.
 
-- `:buildingId`, `:id` sai định dạng ObjectId → 422, `errors: [{ field: 'buildingId' | 'id', message }]`.
+- `:buildingId`, `:id` sai định dạng ObjectId ở `/buildings/:buildingId/rooms`, `/rooms/:id` → 422, `errors: [{ field: 'buildingId' | 'id', message }]`.
+- `:id` sai định dạng ObjectId ở `/room-types/:id` → 422, `errors: [{ field: 'id', message: 'Mã loại phòng không đúng định dạng' }]`.
 
 ## Dịch vụ – `service` (UC-21, 22)
 
