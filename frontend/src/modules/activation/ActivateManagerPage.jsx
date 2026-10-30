@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Button, Card, Form, Spinner } from 'react-bootstrap';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import Input from '../../components/Input';
+import PasswordInput from '../../components/PasswordInput';
 import Loading from '../../components/Loading';
 import { hasErrors, toFieldErrors } from '../../utils/formErrors';
 import activationApi from './activation.api';
@@ -75,10 +75,9 @@ const ActivateManagerPage = () => {
 
     return (
       <Form onSubmit={handleSubmit} noValidate>
-        <Input
+        <PasswordInput
           label="Mật khẩu"
           name="password"
-          type="password"
           value={form.password}
           onChange={handleChange}
           error={errors.password}
@@ -88,10 +87,9 @@ const ActivateManagerPage = () => {
           autoFocus
           required
         />
-        <Input
+        <PasswordInput
           label="Xác nhận mật khẩu"
           name="confirmPassword"
-          type="password"
           value={form.confirmPassword}
           onChange={handleChange}
           error={errors.confirmPassword}

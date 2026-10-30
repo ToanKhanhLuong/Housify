@@ -1,21 +1,32 @@
-// UC-41: xem thông báo (cả 3 role). Mới nhất trước, chưa đọc có chấm xanh và chữ đậm
-// Bấm dòng → hiện nội dung đầy đủ, đồng thời đánh dấu đã đọc; có trang liên quan thì mở tiếp từ đó
+// UC-41: trang thông báo đầy đủ (cả 3 role), vào bằng chuông → "Xem tất cả". Mới nhất trước, chưa đọc có chấm xanh và chữ đậm
+// Bấm dòng → đánh dấu đã đọc; có trang liên quan thì chuyển thẳng tới đó (giống chuông), không có thì hiện nội dung đầy đủ
+// Từ chuông mở sang (thông báo không có trang liên quan) thì hiện sẵn nội dung thông báo đó
 import { useCallback, useEffect, useState } from 'react';
 import { Button, Spinner } from 'react-bootstrap';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import PageHeader from '../../components/PageHeader';
 import DataTable from '../../components/DataTable';
 import Pager from '../../components/Pager';
 import Select from '../../components/Select';
+import { useAuth } from '../../context/AuthContext';
 import { formatDateTime } from '../../utils/format';
 import notificationApi from './notification.api';
-import { emitNotificationsChanged } from './notification.utils';
+import {
+    NOTIFICATIONS_CHANGED,
+    emitNotificationsChanged,
+    getNotificationLink,
+} from './notification.utils';
 import NotificationDetailModal from './components/NotificationDetailModal';
 
 const LIMIT = 10;
 const FILTER_OPTIONS = [{ value: 'unread', label: 'Chưa đọc' }];
 
 const NotificationsPage = () => {
+    const { user } = useAuth();
+    const location = useLocation();
+    const navigate = useNavigate();
+    const fromBell = location.state?.notification ?? null; // thông báo chuông gửi sang để hiện sẵn
     const [data, setData] = useState(null); // { items, total, page, limit }; null: đang tải
     const [unreadCount, setUnreadCount] = useState(0);
     const [page, setPage] = useState(1);
@@ -42,6 +53,18 @@ const NotificationsPage = () => {
         loadNotifications();
     }, [loadNotifications]);
 
+    // chuông vừa đánh dấu đã đọc (đang đứng ở trang này) thì tải lại cho khớp
+    useEffect(() => {
+        window.addEventListener(NOTIFICATIONS_CHANGED, loadNotifications);
+        return () => window.removeEventListener(NOTIFICATIONS_CHANGED, loadNotifications);
+    }, [loadNotifications]);
+
+    // đóng nội dung; nếu đang hiện thông báo chuông gửi sang thì xóa khỏi lịch sử để F5 không mở lại
+    const handleCloseDetail = () => {
+        setViewing(null);
+        if (fromBell) navigate(location.pathname, { replace: true, state: null });
+    };
+
     const handleFilterChange = (event) => {
         setUnreadOnly(event.target.value === 'unread');
         setPage(1);
@@ -53,23 +76,26 @@ const NotificationsPage = () => {
         setData(null);
     };
 
-    // bước 3: hiện nội dung đầy đủ + đánh dấu đã đọc
+    // bước 3: đánh dấu đã đọc; có trang liên quan thì chuyển tới đó, không có thì hiện nội dung đầy đủ
     const handleOpen = async (notification) => {
-        setViewing(notification);
-        if (notification.isRead) return;
-        try {
-            await notificationApi.markRead(notification._id);
-            setData((current) => ({
-                ...current,
-                items: current.items.map((item) =>
-                    item._id === notification._id ? { ...item, isRead: true } : item,
-                ),
-            }));
-            setUnreadCount((count) => Math.max(count - 1, 0));
-            emitNotificationsChanged();
-        } catch (error) {
-            toast.error(error.message);
+        const link = getNotificationLink(notification, user.role);
+        if (!link) setViewing(notification);
+        if (!notification.isRead) {
+            try {
+                await notificationApi.markRead(notification._id);
+                setData((current) => ({
+                    ...current,
+                    items: current.items.map((item) =>
+                        item._id === notification._id ? { ...item, isRead: true } : item,
+                    ),
+                }));
+                setUnreadCount((count) => Math.max(count - 1, 0));
+                emitNotificationsChanged();
+            } catch (error) {
+                toast.error(error.message);
+            }
         }
+        if (link) navigate(link);
     };
 
     // bước 4
@@ -78,8 +104,7 @@ const NotificationsPage = () => {
         try {
             await notificationApi.markAllRead();
             toast.success('Đã đánh dấu tất cả đã đọc');
-            emitNotificationsChanged();
-            loadNotifications();
+            emitNotificationsChanged(); // trang và chuông cùng tải lại theo sự kiện này
         } catch (error) {
             toast.error(error.message);
         } finally {
@@ -154,8 +179,11 @@ const NotificationsPage = () => {
                 onRowClick={handleOpen}
             />
 
-            {viewing && (
-                <NotificationDetailModal notification={viewing} onHide={() => setViewing(null)} />
+            {(viewing ?? fromBell) && (
+                <NotificationDetailModal
+                    notification={viewing ?? fromBell}
+                    onHide={handleCloseDetail}
+                />
             )}
         </>
     );

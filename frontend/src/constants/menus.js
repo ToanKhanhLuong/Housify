@@ -1,6 +1,6 @@
 // Menu sidebar và trang chủ theo role. Path ở đây là CHUẨN: module khai báo route phải dùng đúng path này
 import {
-    BiBarChartAlt2, BiBell, BiBook, BiBuildings, BiCategory, BiDoorOpen, BiErrorCircle,
+    BiBarChartAlt2, BiBook, BiBuildings, BiCategory, BiDoorOpen, BiErrorCircle,
     BiFile, BiGridAlt, BiGroup, BiHistory, BiIdCard, BiPlug, BiReceipt, BiSend, BiXCircle,
 } from 'react-icons/bi';
 import { ROLE } from './enums';
@@ -15,6 +15,7 @@ export const HOME_PATH = {
 // BR-023: Manager chưa được phân công tòa chỉ dùng được các trang này
 export const NO_BUILDING_PATHS = ['/profile', '/change-password', '/notifications'];
 
+// Thông báo (UC-41) không nằm trong menu: vào bằng chuông trên Header → "Xem tất cả" (/notifications)
 export const MENUS = {
     [ROLE.ADMIN]: [
         { label: 'Tổng quan', path: '/dashboard', icon: BiGridAlt }, // UC-07
@@ -25,7 +26,6 @@ export const MENUS = {
         { label: 'Quản lý Manager', path: '/managers', icon: BiIdCard }, // UC-08→11
         { label: 'Đơn chấm dứt', path: '/terminations', icon: BiXCircle }, // UC-29
         { label: 'Báo cáo', path: '/reports', icon: BiBarChartAlt2 }, // UC-48
-        { label: 'Thông báo', path: '/notifications', icon: BiBell }, // UC-41
     ],
     [ROLE.MANAGER]: [
         { label: 'Tổng quan', path: '/dashboard', icon: BiGridAlt }, // UC-47
@@ -38,7 +38,6 @@ export const MENUS = {
         { label: 'Sự cố', path: '/incidents', icon: BiErrorCircle }, // UC-44
         { label: 'Gửi thông báo', path: '/announcements', icon: BiSend }, // UC-40
         { label: 'Báo cáo', path: '/reports', icon: BiBarChartAlt2 }, // UC-48
-        { label: 'Thông báo', path: '/notifications', icon: BiBell }, // UC-41
     ],
     [ROLE.CUSTOMER]: [
         { label: 'Hợp đồng', path: '/my-contract', icon: BiFile }, // UC-25
@@ -47,6 +46,5 @@ export const MENUS = {
         { label: 'Lịch sử thanh toán', path: '/my-payments', icon: BiHistory }, // UC-39
         { label: 'Sự cố', path: '/my-incidents', icon: BiErrorCircle }, // UC-43
         { label: 'Nội quy', path: '/rules', icon: BiBook }, // UC-23
-        { label: 'Thông báo', path: '/notifications', icon: BiBell }, // UC-41
     ],
 };
