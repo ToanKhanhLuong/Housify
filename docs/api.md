@@ -106,9 +106,15 @@ Chỉ Admin (Manager, Customer gọi → 403). Id sai định dạng → 404 nh�
 
 | Method       | Path                              | Role | Ghi chú                                                                                  |
 | ------------ | --------------------------------- | ---- | ----------------------------------------------------------------------------------------- |
-| GET / POST   | `/services`                     | A    | `{ name, unit, isFixed }`                                                               |
-| PUT / DELETE | `/services/:id`                 | A    |                                                                                           |
-| GET / POST   | `/buildings/:id/service-prices` | A    | `{ serviceId, unitPrice, effectiveFrom }` – trùng ngày hiệu lực thì sửa bản cũ |
+| GET          | `/services`                     | A    | Dịch vụ chưa xóa, tạo trước hiện trước. Không phân trang, `data` là mảng **dịch vụ** `[{ _id, name, unit, isFixed, isDeleted, createdAt, updatedAt }]`. Trống → `[]` |
+| POST         | `/services`                     | A    | `{ name, unit, isFixed }` – `name` 2–100 ký tự, `unit` ≤ 30 ký tự (chỉ để hiển thị), `isFixed` boolean (true: cố định, false: theo chỉ số). 201 trả **dịch vụ**. Lỗi: 409 "Tên dịch vụ đã tồn tại" (không phân biệt hoa thường, dịch vụ đã xóa không tính – BR-055); 422 thiếu / sai định dạng |
+| PUT          | `/services/:id`                 | A    | Gửi field muốn đổi (ít nhất 1): `name, unit, isFixed`. Chỉ ảnh hưởng hóa đơn lập sau. Trả **dịch vụ**. Lỗi: 404 "Dịch vụ không tồn tại" (gồm dịch vụ đã xóa); 409 "Tên dịch vụ đã tồn tại"; 422 |
+| DELETE       | `/services/:id`                 | A    | Luôn xóa mềm, kể cả dịch vụ đã có trong hóa đơn (BR-056). Lỗi: 404 "Dịch vụ không tồn tại" |
+| GET          | `/buildings/:id/service-prices` | A    | Lịch sử giá mọi dịch vụ của tòa, `effectiveFrom` mới nhất trước: `[{ _id, serviceId, buildingId, unitPrice, effectiveFrom, createdBy, createdAt, updatedAt }]`. FE tự lọc theo `serviceId`; giá đang áp dụng = `effectiveFrom` gần nhất mà ≤ hôm nay. Lỗi: 404 "Tòa nhà không tồn tại" (gồm tòa đã xóa) |
+| POST         | `/buildings/:id/service-prices` | A    | `{ serviceId, unitPrice, effectiveFrom }` – `unitPrice` > 0, `effectiveFrom` dạng `yyyy-MM-dd` (ngày quá khứ vẫn nhận, FE tự cảnh báo). Trùng ngày với mức đã có → sửa mức đó, 200 "Cập nhật mức giá thành công" (UC-22 A1); không trùng → thêm mức mới, 201 "Thêm mức giá thành công". Trả mức giá (cùng dạng 1 phần tử ở GET). Mức giá không xóa được. Lỗi: 404 "Tòa nhà không tồn tại"; 404 "Dịch vụ không tồn tại"; 422 |
+
+- `:id` sai định dạng ObjectId → 422, `errors: [{ field: 'id', message }]`.
+- Đơn giá khi lập hóa đơn (iter 2): gọi helper `getCurrentPrice(serviceId, buildingId, date)` trong `src/helpers/getCurrentPrice.js` → mức giá có `effectiveFrom` gần nhất và ≤ `date`, hoặc `null` nếu chưa có giá (UC-34 E03: cảnh báo, dùng giá 0).
 
 ## Upload – `upload`
 

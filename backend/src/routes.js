@@ -11,7 +11,7 @@ import notificationRoutes from './modules/notification/notification.routes.js'; 
 import buildingRoutes from './modules/building/building.routes.js';         // Toàn  | UC-12..15, 23
 import roomRoutes from './modules/room/room.routes.js';                     // Toàn  | UC-16..19
 import roomTypeRoutes from './modules/roomType/roomType.routes.js';         // Toàn  | UC-20
-// import serviceRoutes from './modules/service/service.routes.js';            // Toàn  | UC-21, 22
+import serviceRoutes from './modules/service/service.routes.js';            // Toàn  | UC-21, 22
 import uploadRoutes from './modules/upload/upload.routes.js';               // Toàn  | Cloudinary
 
 // --- Iteration 2 ---
@@ -38,7 +38,7 @@ router.use(notificationRoutes);
 router.use(buildingRoutes);
 router.use(roomRoutes);
 router.use(roomTypeRoutes);
-// router.use(serviceRoutes);
+router.use(serviceRoutes);
 router.use(uploadRoutes);
 
 // --- Iteration 2 ---
