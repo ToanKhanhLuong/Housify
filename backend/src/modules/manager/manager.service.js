@@ -12,7 +12,6 @@ import {
     AUDIT_ACTION,
 } from '../../constants/enums.js';
 import { AppError } from '../../utils/AppError.js';
-import { paginate } from '../../utils/pagination.js';
 import { sendMail } from '../../config/mail.js';
 import { withTransaction } from '../../helpers/withTransaction.js';
 import { notify } from '../../helpers/notify.js';
@@ -26,6 +25,7 @@ import Building from '../../models/Building.js';
 import Room from '../../models/Room.js';
 import Contract from '../../models/Contract.js';
 import ActivationToken from '../../models/ActivationToken.js';
+import { escapeRegex } from '../../helpers/filter.js';
 
 const MANAGER_NOT_FOUND = 'Không tìm thấy Manager';
 const BUILDING_NOT_FOUND = 'Không tìm thấy tòa nhà';
@@ -41,8 +41,6 @@ const escapeHtml = (text) => String(text ?? '').replace(/[&<>"']/g, (char) => ({
     '"': '&quot;',
     "'": '&#39;',
 }[char]));
-
-const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // ===== Mail (M1–M5) =====
 
@@ -232,32 +230,71 @@ export const createManager = async (adminId, { name, email, phone }) => {
 
 // ===== UC-09: danh sách, chi tiết, sửa, xóa, gửi lại link =====
 
-export const listManagers = async ({ status, q, unassigned, page, limit }) => {
+// 1. Lấy danh sách Manager (UC-09, UC-11) – không phân trang, mới tạo trước
+export const listManagers = async ({ status, q, assigned } = {}) => {
     const filter = { roleId: ROLE.MANAGER };
-    if (status) {
-        filter.status = status;
+
+    if (status && status.length > 0) {
+        filter.status = { $in: status };
     }
 
-    // Tìm theo họ tên (manager.md – UC-09)
+    let matchedUserIds = null;
+
+    // Tìm theo họ tên, email hoặc số điện thoại (UC-09)
     if (q) {
-        const userIds = await Manager.find({ name: { $regex: escapeRegex(q), $options: 'i' } }).distinct('userId');
-        filter._id = { $in: userIds };
+        const qRegex = new RegExp(escapeRegex(q), 'i');
+        const [profileUserIds, emailUserIds] = await Promise.all([
+            Manager.find({
+                $or: [{ name: qRegex }, { phone: qRegex }],
+            }).distinct('userId'),
+            User.find({
+                roleId: ROLE.MANAGER,
+                email: qRegex,
+            }).distinct('_id'),
+        ]);
+        const idSet = new Set([
+            ...profileUserIds.map((id) => String(id)),
+            ...emailUserIds.map((id) => String(id)),
+        ]);
+        matchedUserIds = Array.from(idSet);
     }
 
-    // Chưa phụ trách tòa nào (chỉ tính tòa chưa xóa mềm) – danh sách chọn ở UC-11
-    if (unassigned) {
-        const assignedIds = await Building.find({ isDeleted: false, managerId: { $type: 'objectId' } }).distinct('managerId');
-        filter._id = { ...filter._id, $nin: assignedIds };
+    // assigned: "true" = đang phụ trách tòa, "false" = chưa phân công
+    const isAssigned = assigned === 'true' || assigned === true;
+    const isUnassigned = assigned === 'false' || assigned === false;
+    if (isAssigned || isUnassigned) {
+        const assignedIds = await Building.find({
+            isDeleted: false,
+            managerId: { $type: 'objectId' },
+        }).distinct('managerId');
+
+        const assignedSet = new Set(assignedIds.map((id) => String(id)));
+
+        if (isAssigned) {
+            if (matchedUserIds !== null) {
+                matchedUserIds = matchedUserIds.filter((id) => assignedSet.has(id));
+            } else {
+                matchedUserIds = assignedIds;
+            }
+        } else if (isUnassigned) {
+            if (matchedUserIds !== null) {
+                matchedUserIds = matchedUserIds.filter((id) => !assignedSet.has(id));
+            } else {
+                filter._id = { $nin: assignedIds };
+            }
+        }
     }
 
-    const result = await paginate(User, filter, {
-        page,
-        limit,
-        sort: { createdAt: -1 },
-        select: 'email status createdAt',
-    });
+    if (matchedUserIds !== null) {
+        filter._id = { $in: matchedUserIds };
+    }
 
-    const userIds = result.items.map((user) => user._id);
+    // Sắp mới tạo trước
+    const users = await User.find(filter)
+        .sort({ createdAt: -1 })
+        .select('email status createdAt');
+
+    const userIds = users.map((user) => user._id);
     const [profiles, buildings] = await Promise.all([
         Manager.find({ userId: { $in: userIds } }).select('userId name phone').lean(),
         Building.find({ managerId: { $in: userIds }, isDeleted: false }).select('name managerId').lean(),
@@ -265,14 +302,11 @@ export const listManagers = async ({ status, q, unassigned, page, limit }) => {
     const profileByUser = new Map(profiles.map((profile) => [String(profile.userId), profile]));
     const buildingByUser = new Map(buildings.map((building) => [String(building.managerId), building]));
 
-    return {
-        ...result,
-        items: result.items.map((user) => toListItem(
-            user,
-            profileByUser.get(String(user._id)),
-            buildingByUser.get(String(user._id)),
-        )),
-    };
+    return users.map((user) => toListItem(
+        user,
+        profileByUser.get(String(user._id)),
+        buildingByUser.get(String(user._id)),
+    ));
 };
 
 export const getManager = async (id) => {

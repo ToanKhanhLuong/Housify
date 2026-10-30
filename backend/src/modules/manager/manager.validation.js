@@ -2,6 +2,7 @@
 import Joi from 'joi';
 import { USER_STATUS } from '../../constants/enums.js';
 import { PHONE_REGEX } from '../../helpers/validators.js';
+import { commaSeparatedEnum, booleanString } from '../../helpers/filter.js';
 
 export const createManagerSchema = Joi.object({
     name: Joi.string().trim().max(100).required().messages({
@@ -22,27 +23,14 @@ export const createManagerSchema = Joi.object({
 });
 
 export const listManagersSchema = Joi.object({
-    status: Joi.string().valid(USER_STATUS.PENDING, USER_STATUS.ACTIVE, USER_STATUS.LOCKED).messages({
-        'any.only': 'Trạng thái không hợp lệ',
-        'string.empty': 'Trạng thái không hợp lệ',
-    }),
+    status: commaSeparatedEnum(
+        [USER_STATUS.ACTIVE, USER_STATUS.PENDING, USER_STATUS.LOCKED],
+        'Trạng thái không hợp lệ',
+    ),
     q: Joi.string().trim().allow('').max(100).messages({
         'string.max': 'Từ khóa tìm kiếm tối đa 100 ký tự',
     }),
-    unassigned: Joi.boolean().default(false).messages({
-        'boolean.base': 'Giá trị unassigned không hợp lệ',
-    }),
-    page: Joi.number().integer().min(1).default(1).messages({
-        'number.base': 'Trang phải là số nguyên từ 1 trở lên',
-        'number.integer': 'Trang phải là số nguyên từ 1 trở lên',
-        'number.min': 'Trang phải là số nguyên từ 1 trở lên',
-    }),
-    limit: Joi.number().integer().min(1).max(50).default(10).messages({
-        'number.base': 'Số dòng mỗi trang phải từ 1 đến 50',
-        'number.integer': 'Số dòng mỗi trang phải từ 1 đến 50',
-        'number.min': 'Số dòng mỗi trang phải từ 1 đến 50',
-        'number.max': 'Số dòng mỗi trang phải từ 1 đến 50',
-    }),
+    assigned: booleanString('Giá trị assigned không hợp lệ'),
 });
 
 // Chỉ gửi field muốn đổi; không cho gửi chuỗi rỗng để xóa trắng một ô

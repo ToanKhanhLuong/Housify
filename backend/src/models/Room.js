@@ -20,7 +20,7 @@ const roomSchema = new Schema(
             type: Schema.Types.ObjectId,
             ref: 'RoomType',
             required: true
-        },
+        }, // sức chứa lấy theo room_types.capacity
         roomNumber: {
             type: String,
             required: true,
@@ -35,24 +35,25 @@ const roomSchema = new Schema(
             type: [String],
             default: []
         },
-        capacity: {
-            type: Number,
-            required: true,
-            min: 1
-        },
         rentPrice: {
             type: Number,
             required: true,
-            min: 0
-        }, // giá niêm yết hiện tại
+            validate: {
+                validator: (v) => v > 0,
+                message: 'Giá thuê phải lớn hơn 0'
+            }
+        }, // giá niêm yết hiện tại, mỗi phòng một giá
         deposit: {
             type: Number,
             required: true,
-            min: 0
-        }, // cọc niêm yết hiện tại
+            validate: {
+                validator: (v) => v > 0,
+                message: 'Tiền cọc phải lớn hơn 0'
+            }
+        }, // cọc niêm yết hiện tại (BR-045)
         status: {
             type: String,
-            enum: values(ROOM_STATUS),  // [AVAILABLE, OCCUPIED, MAINTENANCE]
+            enum: values(ROOM_STATUS), // [AVAILABLE, OCCUPIED, MAINTENANCE]
             default: ROOM_STATUS.AVAILABLE
         },
         isDeleted: {

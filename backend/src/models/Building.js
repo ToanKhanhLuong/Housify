@@ -1,5 +1,5 @@
 // buildings – tòa nhà; tầng là floorCount, nội quy là rules (UC-11..15, UC-23)
-import mongoose from "mongoose";
+import mongoose from 'mongoose';
 
 const { Schema } = mongoose;
 
@@ -8,7 +8,6 @@ const buildingSchema = new Schema(
     name: {
       type: String,
       required: true,
-      unique: true,
       trim: true,
     }, // BR-034
     address: {
@@ -34,7 +33,7 @@ const buildingSchema = new Schema(
     }, // nội quy, một bản, lưu đè (BR-060)
     managerId: {
       type: Schema.Types.ObjectId,
-      ref: "User",
+      ref: 'User',
     }, // gỡ phân công thì đặt null
     isDeleted: {
       type: Boolean,
@@ -47,6 +46,12 @@ const buildingSchema = new Schema(
   { timestamps: true },
 );
 
+// Tên duy nhất trong các tòa chưa xóa, tòa đã xóa thì tên được dùng lại (BR-034)
+buildingSchema.index(
+  { name: 1 },
+  { unique: true, partialFilterExpression: { isDeleted: false } },
+);
+
 // 1 Manager chỉ phụ trách 1 tòa (BR-031) – chỉ xét khi managerId có giá trị
 buildingSchema.index(
   {
@@ -56,10 +61,10 @@ buildingSchema.index(
     unique: true,
     partialFilterExpression: {
       managerId: {
-        $type: "objectId",
+        $type: 'objectId',
       },
     },
   },
 );
 
-export default mongoose.model("Building", buildingSchema, "buildings");
+export default mongoose.model('Building', buildingSchema, 'buildings');

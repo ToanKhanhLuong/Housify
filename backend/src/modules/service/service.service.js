@@ -1,16 +1,14 @@
 // Service cho module service (UC-21, UC-22)
-import Service from "../../models/Service.js";
-import ServicePrice from "../../models/ServicePrice.js";
-import Building from "../../models/Building.js";
-import { AppError } from "../../utils/AppError.js";
-import { startOfVietnamDay } from "../../helpers/date.js";
-
-// Tên người dùng nhập có thể chứa ( ) . + … nên phải escape trước khi đưa vào regex
-const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+import Service from '../../models/Service.js';
+import ServicePrice from '../../models/ServicePrice.js';
+import Building from '../../models/Building.js';
+import { AppError } from '../../utils/AppError.js';
+import { startOfVietnamDay } from '../../helpers/date.js';
+import { escapeRegex } from '../../helpers/filter.js';
 
 // So tên không phân biệt hoa thường, khớp nguyên chuỗi (BR-055)
 const sameNameFilter = (name) => ({
-  $regex: new RegExp(`^${escapeRegex(name)}$`, "i"),
+  $regex: new RegExp(`^${escapeRegex(name)}$`, 'i'),
 });
 
 // Tìm dịch vụ chưa xóa
@@ -21,7 +19,7 @@ const findService = async (id) => {
   });
 
   if (!service) {
-    throw new AppError("Dịch vụ không tồn tại", 404);
+    throw new AppError('Dịch vụ không tồn tại', 404);
   }
 
   return service;
@@ -35,7 +33,7 @@ const findBuilding = async (id) => {
   });
 
   if (!building) {
-    throw new AppError("Tòa nhà không tồn tại", 404);
+    throw new AppError('Tòa nhà không tồn tại', 404);
   }
 
   return building;
@@ -55,17 +53,27 @@ const ensureNameAvailable = async (name, exceptId) => {
   const existing = await Service.findOne(filter);
 
   if (existing) {
-    throw new AppError("Tên dịch vụ đã tồn tại", 409);
+    throw new AppError('Tên dịch vụ đã tồn tại', 409);
   }
 };
 
 // ===== UC-21: danh mục dịch vụ =====
 
-// 1. Lấy danh sách dịch vụ, mới tạo trước (giống danh sách tòa, loại phòng)
-export const getServices = async () => {
-  const services = await Service.find({ isDeleted: false }).sort({
-    createdAt: -1,
-  });
+// 1. Lấy danh sách dịch vụ, sắp xếp theo tên tăng dần
+export const getServices = async (query = {}) => {
+  const filter = { isDeleted: false };
+
+  if (query.q) {
+    filter.name = { $regex: new RegExp(escapeRegex(query.q), 'i') };
+  }
+
+  if (query.isFixed === 'true') {
+    filter.isFixed = true;
+  } else if (query.isFixed === 'false') {
+    filter.isFixed = false;
+  }
+
+  const services = await Service.find(filter).sort({ name: 1 });
   return services;
 };
 
@@ -117,7 +125,7 @@ export const deleteService = async (id) => {
   service.isDeleted = true;
   await service.save();
 
-  return { message: "Xóa dịch vụ thành công" };
+  return { message: 'Xóa dịch vụ thành công' };
 };
 
 // ===== UC-22: giá dịch vụ theo tòa =====

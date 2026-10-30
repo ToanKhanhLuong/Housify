@@ -1,4 +1,4 @@
-// Tạo dữ liệu khởi tạo: 3 vai trò, tài khoản admin, Manager test (đã có tòa, chưa có tòa, chưa kích hoạt), tòa thứ 2 và thông báo mẫu (UC-41). Chạy: npm run seed
+// Tạo dữ liệu khởi tạo: 3 vai trò, tài khoản admin, Manager test, tòa nhà, loại phòng (có capacity), phòng mẫu (bỏ capacity), thông báo mẫu (UC-41). Chạy: npm run seed
 // Chạy lại nhiều lần an toàn, thứ gì đã có thì bỏ qua.
 // Quy ước: chỉ leader chạy seed lên DB chung, cả nhóm dùng chung dữ liệu này. Thành viên khác không tự chạy.
 import 'dotenv/config';
@@ -7,7 +7,7 @@ import crypto from 'crypto';
 
 import { CONNECT_DB, CLOSE_DB } from '../config/db.js';
 import { env } from '../config/env.js';
-import { ROLE, USER_STATUS, ACTIVATION_TYPE, TOKEN_STATUS, AUDIT_ACTION, NOTIFICATION_TYPE } from '../constants/enums.js';
+import { ROLE, USER_STATUS, ACTIVATION_TYPE, TOKEN_STATUS, AUDIT_ACTION, NOTIFICATION_TYPE, ROOM_STATUS } from '../constants/enums.js';
 import { withTransaction } from '../helpers/withTransaction.js';
 import { notify } from '../helpers/notify.js';
 import { generateActivationToken, ACTIVATION_TOKEN_TTL_MS } from '../helpers/activationToken.js';
@@ -19,6 +19,8 @@ import ActivationToken from '../models/ActivationToken.js';
 import AuditLog from '../models/AuditLog.js';
 import Occupant from '../models/Occupant.js';
 import Notification from '../models/Notification.js';
+import RoomType from '../models/RoomType.js';
+import Room from '../models/Room.js';
 
 const seedRoles = async () => {
     const roles = [
@@ -286,6 +288,93 @@ const seedManagerTestData = async () => {
     await seedBuilding2();
 };
 
+// Seed loại phòng: room_types có capacity ≥ 1 (chốt 30/10)
+// Chỉ tạo khi chưa có loại cùng tên (chưa xóa), không ghi đè dữ liệu có sẵn
+const seedRoomTypes = async () => {
+    const roomTypes = [
+        { name: 'Phòng đơn', capacity: 1 },
+        { name: 'Phòng đôi', capacity: 2 },
+        { name: 'Phòng gia đình', capacity: 4 },
+    ];
+
+    for (const rt of roomTypes) {
+        const existed = await RoomType.findOne({ name: rt.name, isDeleted: false });
+        if (existed) {
+            console.log(`Loại phòng "${rt.name}" đã tồn tại, bỏ qua`);
+            continue;
+        }
+        await RoomType.create({ name: rt.name, capacity: rt.capacity, isDeleted: false });
+        console.log(`Đã tạo loại phòng: ${rt.name} (sức chứa ${rt.capacity})`);
+    }
+    console.log('Đã hoàn tất kiểm tra/tạo loại phòng mẫu');
+};
+
+// Seed phòng mẫu: rooms không còn capacity, sức chứa lấy theo loại phòng (chốt 30/10)
+// Chỉ tạo khi phòng chưa tồn tại trong tòa, không ghi đè dữ liệu có sẵn
+const seedRooms = async () => {
+    const building = await Building.findOne({ name: MANAGER_BUILDING, isDeleted: false });
+    if (!building) {
+        console.log(`Chưa có ${MANAGER_BUILDING} để tạo phòng mẫu`);
+        return;
+    }
+
+    const singleType = await RoomType.findOne({ name: 'Phòng đơn', isDeleted: false });
+    const doubleType = await RoomType.findOne({ name: 'Phòng đôi', isDeleted: false });
+
+    if (!singleType || !doubleType) {
+        console.log('Chưa có loại phòng để tạo phòng mẫu');
+        return;
+    }
+
+    const sampleRooms = [
+        {
+            buildingId: building._id,
+            roomNumber: '101',
+            floorNumber: 1,
+            roomTypeId: singleType._id,
+            area: 20,
+            rentPrice: 3500000,
+            deposit: 3500000,
+            status: ROOM_STATUS.AVAILABLE,
+        },
+        {
+            buildingId: building._id,
+            roomNumber: '102',
+            floorNumber: 1,
+            roomTypeId: doubleType._id,
+            area: 28,
+            rentPrice: 5000000,
+            deposit: 5000000,
+            status: ROOM_STATUS.AVAILABLE,
+        },
+        {
+            buildingId: building._id,
+            roomNumber: '201',
+            floorNumber: 2,
+            roomTypeId: doubleType._id,
+            area: 30,
+            rentPrice: 5500000,
+            deposit: 5500000,
+            status: ROOM_STATUS.AVAILABLE,
+        },
+    ];
+
+    for (const r of sampleRooms) {
+        const existed = await Room.findOne({
+            buildingId: r.buildingId,
+            roomNumber: r.roomNumber,
+            isDeleted: false,
+        });
+        if (existed) {
+            console.log(`Phòng ${r.roomNumber} tòa ${building.name} đã tồn tại, bỏ qua`);
+            continue;
+        }
+        await Room.create({ ...r, isDeleted: false });
+        console.log(`Đã tạo phòng ${r.roomNumber} tòa ${building.name}`);
+    }
+    console.log('Đã hoàn tất kiểm tra/tạo phòng mẫu');
+};
+
 // Thông báo mẫu cho chuông (UC-41): tạo qua notify(), lần lượt từng cái để createdAt khác nhau (cũ → mới)
 const NOTIFY_ADMIN_EMAIL = 'admin@housify.vn';
 const NOTIFY_CUSTOMER_CCCD = '031204005476';
@@ -437,6 +526,8 @@ CONNECT_DB()
         await seedAdmin();
         await seedManager();
         await seedManagerTestData();
+        await seedRoomTypes();
+        await seedRooms();
         await seedNotifications();
         await CLOSE_DB();
         process.exit(0);

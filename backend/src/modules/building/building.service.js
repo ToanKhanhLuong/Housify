@@ -1,49 +1,64 @@
 // Service cho module building (UC-12, UC-13, UC-14, UC-15, UC-23)
-import Building from "../../models/Building.js";
-import Contract from "../../models/Contract.js";
-import Room from "../../models/Room.js";
-import Occupant from "../../models/Occupant.js";
-import Manager from "../../models/Manager.js";
-import { AppError } from "../../utils/AppError.js";
+import Building from '../../models/Building.js';
+import Contract from '../../models/Contract.js';
+import Room from '../../models/Room.js';
+import Occupant from '../../models/Occupant.js';
+import Manager from '../../models/Manager.js';
+import { AppError } from '../../utils/AppError.js';
 import {
   ROLE,
   CONTRACT_STATUS,
   ROOM_STATUS,
   NOTIFICATION_TYPE,
   OCCUPANT_STATUS,
-} from "../../constants/enums.js";
-import { withTransaction } from "../../helpers/withTransaction.js";
-import { notify } from "../../helpers/notify.js";
-
-// Tên người dùng nhập có thể chứa ( ) . + … nên phải escape trước khi đưa vào regex
-const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+} from '../../constants/enums.js';
+import { withTransaction } from '../../helpers/withTransaction.js';
+import { notify } from '../../helpers/notify.js';
+import { escapeRegex } from '../../helpers/filter.js';
 
 // So tên không phân biệt hoa thường, khớp nguyên chuỗi (BR-034)
 const sameNameFilter = (name) => ({
-  $regex: new RegExp(`^${escapeRegex(name)}$`, "i"),
+  $regex: new RegExp(`^${escapeRegex(name)}$`, 'i'),
 });
 
-// Thêm roomCount (số phòng chưa xóa) và manager { _id, name } | null cho từng tòa (UC-13)
-// manager._id là _id của users, giống managerId
+// Thêm roomStats { total, available, occupied, maintenance } và manager { _id, name } | null cho từng tòa
 const withDetails = async (buildings) => {
+  if (buildings.length === 0) return [];
   const buildingIds = buildings.map((building) => building._id);
   const managerIds = buildings
     .map((building) => building.managerId)
     .filter(Boolean);
 
-  const [roomCounts, managers] = await Promise.all([
+  const [stats, managers] = await Promise.all([
     Room.aggregate([
       { $match: { buildingId: { $in: buildingIds }, isDeleted: false } },
-      { $group: { _id: "$buildingId", count: { $sum: 1 } } },
+      {
+        $group: {
+          _id: { buildingId: '$buildingId', status: '$status' },
+          count: { $sum: 1 },
+        },
+      },
     ]),
     Manager.find({ userId: { $in: managerIds } })
-      .select("userId name")
+      .select('userId name')
       .lean(),
   ]);
 
-  const roomCountByBuilding = new Map(
-    roomCounts.map((item) => [String(item._id), item.count]),
-  );
+  const statsByBuilding = new Map();
+  for (const item of stats) {
+    const bId = String(item._id.buildingId);
+    if (!statsByBuilding.has(bId)) {
+      statsByBuilding.set(bId, { total: 0, available: 0, occupied: 0, maintenance: 0 });
+    }
+    const bStats = statsByBuilding.get(bId);
+    const status = item._id.status;
+    const count = item.count;
+    bStats.total += count;
+    if (status === ROOM_STATUS.AVAILABLE) bStats.available += count;
+    else if (status === ROOM_STATUS.OCCUPIED) bStats.occupied += count;
+    else if (status === ROOM_STATUS.MAINTENANCE) bStats.maintenance += count;
+  }
+
   const managerByUser = new Map(
     managers.map((manager) => [String(manager.userId), manager]),
   );
@@ -52,10 +67,16 @@ const withDetails = async (buildings) => {
     const manager = building.managerId
       ? managerByUser.get(String(building.managerId))
       : null;
+    const roomStats = statsByBuilding.get(String(building._id)) || {
+      total: 0,
+      available: 0,
+      occupied: 0,
+      maintenance: 0,
+    };
 
     return {
       ...building.toObject(),
-      roomCount: roomCountByBuilding.get(String(building._id)) ?? 0,
+      roomStats,
       manager: manager ? { _id: building.managerId, name: manager.name } : null,
     };
   });
@@ -74,7 +95,7 @@ export const createBuilding = async (data) => {
   });
 
   if (existing) {
-    throw new AppError("Tên tòa nhà đã tồn tại", 409);
+    throw new AppError('Tên tòa nhà đã tồn tại', 409);
   }
 
   // Lưu tòa nhà vào MongoDB
@@ -90,7 +111,7 @@ export const createBuilding = async (data) => {
 };
 
 // 2. Lấy danh sách tòa nhà (UC-13)
-export const getBuildings = async (user) => {
+export const getBuildings = async (query = {}, user) => {
   const filter = { isDeleted: false };
 
   // Manager chỉ xem tòa nhà mình quản lý
@@ -98,8 +119,19 @@ export const getBuildings = async (user) => {
     filter.managerId = user.id;
   }
 
-  // Tòa mới tạo hiện trước
-  const buildings = await Building.find(filter).sort({ createdAt: -1 });
+  if (query.q) {
+    const regex = new RegExp(escapeRegex(query.q), 'i');
+    filter.$or = [{ name: regex }, { address: regex }];
+  }
+
+  if (query.hasManager === 'true') {
+    filter.managerId = { $exists: true, $ne: null };
+  } else if (query.hasManager === 'false') {
+    filter.managerId = null;
+  }
+
+  // Sắp theo tên tăng dần
+  const buildings = await Building.find(filter).sort({ name: 1 });
 
   return withDetails(buildings);
 };
@@ -113,13 +145,13 @@ export const getBuildingById = async (id, user) => {
   });
 
   if (!building) {
-    throw new AppError("Tòa nhà không tồn tại", 404);
+    throw new AppError('Tòa nhà không tồn tại', 404);
   }
 
   // Manager chỉ xem tòa mình phụ trách
   if (user.role === ROLE.MANAGER) {
     if (String(building.managerId) !== String(user.id)) {
-      throw new AppError("Bạn không có quyền xem tòa nhà này", 403);
+      throw new AppError('Bạn không có quyền xem tòa nhà này', 403);
     }
   }
 
@@ -135,7 +167,7 @@ export const updateBuilding = async (id, data) => {
   });
 
   if (!building) {
-    throw new AppError("Tòa nhà không tồn tại", 404);
+    throw new AppError('Tòa nhà không tồn tại', 404);
   }
 
   // Nếu đổi tên thì kiểm tra trùng
@@ -150,7 +182,7 @@ export const updateBuilding = async (id, data) => {
       });
 
       if (existing) {
-        throw new AppError("Tên tòa nhà đã tồn tại", 409);
+        throw new AppError('Tên tòa nhà đã tồn tại', 409);
       }
     }
 
@@ -185,12 +217,12 @@ export const deleteBuilding = async (id) => {
   });
 
   if (!building) {
-    throw new AppError("Tòa nhà không tồn tại", 404);
+    throw new AppError('Tòa nhà không tồn tại', 404);
   }
 
   // Không cho xóa nếu còn Manager
   if (building.managerId) {
-    throw new AppError("Vui lòng gỡ Manager trước khi xóa", 400);
+    throw new AppError('Vui lòng gỡ Manager trước khi xóa', 400);
   }
 
   // Kiểm tra hợp đồng và xóa mềm trong cùng 1 transaction: lỗi giữa chừng thì không thay đổi gì
@@ -198,84 +230,96 @@ export const deleteBuilding = async (id) => {
 
   await withTransaction(async (session) => {
     // Lấy danh sách phòng thuộc tòa nhà
-    const roomIds = await Room.find({ buildingId: id, isDeleted: false })
-      .session(session)
-      .distinct("_id");
+    const rooms = await Room.find({ buildingId: id, isDeleted: false }).session(session);
 
-    // Kiểm tra hợp đồng DRAFT hoặc ACTIVE
-    const activeContracts = await Contract.find({
-      roomId: { $in: roomIds },
-      status: { $in: [CONTRACT_STATUS.DRAFT, CONTRACT_STATUS.ACTIVE] },
-    })
-      .populate("roomId", "roomNumber")
-      .session(session);
+    // Tìm các phòng đang có hợp đồng DRAFT hoặc ACTIVE
+    if (rooms.length > 0) {
+      const roomIds = rooms.map((r) => r._id);
+      const activeContracts = await Contract.find({
+        roomId: { $in: roomIds },
+        status: { $in: [CONTRACT_STATUS.DRAFT, CONTRACT_STATUS.ACTIVE] },
+      }).session(session);
 
-    if (activeContracts.length > 0) {
-      const stuckRooms = activeContracts.map(
-        (contract) => contract.roomId.roomNumber,
-      );
+      if (activeContracts.length > 0) {
+        const busyRoomIds = new Set(activeContracts.map((c) => String(c.roomId)));
+        const busyRoomNumbers = rooms
+          .filter((r) => busyRoomIds.has(String(r._id)))
+          .map((r) => r.roomNumber)
+          .join(', ');
 
-      throw new AppError(
-        `Không thể xóa vì các phòng sau đang có hợp đồng: ${stuckRooms.join(", ")}`,
-        400,
+        throw new AppError(
+          `Không thể xóa vì các phòng sau đang có hợp đồng: ${busyRoomNumbers}`,
+          400,
+        );
+      }
+
+      // Xóa mềm toàn bộ phòng của tòa nhà
+      await Room.updateMany(
+        { buildingId: id, isDeleted: false },
+        { isDeleted: true, deletedAt: now },
+        { session },
       );
     }
 
-    // Xóa mềm tòa nhà và các phòng cùng lúc
+    // Xóa mềm tòa nhà
     building.isDeleted = true;
     building.deletedAt = now;
-
     await building.save({ session });
-
-    await Room.updateMany(
-      { buildingId: id, isDeleted: false },
-      { $set: { isDeleted: true, deletedAt: now } },
-      { session },
-    );
   });
 
-  return { message: "Xóa tòa nhà thành công" };
+  return { message: 'Xóa tòa nhà thành công' };
 };
 
 // 6. Lấy danh sách tầng và thống kê số phòng mỗi tầng (UC-15)
 export const getBuildingFloors = async (id, user) => {
-  // Kiểm tra tòa nhà tồn tại
-  const building = await Building.findOne({
-    _id: id,
-    isDeleted: false,
-  });
+  const building = await getBuildingById(id, user);
 
-  if (!building) {
-    throw new AppError("Tòa nhà không tồn tại", 404);
-  }
+  // Đếm số phòng và trạng thái từng phòng theo từng tầng (chỉ tính phòng chưa xóa)
+  const roomStats = await Room.aggregate([
+    { $match: { buildingId: building._id, isDeleted: false } },
+    {
+      $group: {
+        _id: { floorNumber: '$floorNumber', status: '$status' },
+        count: { $sum: 1 },
+      },
+    },
+  ]);
 
-  // Manager chỉ xem tầng của tòa mình phụ trách
-  if (user.role === ROLE.MANAGER) {
-    if (String(building.managerId) !== String(user.id)) {
-      throw new AppError("Bạn không có quyền xem tòa nhà này", 403);
+  // Gom dữ liệu theo tầng
+  const floorMap = {};
+  for (const item of roomStats) {
+    const floor = item._id.floorNumber;
+    const status = item._id.status;
+    const count = item.count;
+
+    if (!floorMap[floor]) {
+      floorMap[floor] = {
+        total: 0,
+        AVAILABLE: 0,
+        OCCUPIED: 0,
+        MAINTENANCE: 0,
+      };
     }
+    floorMap[floor].total += count;
+    floorMap[floor][status] = (floorMap[floor][status] || 0) + count;
   }
 
-  // Lấy danh sách phòng chưa bị xóa của tòa nhà
-  const rooms = await Room.find({
-    buildingId: id,
-    isDeleted: false,
-  });
-
-  // Sinh danh sách từ tầng 1 đến floorCount
+  // Trả về đủ các tầng từ 1 đến floorCount
   const floors = [];
   for (let i = 1; i <= building.floorCount; i++) {
-    const floorRooms = rooms.filter((room) => room.floorNumber === i);
-    const countOf = (status) =>
-      floorRooms.filter((room) => room.status === status).length;
-
+    const stats = floorMap[i] || {
+      total: 0,
+      AVAILABLE: 0,
+      OCCUPIED: 0,
+      MAINTENANCE: 0,
+    };
     floors.push({
       floorNumber: i,
-      roomCount: floorRooms.length,
+      roomCount: stats.total,
       statusCounts: {
-        [ROOM_STATUS.AVAILABLE]: countOf(ROOM_STATUS.AVAILABLE),
-        [ROOM_STATUS.OCCUPIED]: countOf(ROOM_STATUS.OCCUPIED),
-        [ROOM_STATUS.MAINTENANCE]: countOf(ROOM_STATUS.MAINTENANCE),
+        AVAILABLE: stats.AVAILABLE,
+        OCCUPIED: stats.OCCUPIED,
+        MAINTENANCE: stats.MAINTENANCE,
       },
     });
   }
@@ -291,10 +335,10 @@ export const updateFloorCount = async (id, floorCount) => {
   });
 
   if (!building) {
-    throw new AppError("Tòa nhà không tồn tại", 404);
+    throw new AppError('Tòa nhà không tồn tại', 404);
   }
 
-  // BR-042: Không giảm số tầng xuống dưới tầng cao nhất đang có phòng
+  // BR-042: Không được giảm xuống dưới tầng cao nhất đang có phòng
   const blockedRooms = await Room.find({
     buildingId: id,
     isDeleted: false,
@@ -322,13 +366,13 @@ export const getBuildingRules = async (id, user) => {
   });
 
   if (!building) {
-    throw new AppError("Tòa nhà không tồn tại", 404);
+    throw new AppError('Tòa nhà không tồn tại', 404);
   }
 
   // Manager chỉ xem nội quy tòa mình phụ trách
   if (user.role === ROLE.MANAGER) {
     if (String(building.managerId) !== String(user.id)) {
-      throw new AppError("Bạn không có quyền xem nội quy của tòa nhà này", 403);
+      throw new AppError('Bạn không có quyền xem nội quy của tòa nhà này', 403);
     }
   }
 
@@ -340,7 +384,7 @@ export const getBuildingRules = async (id, user) => {
     });
 
     if (!occupant) {
-      throw new AppError("Bạn chưa có phòng đang thuê", 403);
+      throw new AppError('Bạn chưa có phòng đang thuê', 403);
     }
 
     const contract = await Contract.findOne({
@@ -349,16 +393,16 @@ export const getBuildingRules = async (id, user) => {
     });
 
     if (!contract) {
-      throw new AppError("Bạn không có hợp đồng đang hiệu lực", 403);
+      throw new AppError('Bạn không có hợp đồng đang hiệu lực', 403);
     }
 
     const room = await Room.findById(contract.roomId);
     if (!room || String(room.buildingId) !== String(id)) {
-      throw new AppError("Bạn chỉ được xem nội quy của tòa nhà mình đang ở", 403);
+      throw new AppError('Bạn chỉ được xem nội quy của tòa nhà mình đang ở', 403);
     }
   }
 
-  return { rules: building.rules || "" };
+  return { rules: building.rules || '' };
 };
 
 // 9. Cập nhật / Ghi đè nội quy tòa nhà (UC-23 - Chỉ Admin)
@@ -369,7 +413,7 @@ export const updateBuildingRules = async (id, rules, user) => {
   });
 
   if (!building) {
-    throw new AppError("Tòa nhà không tồn tại", 404);
+    throw new AppError('Tòa nhà không tồn tại', 404);
   }
 
   // Cập nhật và lưu đè nội quy
@@ -381,7 +425,7 @@ export const updateBuildingRules = async (id, rules, user) => {
     await notify({
       userIds: building.managerId,
       type: NOTIFICATION_TYPE.ANNOUNCEMENT,
-      title: "Nội quy mới",
+      title: 'Nội quy mới',
       message: `Tòa ${building.name} vừa cập nhật nội quy`,
       refId: building._id,
       createdBy: user.id,

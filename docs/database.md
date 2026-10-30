@@ -1,6 +1,6 @@
 # Cơ sở dữ liệu Housify – 18 collection
 
-Nguồn: ERD nhóm vẽ trên drawdb (bản 14-10-2026), cập nhật 20-10-2026. Chỗ nào ERD lệch Use Case thì **theo Use Case** – field / giá trị thêm vào đánh dấu **(bổ sung)**, xem mục cuối.
+Nguồn: ERD nhóm vẽ trên drawdb (bản 14-10-2026), cập nhật 30-10-2026. Chỗ nào ERD lệch Use Case thì **theo Use Case** – field / giá trị thêm vào đánh dấu **(bổ sung)**, xem mục cuối.
 Sơ đồ: `docs/housify-erd.puml` (ảnh `docs/housify-erd.png`).
 Đây là **nguồn chuẩn** cho model. Muốn thêm collection / field / giá trị enum: hỏi nhóm và sửa file này trước, rồi mới sửa code. **Hạn chế thêm field** – collection đã gần như chốt.
 
@@ -13,7 +13,7 @@ Sơ đồ: `docs/housify-erd.puml` (ảnh `docs/housify-erd.png`).
 - Hằng số cấu hình (STK Admin, số ngày hạn hóa đơn, mốc nhắc) để ở `.env` / `src/constants`, **không lưu DB**.
 - Xóa mềm: `buildings`, `rooms` có `isDeleted` + `deletedAt` (BR-040, BR-049); `room_types`, `services` chỉ có `isDeleted`. Mọi truy vấn danh sách phải lọc `isDeleted: false`. Tên / mã của bản ghi đã xóa mềm **được dùng lại** (unique dạng partial).
 - Ảnh lưu trên **Cloudinary**, DB chỉ lưu chuỗi. Ảnh công khai (tòa, phòng, sự cố) lưu **đường dẫn**. Ảnh CCCD là ảnh **bảo vệ**, lưu **mã ảnh (publicId)**, chỉ tạo link xem khi người có quyền mở hồ sơ.
-- Các giá trị **tính ra, không lưu**: quá hạn hóa đơn (từ `dueDate`), đúng hạn / quá hạn thanh toán (`paidAt` so với `dueDate`), số người đang ở, "đang chờ chấm dứt", hạn tự xác nhận đơn chấm dứt (`createdAt` + 7 ngày).
+- Các giá trị **tính ra, không lưu**: quá hạn hóa đơn (từ `dueDate`), đúng hạn / quá hạn thanh toán (`paidAt` so với `dueDate`), số người đang ở của phòng, "đang chờ chấm dứt", hạn tự xác nhận đơn chấm dứt (`createdAt` + 7 ngày).
 
 ---
 
@@ -55,7 +55,7 @@ Thuê lại (UC-24, UC-06) – CCCD đã có tài khoản: ACTIVE / LOCKED → c
 - `dateOfBirth?`: Date – ngày sinh
 - `address?`: String – địa chỉ
 
-Admin nhập `name`, email, `phone` (UC-08). Manager tự điền **một lần** 2 ảnh CCCD, `dateOfBirth`, `address` (BR-011); sau đó chỉ Admin sửa (UC-09). Ảnh CCCD của Manager chỉ chính Manager đó và Admin xem được.
+Admin nhập `name`, email, `phone` (UC-08). Manager tự sửa `phone`, `dateOfBirth`, `address`, 2 ảnh CCCD ở hồ sơ cá nhân (UC-05), sửa nhiều lần được; `name`, email chỉ Admin sửa (UC-09). Ảnh CCCD của Manager chỉ chính Manager đó và Admin xem được.
 
 ### 4. occupants – cư dân theo hợp đồng, mỗi người 1 hồ sơ
 
@@ -75,7 +75,7 @@ Admin nhập `name`, email, `phone` (UC-08). Manager tự điền **một lần*
 - `exitDate?`: Date – ngày chuyển ra
 - Hợp đồng nhóm: người ở cùng tạo ngay lúc DRAFT (STAYED, `joinDate = startDate`); người đại diện tạo lúc kích hoạt (UC-06).
 - Khách thuê lại → bản ghi mới, cùng `cccd`, cùng `userId`.
-- **"Đang ở"** = occupant STAYED thuộc hợp đồng ACTIVE.
+- **"Đang ở"** = occupant STAYED thuộc hợp đồng ACTIVE. **Số người đang ở của phòng** = đếm các occupant này – không lưu field riêng trong `rooms`.
 - Xóa người ở cùng (UC-33) = LEFT + `exitDate`, không xóa bản ghi.
 - Hủy hợp đồng nháp (UC-46) = người ở cùng đã nhập kèm → **LEFT, giữ lại, không xóa**. Không hiện trong danh sách cư dân vì hợp đồng đã hủy.
 - Ảnh CCCD của cư dân chỉ người đại diện của phòng và Manager của tòa xem được.
@@ -111,7 +111,7 @@ Link dùng 1 lần. Gửi lại → link cũ EXPIRED. Hủy hợp đồng DRAFT 
 - `name`: String, unique trong các tòa chưa xóa (partial) – tên tòa (BR-034); tòa đã xóa thì tên được dùng lại
 - `address`: String – địa chỉ
 - `description?`: String – mô tả (UC-12) **(bổ sung)**
-- `images`: [String] – đường dẫn ảnh công khai
+- `images`: [String] – đường dẫn ảnh công khai; **ảnh đầu tiên là ảnh đại diện** của tòa trên danh sách
 - `floorCount`: Number – tổng số tầng, ≥ 1, Admin nhập lúc tạo (UC-12); danh sách "Tầng 1..n" sinh từ số này, **không có collection tầng** (UC-15)
 - `rules?`: String – nội quy, một bản, lưu đè (UC-23, BR-060)
 - `managerId?`: ObjectId → users – Manager phụ trách, **chỉ gán Manager ACTIVE** (UC-11); unique khi có giá trị (1 Manager 1 tòa, BR-031)
@@ -122,20 +122,27 @@ Tầng (UC-15): sửa `floorCount`. Không giảm xuống dưới tầng cao nh�
 
 Xóa tòa (UC-14): chặn khi còn phòng có hợp đồng ACTIVE **hoặc DRAFT**, hoặc còn Manager phụ trách.
 
+Mỗi tòa có riêng: danh sách phòng, giá dịch vụ (`service_prices`), nội quy (`rules`). Giao diện xem cả ba trong trang chi tiết tòa (không có menu Phòng riêng).
+
 ### 8. rooms
 
 - `buildingId`: ObjectId → buildings
 - `floorNumber`: Number – tầng, từ 1 đến `buildings.floorCount`
-- `roomTypeId`: ObjectId → room_types
+- `roomTypeId`: ObjectId → room_types – **sức chứa của phòng lấy theo loại phòng** (`room_types.capacity`)
 - `roomNumber`: String – mã phòng; duy nhất trong tòa (BR-043), **không sửa sau khi tạo** (BR-046)
 - `area`: Number – diện tích m²
 - `images`: [String] – đường dẫn ảnh công khai
-- `capacity`: Number – sức chứa, ≥ 1
-- `rentPrice`: Number – giá thuê niêm yết hiện tại, > 0
-- `deposit`: Number – tiền cọc niêm yết hiện tại, > 0 (BR-045)
+- `rentPrice`: Number – giá thuê niêm yết hiện tại, **> 0**; mỗi phòng một giá (tầng, diện tích khác nhau thì giá khác)
+- `deposit`: Number – tiền cọc niêm yết hiện tại, **> 0** (BR-045)
 - `status`: Enum `(ROOM_STATUS)` – AVAILABLE | OCCUPIED | MAINTENANCE **(bổ sung MAINTENANCE)**; mới tạo luôn AVAILABLE
 - `isDeleted`: Boolean – mặc định false
 - `deletedAt?`: Date – lúc xóa mềm (BR-049) **(bổ sung)**
+
+**Không có `capacity`, không có `member`** (chốt 30/10). Sức chứa = `capacity` của loại phòng. Số người đang ở = đếm occupant STAYED của hợp đồng ACTIVE của phòng, BE tính khi trả danh sách / chi tiết.
+
+`rentPrice`, `deposit` phải **lớn hơn hẳn 0** – Mongoose `min: 0` vẫn nhận số 0, nên chặn trong validation (hoặc validator riêng).
+
+Đổi loại phòng (UC-17): loại mới phải có `capacity` ≥ số người đang ở của phòng.
 
 Đổi `status`: AVAILABLE ↔ MAINTENANCE do Admin (UC-17 A2), **không chuyển sang MAINTENANCE khi phòng đang có hợp đồng DRAFT** (Manager hủy nháp trước, UC-46). AVAILABLE ↔ OCCUPIED **chỉ hệ thống** đổi: kích hoạt hợp đồng (UC-06); hợp đồng kết thúc (UC-28/29/45). Admin không chọn được OCCUPIED, Manager không đổi được trạng thái (BR-052).
 
@@ -144,9 +151,12 @@ Xóa phòng (UC-18): chặn khi còn hợp đồng ACTIVE **hoặc DRAFT**.
 ### 9. room_types – loại phòng dùng chung toàn hệ thống
 
 - `name`: String, unique trong các loại chưa xóa (partial) – BR-053; loại đã xóa thì tên được dùng lại
+- `capacity`: Number – sức chứa tối đa của mọi phòng thuộc loại này, ≥ 1 **(bổ sung 30/10)**
 - `isDeleted`: Boolean – mặc định false
 
-Xóa (UC-20): chặn khi loại đang gán cho phòng còn hoạt động (BR-054).
+Loại phòng nhận diện theo tên, không có mã riêng. Xóa (UC-20): xóa mềm, người dùng thấy loại đó biến mất và tạo lại được đúng tên cũ; **không xóa hẳn** vì phòng đã xóa mềm vẫn trỏ tới loại này. Chặn xóa khi loại đang gán cho phòng còn hoạt động (BR-054).
+
+Sửa `capacity` (UC-20): không được nhỏ hơn số người đang ở của phòng đông nhất thuộc loại này (thay cho BR-047 cũ của phòng).
 
 ---
 
@@ -377,26 +387,27 @@ Ghi qua helper `audit()`, không tự `insert`.
 
 Unique, khai báo trong Mongoose schema (`partial` = chỉ áp dụng khi `isDeleted: false`):
 
-| Collection        | Field                                        | Ghi chú                                                          |
-| ----------------- | -------------------------------------------- | ----------------------------------------------------------------- |
-| users             | `email`                                    | BR-010, BR-019                                                    |
-| managers          | `userId`; `phone`; `cccd` (sparse)     |                                                                   |
-| activation_tokens | `token`                                    |                                                                   |
-| buildings         | `name`; `managerId`                      | `name`: partial; `managerId`: chỉ khi có giá trị (BR-031) |
-| rooms             | `{ buildingId, roomNumber }`               | partial (BR-043, BR-050)                                          |
-| room_types        | `name`                                     | partial (BR-053)                                                  |
-| services          | `name`                                     | partial (BR-055)                                                  |
-| service_prices    | `{ serviceId, buildingId, effectiveFrom }` |                                                                   |
-| occupants         | `{ contractId, cccd }`                     |                                                                   |
-| invoices          | `invoiceCode`                              |                                                                   |
-| payments          | `sepayTxnId`                               | BR-105                                                            |
-| incidents         | `incidentCode`                             |                                                                   |
+| Collection        | Field                                        | Ghi chú                                                                                                                                  |
+| ----------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| users             | `email`                                    | BR-010, BR-019                                                                                                                            |
+| managers          | `userId`; `phone`; `cccd` (sparse)     |                                                                                                                                           |
+| activation_tokens | `token`                                    |                                                                                                                                           |
+| buildings         | `name`; `managerId`                      | `name`: partial; `managerId`: chỉ khi có giá trị (BR-031)                                                                         |
+| rooms             | `{ buildingId, roomNumber }`               | partial (BR-043, BR-050)                                                                                                                  |
+| room_types        | `name`                                     | partial (BR-053) – **không** dùng `unique: true` trên field, khai báo bằng `schema.index` có `partialFilterExpression` |
+| services          | `name`                                     | partial (BR-055)                                                                                                                          |
+| service_prices    | `{ serviceId, buildingId, effectiveFrom }` |                                                                                                                                           |
+| occupants         | `{ contractId, cccd }`                     |                                                                                                                                           |
+| invoices          | `invoiceCode`                              |                                                                                                                                           |
+| payments          | `sepayTxnId`                               | BR-105                                                                                                                                    |
+| incidents         | `incidentCode`                             |                                                                                                                                           |
 
 Kiểm tra trong service (trong transaction), **không** dùng index:
 
 - BR-061: 1 phòng tối đa 1 hợp đồng DRAFT hoặc ACTIVE.
 - BR-016: 1 CCCD chỉ gắn 1 tài khoản Customer.
-- BR-087: tổng cư dân (gồm người đại diện) không vượt sức chứa phòng.
+- BR-087: tổng cư dân đang ở (gồm người đại diện) không vượt `capacity` của **loại phòng** của phòng đó.
+- BR-047 (mới): sửa `room_types.capacity` không nhỏ hơn số người đang ở của phòng đông nhất thuộc loại; đổi loại cho phòng thì loại mới phải đủ chỗ cho số người đang ở.
 - BR-010: 1 số điện thoại chỉ thuộc 1 người – kiểm tra chéo `managers.phone` và `occupants.phone` (hai collection nên index không ép được). Cư dân so theo `cccd`, Manager so theo `userId`. Một người có nhiều số thì được.
 - UC-11: chỉ Manager ACTIVE được gán tòa.
 - UC-14, UC-18: không xóa tòa / phòng khi còn hợp đồng ACTIVE hoặc DRAFT.
@@ -407,7 +418,7 @@ Kiểm tra trong service (trong transaction), **không** dùng index:
 
 ## Đã chốt (14-10-2026)
 
-Nguyên tắc: **ERD và Use Case lệch nhau → theo Use Case.**
+Nguyên tắc: **ERD và Use Case lệch nhau → theo Use Case.** Từ 30-10-2026: tài liệu nghiệp vụ (UC, workflow, file này) lệch nhau thì **theo bản cập nhật mới nhất**.
 
 Bổ sung so với ERD drawdb:
 
@@ -459,3 +470,18 @@ Giữ nguyên, không trái UC:
 | Dịch vụ của tòa                          | Chỉ các dịch vụ đã được đặt giá ở tòa đó; mỗi tòa một bộ riêng                                                                                                                                                | Không sửa UC                                               |
 | Ảnh CCCD                                    | Lưu mã ảnh bảo vệ, chỉ người có quyền xem: Manager → chính họ + Admin; cư dân → người đại diện phòng + Manager tòa                                                                                          | Không sửa UC                                               |
 | Chuông của Admin                           | Admin có chuông, chỉ nhận đơn đơn phương chờ duyệt và tiền về tài khoản                                                                                                                                           | UC-41 Actor                                                  |
+
+## Đã chốt (30/10/2026) – sức chứa theo loại phòng
+
+**Đổi 1 field:** bỏ `rooms.capacity`, thêm `room_types.capacity`. Không thêm field nào khác.
+
+| Chỗ                   | Chốt                                                                                                                                                                         | Sửa ở đâu                                                                                                                                                                                                               |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sức chứa             | Thuộc **loại phòng** (`room_types.capacity` ≥ 1). Phòng không lưu sức chứa riêng                                                                            | UC-16 Summary, bước 1, bước 2, E03, BR-045 (bỏ "sức chứa"); UC-20 bước 1 (form: tên + sức chứa)                                                                                                                 |
+| Số người đang ở   | **Không lưu** (`member` không thêm) – đếm occupant STAYED của hợp đồng ACTIVE. Lưu sẽ phải cập nhật ở UC-06, 32, 33, 45, 46, chấm dứt – dễ lệch | Không sửa UC                                                                                                                                                                                                              |
+| Luật sức chứa       | Số người đang ở ≤ `capacity` của loại phòng (BR-087)                                                                                                               | BR-087 ghi "sức chứa của loại phòng"                                                                                                                                                                                   |
+| Sửa sức chứa        | Chuyển từ phòng sang loại phòng: sửa `capacity` của loại không nhỏ hơn số người đang ở của phòng đông nhất thuộc loại                                | UC-17 Summary (bỏ "sức chứa"), E02 đổi thành "Loại phòng mới không đủ chỗ cho số người đang ở"; BR-047 chuyển sang UC-20, thêm UC-20 E03 "Sức chứa mới nhỏ hơn số người đang ở của phòng X" |
+| Giá thuê, tiền cọc | **Giữ ở phòng** – cùng loại nhưng khác tầng, diện tích thì giá khác. Hợp đồng vẫn chụp giá phòng (BR-062)                                          | Không sửa UC                                                                                                                                                                                                              |
+| Xóa loại phòng      | Xóa mềm, tên dùng lại được (index partial); không xóa hẳn                                                                                                          | Không sửa UC                                                                                                                                                                                                              |
+| Xem phòng             | Không có menu Phòng riêng; phòng xem trong chi tiết tòa (tab Phòng). Mỗi tòa có phòng, giá dịch vụ, nội quy riêng; ảnh đại diện tòa = `images[0]`     | UC-19 Triggers: "Actor mở chi tiết tòa nhà → tab Phòng"                                                                                                                                                               |
+| Tòa theo khu vực     | Không làm – `buildings` không có field khu vực; chỉ tìm theo tên / địa chỉ                                                                                      | Không sửa UC                                                                                                                                                                                                              |
