@@ -1,63 +1,147 @@
-// UC-09: danh sách Manager (Admin): lọc theo trạng thái, tình trạng phân công, tìm kiếm; bấm dòng mở chi tiết
-// UC-08: nút "Thêm Manager". Danh sách không phân trang, BE trả data là mảng trực tiếp
-import { useCallback, useEffect, useState } from 'react';
+// UC-09: danh sách Manager (Admin) theo mockup docs/mock/Managers.dc.html. UC-08: nút "Thêm Manager"
+// Thanh ControlBar: tìm theo họ tên / email / SĐT, bộ lọc Trạng thái (chọn nhiều) + Phân công, nhóm theo Trạng thái,
+// đổi Thẻ / Bảng. Dạng thẻ nhóm theo trạng thái thành 3 cột (Đang hoạt động, Chưa kích hoạt, Bị khóa)
+// BE trả mảng trực tiếp, không phân trang (quy ước api.md 30/10)
+import { useEffect, useState } from 'react';
 import { Button, Card } from 'react-bootstrap';
 import { BiBuildings, BiChevronRight, BiPlus } from 'react-icons/bi';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'react-toastify';
-import PageHeader from '../../components/PageHeader';
+import ControlBar from '../../components/ControlBar';
 import DataTable from '../../components/DataTable';
+import ItemCard from '../../components/ItemCard';
 import StatusBadge from '../../components/StatusBadge';
+import EmptyState from '../../components/EmptyState';
+import ErrorState from '../../components/ErrorState';
+import SkeletonRows from '../../components/SkeletonRows';
 import { USER_STATUS } from '../../constants/enums';
 import { USER_STATUS_LABEL } from '../../constants/statusLabels';
+import { formatFilterQuery } from '../../utils/filter';
 import managerApi from './manager.api';
 import ManagerCreateModal from './components/ManagerCreateModal';
-import FilterSelect from './components/FilterSelect';
 import ManagerAvatar from './components/ManagerAvatar';
-import SearchInput from './components/SearchInput';
 
-// Manager chỉ có 3 trạng thái (INACTIVE là của Customer)
-const STATUS_OPTIONS = [USER_STATUS.PENDING, USER_STATUS.ACTIVE, USER_STATUS.LOCKED].map(
-  (status) => ({ value: status, label: USER_STATUS_LABEL[status].label }),
-);
+// thứ tự cột khi nhóm theo trạng thái (theo mockup)
+const STATUS_ORDER = [USER_STATUS.ACTIVE, USER_STATUS.PENDING, USER_STATUS.LOCKED];
 
-const ASSIGNED_OPTIONS = [
-  { value: 'true', label: 'Đã phân công' },
-  { value: 'false', label: 'Chưa phân công' },
+const FILTER_GROUPS = [
+  {
+    id: 'status',
+    label: 'Trạng thái',
+    type: 'checkbox',
+    options: STATUS_ORDER.map((status) => ({
+      value: status,
+      label: USER_STATUS_LABEL[status].label,
+    })),
+  },
+  {
+    id: 'assigned',
+    label: 'Phân công',
+    type: 'checkbox',
+    options: [
+      { value: 'true', label: 'Đã phân công tòa' },
+      { value: 'false', label: 'Chưa phân công tòa' },
+    ],
+  },
 ];
+
+const GROUP_BY_OPTIONS = [{ value: 'status', label: 'Trạng thái' }];
+
+// tòa phụ trách dạng nhãn nhỏ ở chân thẻ
+const BuildingBadge = ({ building }) =>
+  building ? (
+    <span className="badge rounded-pill bg-primary-subtle text-primary-emphasis flex items-center gap-1">
+      <BiBuildings />
+      {building.name}
+    </span>
+  ) : (
+    <span className="badge rounded-pill bg-secondary-subtle text-secondary-emphasis">
+      Chưa phân công
+    </span>
+  );
+
+// thẻ một Manager: avatar + tên + email, chân thẻ là SĐT + tòa; không nhóm theo trạng thái thì hiện thêm badge trạng thái
+const ManagerCard = ({ manager, showStatus }) => (
+  <ItemCard
+    to={`/managers/${manager._id}`}
+    // ItemCard là link: index.css gạch chân mọi link khi rê chuột → tắt riêng cho thẻ (viền tím đã báo bấm được)
+    className="no-underline"
+    footer={
+      <>
+        <span>{manager.phone}</span>
+        <BuildingBadge building={manager.building} />
+      </>
+    }
+  >
+    <div className="flex items-center gap-2 min-w-0">
+      <ManagerAvatar name={manager.name} />
+      <div className="min-w-0 flex-1">
+        <div className="fw-semibold text-truncate">{manager.name}</div>
+        <div className="small text-secondary text-truncate">{manager.email}</div>
+      </div>
+      {showStatus && <StatusBadge map={USER_STATUS_LABEL} value={manager.status} />}
+    </div>
+  </ItemCard>
+);
 
 const ManagerListPage = () => {
   const navigate = useNavigate();
   const [managers, setManagers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState({ status: '', q: '', assigned: '' });
+  const [loading, setLoading] = useState(true); // lần tải đầu (và Thử lại): hiện khung xương
+  // tìm / lọc lại: giữ nguyên danh sách cũ, chỉ làm mờ cho tới khi có kết quả mới (không nháy khung xương)
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [query, setQuery] = useState('');
+  const [filters, setFilters] = useState({ status: [], assigned: [] });
+  const [groupBy, setGroupBy] = useState('status'); // mặc định nhóm theo trạng thái như mockup
+  const [view, setView] = useState('cards');
+  const [reloadKey, setReloadKey] = useState(0); // tăng lên để tải lại (Thử lại, sau khi thêm)
   const [creating, setCreating] = useState(false);
 
-  const loadManagers = useCallback(() => {
-    managerApi
-      .list({
-        status: filters.status || undefined,
-        q: filters.q.trim() || undefined,
-        assigned: filters.assigned || undefined,
-      })
-      .then((response) => {
-        setManagers(Array.isArray(response.data) ? response.data : []);
-      })
-      .catch((error) => toast.error(error.message))
-      .finally(() => setLoading(false));
-  }, [filters]);
+  // khóa chuỗi để effect chỉ chạy khi bộ lọc thật sự đổi
+  const statusKey = filters.status.join(',');
+  // chọn cả 2 "Đã / Chưa phân công" = không lọc theo phân công
+  const assigned = filters.assigned.length === 1 ? filters.assigned[0] : '';
 
-  // gõ tìm kiếm thì đợi 300ms mới gọi API, tránh gọi theo từng chữ
+  // ô tìm đã tự đợi 300ms trong ControlBar nên ở đây gọi ngay khi bộ lọc đổi
+  // ignore: bỏ kết quả của lần gọi cũ nếu bộ lọc đã đổi tiếp (tránh hiện sai kết quả khi gõ nhanh)
   useEffect(() => {
-    const timer = setTimeout(loadManagers, 300);
-    return () => clearTimeout(timer);
-  }, [loadManagers]);
+    let ignore = false;
+    managerApi
+      .list(formatFilterQuery({ q: query.trim(), status: statusKey, assigned }))
+      .then((response) => {
+        if (ignore) return;
+        setManagers(Array.isArray(response.data) ? response.data : []);
+        setLoadError('');
+      })
+      .catch((error) => !ignore && setLoadError(error.message))
+      .finally(() => {
+        if (ignore) return;
+        setLoading(false);
+        setRefreshing(false);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [query, statusKey, assigned, reloadKey]);
 
-  const handleFilterChange = (event) => {
-    setFilters({ ...filters, [event.target.name]: event.target.value });
+  // đổi bộ lọc / từ khóa: làm mờ danh sách đang có để người dùng biết đang lọc
+  const handleSearchChange = (value) => {
+    setQuery(value);
+    setRefreshing(true);
   };
 
-  const isFiltering = Boolean(filters.status || filters.q.trim() || filters.assigned);
+  const handleFilterChange = (next) => {
+    setFilters({ status: next.status ?? [], assigned: next.assigned ?? [] });
+    setRefreshing(true);
+  };
+
+  const reload = () => {
+    setLoading(true);
+    setReloadKey((key) => key + 1);
+  };
+
+  const isFiltering = Boolean(query.trim() || filters.status.length || filters.assigned.length);
+  const emptyMessage = isFiltering ? 'Không tìm thấy Manager phù hợp' : 'Chưa có Manager nào';
 
   const columns = [
     {
@@ -108,76 +192,128 @@ const ManagerListPage = () => {
     },
   ];
 
-  return (
-    <>
-      <PageHeader
-        title="Quản lý Manager"
-        subtitle="Quản lý danh sách nhân viên vận hành và phân công tòa nhà"
-      >
-        <Button
-          variant="primary"
-          className="flex items-center gap-1"
-          onClick={() => setCreating(true)}
-        >
-          <BiPlus />
-          Thêm Manager
-        </Button>
-      </PageHeader>
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <Card>
+          <Card.Body>
+            <SkeletonRows rows={5} columns={3} media />
+          </Card.Body>
+        </Card>
+      );
+    }
+    if (loadError) {
+      return (
+        <ErrorState
+          message="Không tải được danh sách Manager"
+          detail={loadError}
+          onRetry={reload}
+        />
+      );
+    }
+    if (managers.length === 0) {
+      return (
+        <Card>
+          <Card.Body>
+            <EmptyState message={emptyMessage} />
+          </Card.Body>
+        </Card>
+      );
+    }
 
-      <Card className="[&_.card]:border-0 [&_.card]:rounded-none">
-        <Card.Header className="bg-transparent flex flex-wrap items-center gap-3 px-4 py-3">
-          <div className="flex items-center gap-2">
-            <h2 className="h6 fw-semibold mb-0">Tất cả Manager</h2>
-            <span className="badge rounded-pill bg-primary-subtle text-primary-emphasis">
-              {managers.length}
-            </span>
-          </div>
-          <div className="ms-auto flex flex-wrap items-center gap-2">
-            <FilterSelect
-              name="status"
-              options={STATUS_OPTIONS}
-              placeholder="Tất cả trạng thái"
-              value={filters.status}
-              onChange={handleFilterChange}
-            />
-            <FilterSelect
-              name="assigned"
-              options={ASSIGNED_OPTIONS}
-              placeholder="Tất cả phân công"
-              value={filters.assigned}
-              onChange={handleFilterChange}
-            />
-            <SearchInput
-              name="q"
-              placeholder="Tìm theo tên, email, SĐT..."
-              value={filters.q}
-              onChange={handleFilterChange}
-            />
-          </div>
-        </Card.Header>
-
+    if (view === 'table') {
+      return (
         <DataTable
           columns={columns}
           data={managers}
-          loading={loading}
-          emptyMessage={isFiltering ? 'Không tìm thấy Manager phù hợp' : 'Chưa có Manager nào'}
+          emptyMessage={emptyMessage}
           onRowClick={(row) => navigate(`/managers/${row._id}`)}
         />
+      );
+    }
 
-        {!loading && managers.length > 0 && (
-          <Card.Footer className="bg-transparent flex flex-wrap justify-between gap-2 px-4 small text-secondary">
-            <span>Hiển thị {managers.length} Manager</span>
-            <span>Chọn một Manager để xem chi tiết</span>
-          </Card.Footer>
-        )}
+    // dạng thẻ, nhóm theo trạng thái: 3 cột kiểu Kanban, cuộn ngang khi màn hình hẹp
+    if (groupBy === 'status') {
+      return (
+        <div className="overflow-x-auto">
+          <div className="flex items-start gap-3 min-w-min">
+            {STATUS_ORDER.map((status) => {
+              const items = managers.filter((manager) => manager.status === status);
+              return (
+                <section key={status} className="flex-1 min-w-72 max-w-md flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <StatusBadge map={USER_STATUS_LABEL} value={status} />
+                    <span className="small text-secondary">{items.length}</span>
+                  </div>
+                  {items.map((manager) => (
+                    <ManagerCard key={manager._id} manager={manager} />
+                  ))}
+                  {items.length === 0 && (
+                    <div className="rounded border border-dashed bg-body-tertiary text-secondary small text-center p-3">
+                      Không có Manager
+                    </div>
+                  )}
+                </section>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    // dạng thẻ, không nhóm: lưới thẻ, mỗi thẻ có badge trạng thái
+    return (
+      <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+        {managers.map((manager) => (
+          <ManagerCard key={manager._id} manager={manager} showStatus />
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <>
+      {/* không dùng overflow-hidden: bảng Bộ lọc / Nhóm theo xổ ra ngoài thẻ sẽ bị cắt */}
+      <Card className="mb-3">
+        <ControlBar
+          actions={
+            <Button
+              variant="primary"
+              className="flex items-center gap-1"
+              onClick={() => setCreating(true)}
+            >
+              <BiPlus />
+              Thêm Manager
+            </Button>
+          }
+          searchValue={query}
+          onSearchChange={handleSearchChange}
+          searchPlaceholder="Tìm theo họ tên, email, số điện thoại..."
+          filterGroups={FILTER_GROUPS}
+          selectedFilters={filters}
+          onFilterChange={handleFilterChange}
+          groupByOptions={GROUP_BY_OPTIONS}
+          selectedGroupBy={groupBy}
+          onGroupByChange={setGroupBy}
+          count={loading || loadError ? null : `${managers.length} Manager`}
+          view={view}
+          onViewChange={setView}
+        />
       </Card>
+
+      <div
+        className={`transition-opacity ${refreshing ? 'opacity-50' : ''}`}
+        aria-busy={refreshing}
+      >
+        {renderContent()}
+      </div>
 
       {creating && (
         <ManagerCreateModal
           onHide={() => setCreating(false)}
           onSaved={() => {
             setCreating(false);
-            loadManagers();
+            reload();
           }}
         />
       )}
