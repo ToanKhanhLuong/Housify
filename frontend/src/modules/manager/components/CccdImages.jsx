@@ -41,7 +41,9 @@ const CccdImages = ({ frontUrl, backUrl }) => (
         <BiIdCard className="text-secondary" />
         Hình ảnh CCCD
       </h2>
-      <div className="small text-secondary">Lưu trữ ảnh căn cước để đối chiếu hồ sơ nhân sự.</div>
+      <div className="small text-secondary">
+        Lưu trữ ảnh căn cước để đối chiếu hồ sơ nhân sự · chỉ Admin và chính Manager xem được.
+      </div>
     </Card.Header>
     <Card.Body className="p-4">
       <div className="grid md:grid-cols-2 gap-4">

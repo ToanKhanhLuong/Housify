@@ -1,7 +1,7 @@
 // UC-09..11: chi tiết Manager (Admin). Nút theo trạng thái:
 // Chưa kích hoạt: gửi lại link, xóa · Đang hoạt động: sửa, khóa, phân công / gỡ phân công tòa · Bị khóa: sửa, mở khóa
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Card } from 'react-bootstrap';
+import { Alert, Button, Card } from 'react-bootstrap';
 import {
   BiBuildings,
   BiCake,
@@ -18,14 +18,14 @@ import {
   BiUnlink,
   BiUser,
 } from 'react-icons/bi';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import PageHeader from '../../components/PageHeader';
 import StatusSteps from '../../components/StatusSteps';
 import FieldRow from '../../components/FieldRow';
 import ConfirmModal from '../../components/ConfirmModal';
 import Loading from '../../components/Loading';
-import EmptyState from '../../components/EmptyState';
+import ErrorState from '../../components/ErrorState';
 import StatusBadge from '../../components/StatusBadge';
 import { ROLE, USER_STATUS } from '../../constants/enums';
 import { ROLE_LABEL, USER_STATUS_LABEL } from '../../constants/statusLabels';
@@ -69,6 +69,7 @@ const ManagerDetailPage = () => {
   const navigate = useNavigate();
   const [manager, setManager] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(''); // tải lỗi: hiện ErrorState có nút Thử lại
   const [modal, setModal] = useState(null); // 'edit' | 'lock' | 'assign'
   const [confirming, setConfirming] = useState(null); // 'resend' | 'remove' | 'unlock' | 'unassign'
   const [submitting, setSubmitting] = useState(false);
@@ -78,8 +79,11 @@ const ManagerDetailPage = () => {
     () =>
       managerApi
         .detail(id)
-        .then((response) => setManager(response.data))
-        .catch((error) => toast.error(error.message))
+        .then((response) => {
+          setManager(response.data);
+          setLoadError('');
+        })
+        .catch((error) => setLoadError(error.message))
         .finally(() => setLoading(false)),
     [id],
   );
@@ -88,8 +92,22 @@ const ManagerDetailPage = () => {
     loadManager();
   }, [loadManager]);
 
+  // Thử lại sau khi tải lỗi: hiện lại vòng xoay rồi gọi API
+  const handleRetry = () => {
+    setLoading(true);
+    loadManager();
+  };
+
   if (loading) return <Loading />;
-  if (!manager) return <EmptyState message="Không tìm thấy Manager" />;
+  // 404 "Không tìm thấy Manager" hay lỗi mạng đều hiện câu BE trả kèm nút Thử lại
+  if (loadError || !manager)
+    return (
+      <ErrorState
+        message="Không tải được thông tin Manager"
+        detail={loadError}
+        onRetry={handleRetry}
+      />
+    );
 
   const { status, building } = manager;
   const isPending = status === USER_STATUS.PENDING;
@@ -160,6 +178,7 @@ const ManagerDetailPage = () => {
     <>
       <PageHeader
         backTo="/managers"
+        breadcrumbs={[{ label: 'Quản lý Manager', to: '/managers' }, manager.name]}
         actions={
           <>
             {isPending && (
@@ -235,7 +254,12 @@ const ManagerDetailPage = () => {
             <div>
               <div className="flex items-center gap-2 fs-5 fw-semibold">
                 <BiBuildings className="text-secondary" />
-                {building?.name ?? <span className="text-secondary fw-normal">Chưa phân công</span>}
+                {/* bấm tên tòa mở trang chi tiết tòa nhà */}
+                {building ? (
+                  <Link to={`/buildings/${building._id}`}>{building.name}</Link>
+                ) : (
+                  <span className="text-secondary fw-normal">Chưa phân công</span>
+                )}
               </div>
               <div className="small text-secondary">Tòa phụ trách</div>
             </div>
@@ -252,6 +276,15 @@ const ManagerDetailPage = () => {
           </div>
         </Card.Body>
       </Card>
+
+      {/* chưa kích hoạt: giải thích vì sao chỉ có nút Gửi lại link và Xóa (UC-09) */}
+      {isPending && (
+        <Alert variant="warning">
+          Manager chưa kích hoạt tài khoản. Link kích hoạt đã gửi tới{' '}
+          <strong>{manager.email}</strong>, hiệu lực 24 giờ. Thông tin sai thì xóa tài khoản rồi tạo
+          lại.
+        </Alert>
+      )}
 
       <Card className="mb-3">
         <Card.Header className="bg-transparent px-4 py-3">
