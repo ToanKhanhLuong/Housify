@@ -2,11 +2,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button, Card } from 'react-bootstrap';
 import { BiCake, BiEditAlt, BiEnvelope, BiMap, BiPhone, BiUser } from 'react-icons/bi';
-import { toast } from 'react-toastify';
 import PageHeader from '../../../components/PageHeader';
 import FieldRow from '../../../components/FieldRow';
 import Loading from '../../../components/Loading';
-import EmptyState from '../../../components/EmptyState';
+import ErrorState from '../../../components/ErrorState';
 import { ROLE } from '../../../constants/enums';
 import { ROLE_LABEL } from '../../../constants/statusLabels';
 import { formatDate } from '../../../utils/format';
@@ -36,6 +35,7 @@ const InfoRow = ({ icon: Icon, label, required = false, children }) => (
 const ManagerProfile = () => {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(''); // tải lỗi: hiện ErrorState có nút Thử lại
   const [editing, setEditing] = useState(false);
 
   // dùng .then thay vì await: setState nằm trong callback, không chạy đồng bộ trong useEffect
@@ -44,8 +44,11 @@ const ManagerProfile = () => {
     () =>
       authApi
         .getProfile()
-        .then((response) => setProfile(response.data))
-        .catch((error) => toast.error(error.message))
+        .then((response) => {
+          setProfile(response.data);
+          setLoadError('');
+        })
+        .catch((error) => setLoadError(error.message))
         .finally(() => setLoading(false)),
     [],
   );
@@ -54,8 +57,15 @@ const ManagerProfile = () => {
     loadProfile();
   }, [loadProfile]);
 
+  // Thử lại sau khi tải lỗi: hiện lại vòng xoay rồi gọi API
+  const handleRetry = () => {
+    setLoading(true);
+    loadProfile();
+  };
+
   if (loading) return <Loading />;
-  if (!profile) return <EmptyState message="Không tải được hồ sơ" />;
+  if (loadError || !profile)
+    return <ErrorState message="Không tải được hồ sơ" detail={loadError} onRetry={handleRetry} />;
 
   return (
     // gom nội dung vào khung rộng tối đa ~1230px (88rem, chữ gốc 14px; màn 1920px còn trống ~200px mỗi bên) cho gọn trên màn hình rộng

@@ -55,12 +55,11 @@ export const validateOtp = ({ otp }) => {
 // UC-04 bước 3: trùng mật khẩu cũ do BE kiểm (FE không biết mật khẩu cũ)
 export const validateResetPassword = validateNewPassword;
 
-// UC-05 Manager: tự sửa SĐT, ngày sinh, địa chỉ, ảnh CCCD (họ tên, email chỉ Admin sửa nên không kiểm)
+// UC-05 (câu lỗi giống BE updateProfileSchema) Manager: tự sửa SĐT, ngày sinh, địa chỉ, ảnh CCCD (họ tên, email chỉ Admin sửa nên không kiểm)
 export const validateManagerProfile = (form) => {
   const errors = {};
   if (!form.phone.trim()) errors.phone = 'Vui lòng nhập số điện thoại';
-  else if (!PHONE_REGEX.test(form.phone.trim()))
-    errors.phone = 'Số điện thoại gồm 10 số, bắt đầu bằng 0';
+  else if (!PHONE_REGEX.test(form.phone.trim())) errors.phone = 'Số điện thoại không hợp lệ';
 
   if (form.dateOfBirth && isFutureDate(form.dateOfBirth))
     errors.dateOfBirth = 'Ngày sinh không hợp lệ';
@@ -72,7 +71,7 @@ export const validateCustomerProfile = (form) => {
   const errors = validateManagerProfile(form);
 
   if (!form.email.trim()) errors.email = 'Vui lòng nhập email';
-  else if (!EMAIL_REGEX.test(form.email.trim())) errors.email = 'Email không đúng định dạng';
+  else if (!EMAIL_REGEX.test(form.email.trim())) errors.email = 'Email không hợp lệ';
 
   if (!form.dateOfBirth) errors.dateOfBirth = 'Vui lòng nhập ngày sinh';
   return errors;
