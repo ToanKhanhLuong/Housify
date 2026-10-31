@@ -1,8 +1,9 @@
-// UC-08 bước 6–8: Manager bấm link trong email → kiểm tra link → đặt mật khẩu → tài khoản Đang hoạt động → về đăng nhập
+// UC-08 bước 6–8 theo mockup docs/mock/ActivateManager.dc.html: Manager bấm link trong email → kiểm tra link
+// → hiện họ tên, email → đặt mật khẩu → màn hình "Kích hoạt thành công". Link hỏng thì màn hình "Link không còn hiệu lực"
 import { useEffect, useState } from 'react';
 import { Alert, Button, Card, Form, Spinner } from 'react-bootstrap';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { toast } from 'react-toastify';
+import { Link, useParams } from 'react-router-dom';
+import FieldRow from '../../components/FieldRow';
 import PasswordInput from '../../components/PasswordInput';
 import Loading from '../../components/Loading';
 import { hasErrors, toFieldErrors } from '../../utils/formErrors';
@@ -11,10 +12,12 @@ import { validateActivateManager } from './activation.validate';
 
 const ActivateManagerPage = () => {
   const { token } = useParams();
-  const navigate = useNavigate();
   const [checking, setChecking] = useState(true);
+  // GET /activation/manager/:token trả { name, email } của người được mời
+  const [account, setAccount] = useState(null);
   // link hỏng: hết hạn / đã dùng / không tồn tại → BE trả sẵn câu tiếng Việt, hiện thẳng
   const [linkError, setLinkError] = useState('');
+  const [activated, setActivated] = useState(false);
   const [form, setForm] = useState({ password: '', confirmPassword: '' });
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -24,17 +27,18 @@ const ActivateManagerPage = () => {
     let ignore = false; // rời trang trước khi API trả về thì bỏ kết quả
     activationApi
       .checkManagerToken(token)
-      .catch((err) => !ignore && setLinkError(err.message))
+      .then((response) => !ignore && setAccount(response.data))
+      .catch((error) => !ignore && setLinkError(error.message))
       .finally(() => !ignore && setChecking(false));
     return () => {
       ignore = true;
     };
   }, [token]);
 
-  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+  const handleChange = (event) => setForm({ ...form, [event.target.name]: event.target.value });
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
     const clientErrors = validateActivateManager(form);
     setErrors(clientErrors);
     if (hasErrors(clientErrors)) return;
@@ -42,18 +46,16 @@ const ActivateManagerPage = () => {
     setSubmitting(true);
     try {
       // BE kiểm lại cả 2 ô, xác nhận phải khớp mật khẩu
-      const response = await activationApi.activateManager({
+      await activationApi.activateManager({
         token,
         password: form.password,
         confirmPassword: form.confirmPassword,
       });
-      // bước 8: về trang đăng nhập, đăng nhập bằng email + mật khẩu vừa đặt
-      // BE trả "Kích hoạt tài khoản thành công. Vui lòng đăng nhập"
-      toast.success(response.message);
-      navigate('/login', { replace: true });
-    } catch (err) {
-      setErrors(toFieldErrors(err.errors)); // 422: lỗi hiện dưới ô
-      if (!err.errors) toast.error(err.message); // vd link vừa hết hạn trong lúc đang nhập
+      setActivated(true); // bước 8: màn hình thành công, bấm nút để sang đăng nhập
+    } catch (error) {
+      setErrors(toFieldErrors(error.errors)); // 422: lỗi hiện dưới ô
+      // lỗi khác = link vừa hết hạn / bị dùng trong lúc đang nhập → chuyển sang màn hình link hỏng
+      if (!error.errors) setLinkError(error.message);
       setSubmitting(false);
     }
   };
@@ -64,57 +66,92 @@ const ActivateManagerPage = () => {
     if (linkError) {
       return (
         <>
-          <Alert variant="warning">{linkError}</Alert>
-          {/* link đã dùng thì mời đăng nhập; hết hạn thì liên hệ Admin gửi lại (UC-09) */}
-          <Button as={Link} to="/login" variant="primary" size="lg" className="w-full">
+          <h1 className="h3 fw-bold mb-3">Link không còn hiệu lực</h1>
+          <Alert variant="danger">{linkError}</Alert>
+          <div className="text-secondary mb-4">
+            Vui lòng liên hệ Admin để được gửi lại link kích hoạt mới.
+          </div>
+          <Button as={Link} to="/login" variant="secondary" size="lg" className="w-full">
             Về trang đăng nhập
           </Button>
         </>
       );
     }
 
+    if (activated) {
+      return (
+        <>
+          <h1 className="h3 fw-bold mb-3">Kích hoạt thành công</h1>
+          <Alert variant="success">
+            Tài khoản đã sẵn sàng. Đăng nhập bằng email <strong>{account?.email}</strong> và mật
+            khẩu vừa đặt.
+          </Alert>
+          <Button as={Link} to="/login" replace variant="primary" size="lg" className="w-full">
+            Đến trang đăng nhập
+          </Button>
+        </>
+      );
+    }
+
     return (
-      <Form onSubmit={handleSubmit} noValidate>
-        <PasswordInput
-          label="Mật khẩu"
-          name="password"
-          value={form.password}
-          onChange={handleChange}
-          error={errors.password}
-          helpText="Tối thiểu 6 ký tự, có chữ và số"
-          size="lg"
-          autoComplete="new-password"
-          autoFocus
-          required
-        />
-        <PasswordInput
-          label="Xác nhận mật khẩu"
-          name="confirmPassword"
-          value={form.confirmPassword}
-          onChange={handleChange}
-          error={errors.confirmPassword}
-          size="lg"
-          autoComplete="new-password"
-          className="mb-4"
-          required
-        />
-        <Button type="submit" variant="primary" size="lg" className="w-full" disabled={submitting}>
-          {submitting && <Spinner animation="border" size="sm" className="me-2" />}
-          Kích hoạt
-        </Button>
-      </Form>
+      <>
+        <div className="mb-4">
+          <h1 className="h3 fw-bold mb-1">Kích hoạt tài khoản Manager</h1>
+          <div className="text-secondary">Đặt mật khẩu để bắt đầu sử dụng hệ thống.</div>
+        </div>
+
+        {/* người được mời: để Manager biết đang kích hoạt đúng tài khoản của mình */}
+        <div className="rounded border bg-body-tertiary px-3 py-2 mb-4">
+          <FieldRow label={<span className="fw-normal text-secondary">Họ tên</span>}>
+            <span className="fw-medium">{account?.name}</span>
+          </FieldRow>
+          <FieldRow label={<span className="fw-normal text-secondary">Email</span>}>
+            <span className="fw-medium">{account?.email}</span>
+          </FieldRow>
+        </div>
+
+        <Form onSubmit={handleSubmit} noValidate>
+          <PasswordInput
+            label="Mật khẩu"
+            name="password"
+            value={form.password}
+            onChange={handleChange}
+            error={errors.password}
+            helpText="Ít nhất 6 ký tự, có cả chữ và số."
+            size="lg"
+            autoComplete="new-password"
+            autoFocus
+            required
+          />
+          <PasswordInput
+            label="Nhập lại mật khẩu"
+            name="confirmPassword"
+            value={form.confirmPassword}
+            onChange={handleChange}
+            error={errors.confirmPassword}
+            size="lg"
+            autoComplete="new-password"
+            className="mb-4"
+            required
+          />
+          <Button
+            type="submit"
+            variant="primary"
+            size="lg"
+            className="w-full"
+            disabled={submitting}
+          >
+            {submitting && <Spinner animation="border" size="sm" className="me-2" />}
+            Kích hoạt tài khoản
+          </Button>
+        </Form>
+      </>
     );
   };
 
   return (
     <Card className="w-full max-w-xl">
-      <Card.Body className="p-4 p-sm-5">
-        <div className="text-center mb-4">
-          <h1 className="h3 fw-bold mb-1">Kích hoạt tài khoản</h1>
-          <div className="text-secondary">Đặt mật khẩu để bắt đầu sử dụng Housify</div>
-        </div>
-        {renderBody()}
-      </Card.Body>
+      <Card.Body className="p-4 p-sm-5">{renderBody()}</Card.Body>
     </Card>
   );
 };
