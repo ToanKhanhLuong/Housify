@@ -31,6 +31,12 @@ const buildingApi = {
 
   // UC-23: cập nhật nội quy tòa nhà
   updateRules: (id, data) => api.put(`/buildings/${id}/rules`, data),
+
+  // tab Giá dịch vụ (chốt 30/10): lịch sử giá mọi dịch vụ của tòa (chỉ Admin), FE tự lấy mức đang áp dụng
+  servicePrices: (id) => api.get(`/buildings/${id}/service-prices`),
+
+  // tab Giá dịch vụ: danh mục dịch vụ để lấy tên, đơn vị, cách tính
+  services: () => api.get('/services'),
 };
 
 export default buildingApi;

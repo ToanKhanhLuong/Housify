@@ -1,7 +1,9 @@
-// UC-23: Admin soạn nội quy tòa nhà trên ô văn bản, "Lưu & Đăng" ghi đè bản cũ và báo Manager của tòa
+// UC-23: tab Nội quy trong chi tiết tòa theo mockup docs/mock/BuildingDetail.dc.html
+// Mặc định chỉ xem; Admin bấm "Chỉnh sửa nội quy" → ô soạn, "Lưu & Đăng" ghi đè bản cũ và báo Manager của tòa
 // A1: bấm Hủy thì trả lại nội quy hiện hành, không lưu gì
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Button, Form, Spinner } from 'react-bootstrap';
+import { BiEditAlt } from 'react-icons/bi';
 import { toast } from 'react-toastify';
 import Input from '../../../components/Input';
 import ErrorState from '../../../components/ErrorState';
@@ -10,10 +12,11 @@ import { hasErrors, toFieldErrors } from '../../../utils/formErrors';
 import buildingApi from '../building.api';
 import { validateRules } from '../building.validate';
 
-// readOnly (Manager xem tòa mình): chỉ hiện nội quy để đọc, không có ô sửa
+// readOnly (Manager xem tòa mình): chỉ hiện nội quy để đọc, không có nút sửa
 const BuildingRulesTab = ({ building, readOnly = false }) => {
   const [savedRules, setSavedRules] = useState(''); // bản đang áp dụng
-  const [rules, setRules] = useState('');
+  const [draft, setDraft] = useState('');
+  const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [errors, setErrors] = useState({});
@@ -25,7 +28,6 @@ const BuildingRulesTab = ({ building, readOnly = false }) => {
         .rules(building._id)
         .then((response) => {
           setSavedRules(response.data.rules ?? '');
-          setRules(response.data.rules ?? '');
           setLoadError('');
         })
         .catch((error) => setLoadError(error.message))
@@ -42,25 +44,28 @@ const BuildingRulesTab = ({ building, readOnly = false }) => {
     loadRules();
   };
 
-  const isChanged = rules !== savedRules;
+  const handleStartEdit = () => {
+    setDraft(savedRules);
+    setErrors({});
+    setEditing(true);
+  };
 
   const handleCancel = () => {
-    setRules(savedRules);
+    setEditing(false);
     setErrors({});
   };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    const clientErrors = validateRules({ rules });
+    const clientErrors = validateRules({ rules: draft });
     setErrors(clientErrors);
     if (hasErrors(clientErrors)) return;
 
     setSubmitting(true);
     try {
-      const response = await buildingApi.updateRules(building._id, { rules: rules.trim() });
-      const saved = response.data?.rules ?? rules.trim();
-      setSavedRules(saved);
-      setRules(saved);
+      const response = await buildingApi.updateRules(building._id, { rules: draft.trim() });
+      setSavedRules(response.data?.rules ?? draft.trim());
+      setEditing(false);
       if (response.data?.warning) toast.warning(response.data.warning);
       else toast.success('Lưu nội quy thành công');
     } catch (error) {
@@ -73,49 +78,64 @@ const BuildingRulesTab = ({ building, readOnly = false }) => {
 
   if (loading) return <SkeletonRows rows={4} columns={1} />;
   if (loadError) {
-    return (
-      <ErrorState message="Không tải được nội quy." detail={loadError} onRetry={handleRetry} />
-    );
+    return <ErrorState message="Không tải được nội quy" detail={loadError} onRetry={handleRetry} />;
   }
 
-  if (readOnly) {
-    return savedRules ? (
-      <div className="whitespace-pre-line leading-relaxed">{savedRules}</div>
-    ) : (
-      <p className="mb-0 text-secondary">
-        Tòa nhà chưa có nội quy. Admin sẽ soạn và đăng nội quy tại đây.
-      </p>
+  if (editing) {
+    return (
+      <Form onSubmit={handleSubmit} noValidate>
+        {!building.manager && (
+          <Alert variant="info">
+            Tòa nhà chưa có Manager phụ trách. Nội quy vẫn được lưu, chỉ là chưa có ai để thông báo.
+          </Alert>
+        )}
+        <Input
+          label="Nội quy tòa nhà"
+          name="rules"
+          as="textarea"
+          rows={9}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          error={errors.rules}
+          helpText="Nội quy mới thay thế bản cũ và gửi thông báo cho Manager của tòa."
+          disabled={submitting}
+          autoFocus
+          required
+        />
+        <div className="flex gap-2">
+          <Button type="submit" variant="primary" disabled={submitting}>
+            {submitting && <Spinner animation="border" size="sm" className="me-2" />}
+            Lưu &amp; Đăng
+          </Button>
+          <Button variant="secondary" onClick={handleCancel} disabled={submitting}>
+            Hủy
+          </Button>
+        </div>
+      </Form>
     );
   }
 
   return (
-    <Form onSubmit={handleSubmit} noValidate>
-      {!building.manager && (
-        <Alert variant="info">
-          Tòa nhà chưa có Manager phụ trách. Nội quy vẫn được lưu, chỉ là chưa có ai để thông báo.
-        </Alert>
+    <div className="flex flex-col gap-3">
+      {!readOnly && (
+        <div>
+          <Button variant="secondary" className="flex items-center gap-2" onClick={handleStartEdit}>
+            <BiEditAlt />
+            {savedRules ? 'Chỉnh sửa nội quy' : 'Soạn nội quy'}
+          </Button>
+        </div>
       )}
-      <Input
-        label="Nội quy"
-        name="rules"
-        as="textarea"
-        rows={12}
-        value={rules}
-        onChange={(event) => setRules(event.target.value)}
-        error={errors.rules}
-        helpText="Mỗi tòa chỉ lưu một bản nội quy hiện hành. Lưu bản mới sẽ ghi đè bản cũ."
-        required
-      />
-      <div className="flex gap-2">
-        <Button type="submit" variant="primary" disabled={submitting || !isChanged}>
-          {submitting && <Spinner animation="border" size="sm" className="me-2" />}
-          Lưu &amp; Đăng
-        </Button>
-        <Button variant="secondary" onClick={handleCancel} disabled={submitting || !isChanged}>
-          Hủy
-        </Button>
-      </div>
-    </Form>
+      {savedRules ? (
+        // khung nền nhạt giữ xuống dòng như bản Admin soạn
+        <div className="whitespace-pre-line leading-relaxed rounded border bg-body-tertiary px-4 py-3">
+          {savedRules}
+        </div>
+      ) : (
+        <div className="text-secondary">
+          Tòa nhà chưa có nội quy.{!readOnly && ' Bấm "Soạn nội quy" để soạn và đăng.'}
+        </div>
+      )}
+    </div>
   );
 };
 
