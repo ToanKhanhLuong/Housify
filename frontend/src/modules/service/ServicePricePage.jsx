@@ -1,12 +1,16 @@
 // UC-22: thiết lập giá dịch vụ theo tòa (Admin). Chọn tòa → bảng dịch vụ kèm giá đang áp dụng → bấm dòng để xem lịch sử, nhập giá mới
 // Tòa đang chọn nằm trên URL (?buildingId=) để trang chi tiết tòa có thể mở thẳng trang này
 import { useCallback, useEffect, useState } from 'react';
+import { Card } from 'react-bootstrap';
 import { useSearchParams } from 'react-router-dom';
-import { toast } from 'react-toastify';
+import { BiBuildings } from 'react-icons/bi';
 import PageHeader from '../../components/PageHeader';
 import DataTable from '../../components/DataTable';
+import EmptyState from '../../components/EmptyState';
+import ErrorState from '../../components/ErrorState';
+import FilterSelect from '../../components/FilterSelect';
 import MoneyText from '../../components/MoneyText';
-import Select from '../../components/Select';
+import SkeletonRows from '../../components/SkeletonRows';
 import { formatDate } from '../../utils/format';
 import serviceApi from './service.api';
 import { getCurrentPrice } from './servicePrice.utils';
@@ -19,32 +23,40 @@ const ServicePricePage = () => {
     const [services, setServices] = useState(null); // null: đang tải
     const [prices, setPrices] = useState(null); // lịch sử giá của tòa đang chọn; null: đang tải
     const [editing, setEditing] = useState(null); // dịch vụ đang mở form giá
+    const [loadError, setLoadError] = useState('');
 
-    // tải danh sách tòa + dịch vụ một lần; chưa chọn tòa thì chọn sẵn tòa đầu tiên
-    useEffect(() => {
-        Promise.all([serviceApi.listBuildings(), serviceApi.list()])
-            .then(([buildingResponse, serviceResponse]) => {
-                setBuildings(buildingResponse.data);
-                setServices(serviceResponse.data);
-                const firstBuilding = buildingResponse.data[0];
-                if (!searchParams.get('buildingId') && firstBuilding) {
-                    setSearchParams({ buildingId: firstBuilding._id }, { replace: true });
-                }
-            })
-            .catch((error) => toast.error(error.message));
-        // chỉ chạy lúc mở trang
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
+    // tải danh sách tòa + dịch vụ; chưa chọn tòa thì chọn sẵn tòa đầu tiên
     // dùng .then thay vì await: setState nằm trong callback (luật react-hooks/set-state-in-effect)
+    // 2 hàm tải chạy song song nên tải xong KHÔNG xóa loadError, kẻo xóa mất lỗi của hàm kia; chỉ Thử lại, đổi tòa mới xóa
+    const loadCatalog = useCallback(
+        () =>
+            Promise.all([serviceApi.listBuildings(), serviceApi.list()])
+                .then(([buildingResponse, serviceResponse]) => {
+                    setBuildings(buildingResponse.data);
+                    setServices(serviceResponse.data);
+                    const firstBuilding = buildingResponse.data[0];
+                    if (!buildingId && firstBuilding) {
+                        setSearchParams({ buildingId: firstBuilding._id }, { replace: true });
+                    }
+                })
+                .catch((error) => setLoadError(error.message)),
+        [buildingId, setSearchParams],
+    );
+
     const loadPrices = useCallback(
         () =>
             serviceApi
                 .listPrices(buildingId)
                 .then((response) => setPrices(response.data))
-                .catch((error) => toast.error(error.message)),
+                .catch((error) => setLoadError(error.message)),
         [buildingId],
     );
+
+    // danh sách tòa + dịch vụ chỉ tải một lần lúc mở trang, đổi tòa không tải lại
+    useEffect(() => {
+        loadCatalog();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     useEffect(() => {
         if (buildingId) loadPrices();
@@ -52,7 +64,17 @@ const ServicePricePage = () => {
 
     const handleBuildingChange = (event) => {
         setPrices(null);
+        setLoadError('');
         setSearchParams({ buildingId: event.target.value });
+    };
+
+    const handleRetry = () => {
+        setLoadError('');
+        if (!services) loadCatalog();
+        if (buildingId) {
+            setPrices(null);
+            loadPrices();
+        }
     };
 
     const pricesOf = (serviceId) => (prices ?? []).filter((price) => price.serviceId === serviceId);
@@ -86,6 +108,44 @@ const ServicePricePage = () => {
         },
     ];
 
+    const renderContent = () => {
+        if (loadError) {
+            return (
+                <ErrorState
+                    message="Không tải được giá dịch vụ"
+                    detail={loadError}
+                    onRetry={handleRetry}
+                />
+            );
+        }
+        if (!services || (buildingId && !prices)) {
+            return (
+                <Card>
+                    <Card.Body>
+                        <SkeletonRows rows={4} columns={5} />
+                    </Card.Body>
+                </Card>
+            );
+        }
+        if (buildings.length === 0) {
+            return (
+                <Card>
+                    <Card.Body>
+                        <EmptyState message="Chưa có tòa nhà nào. Tạo tòa nhà trước khi đặt giá dịch vụ." />
+                    </Card.Body>
+                </Card>
+            );
+        }
+        return (
+            <DataTable
+                columns={columns}
+                data={services}
+                emptyMessage="Chưa có dịch vụ nào"
+                onRowClick={(row) => setEditing(row)}
+            />
+        );
+    };
+
     return (
         <>
             <PageHeader
@@ -93,27 +153,21 @@ const ServicePricePage = () => {
                 subtitle="Dịch vụ chưa đặt giá ở tòa nào thì không có trên hóa đơn của tòa đó"
                 backTo="/services"
             >
-                <Select
+                <FilterSelect
+                    label="Tòa nhà"
+                    icon={BiBuildings}
                     name="buildingId"
-                    aria-label="Tòa nhà"
                     options={buildings.map((building) => ({
                         value: building._id,
                         label: building.name,
                     }))}
-                    placeholder={buildings.length ? null : 'Chưa có tòa nhà'}
                     value={buildingId}
                     onChange={handleBuildingChange}
-                    className="mb-0"
+                    className="w-80 max-w-full"
                 />
             </PageHeader>
 
-            <DataTable
-                columns={columns}
-                data={services ?? []}
-                loading={!services || (Boolean(buildingId) && !prices)}
-                emptyMessage="Chưa có dịch vụ nào"
-                onRowClick={buildingId ? (row) => setEditing(row) : undefined}
-            />
+            {renderContent()}
 
             {editing && (
                 <ServicePriceModal
