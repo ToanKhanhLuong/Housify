@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { env } from '../../config/env.js';
-import { ROLE, USER_STATUS, TOKEN_STATUS } from '../../constants/enums.js';
+import { ROLE, USER_STATUS, TOKEN_STATUS, CONTRACT_STATUS } from '../../constants/enums.js';
 import { MSG } from '../../constants/messages.js';
 import { AppError } from '../../utils/AppError.js';
 import { sendMail } from '../../config/mail.js';
@@ -14,6 +14,7 @@ import Manager from '../../models/Manager.js';
 import Occupant from '../../models/Occupant.js';
 import Building from '../../models/Building.js';
 import OtpToken from '../../models/OtpToken.js';
+import Contract from '../../models/Contract.js';
 
 export const getMe = async (userId) => {
     const user = await User.findById(userId);
@@ -58,6 +59,13 @@ export const login = async ({ identifier, password, remember = false }) => {
     if (/^\d{12}$/.test(cleanIdentifier)) {
         const occupant = await Occupant.findOne({ cccd: cleanIdentifier, isRepresentative: true });
         if (!occupant || !occupant.userId) {
+            const draftContract = await Contract.findOne({
+                representativeCccd: cleanIdentifier,
+                status: CONTRACT_STATUS.DRAFT,
+            });
+            if (draftContract) {
+                throw new AppError('Tài khoản chưa được kích hoạt. Vui lòng kiểm tra email để kích hoạt hợp đồng', 403);
+            }
             // Sai mật khẩu hoặc không có tài khoản đều báo chung một câu để tránh dò tài khoản
             throw new AppError(MSG.INVALID_CREDENTIALS, 401);
         }
