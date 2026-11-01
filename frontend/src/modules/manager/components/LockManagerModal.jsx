@@ -41,7 +41,7 @@ const LockManagerModal = ({ manager, onHide, onDone }) => {
       show
       title="Khóa tài khoản Manager"
       message={`Khóa tài khoản của ${manager.name}? Manager sẽ bị đăng xuất ngay và không đăng nhập được nữa.`}
-      confirmText="Khóa"
+      confirmText="Khóa tài khoản"
       variant="danger"
       loading={submitting}
       onConfirm={handleLock}
@@ -61,6 +61,7 @@ const LockManagerModal = ({ manager, onHide, onDone }) => {
         value={reason}
         onChange={(event) => setReason(event.target.value)}
         error={errors.reason}
+        helpText="Lý do được gửi qua email cho Manager."
         className="mb-0"
         required
       />
