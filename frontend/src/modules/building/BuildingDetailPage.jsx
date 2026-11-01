@@ -1,11 +1,11 @@
 // UC-13: chi tiết tòa nhà theo mockup docs/mock/BuildingDetail.dc.html và chốt 30/10
-// Admin: "Chỉnh sửa" (UC-13), "Thao tác ▾ → Xóa tòa nhà" (UC-14; bị chặn thì hiện lý do BE trả)
+// Admin: "Chỉnh sửa" (UC-13), "Xóa tòa nhà" (UC-14; bị chặn thì hiện lý do BE trả)
 // Tờ giấy: ảnh đại diện (ảnh đầu tiên), tên, địa chỉ, số tầng / phòng theo trạng thái, Manager, mô tả, ảnh
 // Tab: "Phòng" (UC-15..19, gồm Quản lý tầng), "Giá dịch vụ" (chỉ Admin, UC-22 xem), "Nội quy" (UC-23)
 // Manager mở qua /my-building: chỉ xem, không có nút sửa / xóa / thêm phòng, không có tab Giá dịch vụ (API chỉ Admin)
 import { useCallback, useEffect, useState } from 'react';
 import { Button, Card, Image, Modal, Placeholder, Tab, Tabs } from 'react-bootstrap';
-import { BiEditAlt, BiTrash } from 'react-icons/bi';
+import { BiDetail, BiEditAlt, BiMap, BiTime, BiTrash, BiUser } from 'react-icons/bi';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import PageHeader from '../../components/PageHeader';
@@ -14,7 +14,6 @@ import EmptyState from '../../components/EmptyState';
 import ErrorState from '../../components/ErrorState';
 import SkeletonRows from '../../components/SkeletonRows';
 import ConfirmModal from '../../components/ConfirmModal';
-import ActionDropdown from '../../components/ActionDropdown';
 import BlockedBox from '../../components/BlockedBox';
 import { useAuth } from '../../context/AuthContext';
 import { ROLE, ROOM_STATUS } from '../../constants/enums';
@@ -32,6 +31,22 @@ const STAT_BADGES = [
   { key: 'occupied', status: ROOM_STATUS.OCCUPIED },
   { key: 'maintenance', status: ROOM_STATUS.MAINTENANCE },
 ];
+
+// dòng thông tin: icon đơn sắc + nhãn nhạt, giá trị đậm (giống trang chi tiết Manager)
+// inline-flex để dấu * đỏ của FieldRow vẫn đứng ngay sau nhãn
+const InfoRow = ({ icon: Icon, label, required = false, children }) => (
+  <FieldRow
+    label={
+      <span className="inline-flex items-center gap-2 fw-normal text-secondary">
+        <Icon />
+        {label}
+      </span>
+    }
+    required={required}
+  >
+    <span className="fw-medium text-body-emphasis">{children ?? '—'}</span>
+  </FieldRow>
+);
 
 const BuildingDetailPage = ({ buildingId }) => {
   const params = useParams();
@@ -149,18 +164,15 @@ const BuildingDetailPage = ({ buildingId }) => {
                 <BiEditAlt />
                 Chỉnh sửa
               </Button>
-              {/* thao tác nguy hiểm gom vào "Thao tác ▾" như mockup */}
-              <ActionDropdown
-                size="md"
-                items={[
-                  {
-                    label: 'Xóa tòa nhà',
-                    icon: BiTrash,
-                    danger: true,
-                    onClick: () => setShowDelete(true),
-                  },
-                ]}
-              />
+              {/* chỉ có một thao tác phụ nên để nút thường, không cần "Thao tác ▾"; nút đỏ chỉ ở hộp xác nhận */}
+              <Button
+                variant="secondary"
+                className="flex items-center gap-2"
+                onClick={() => setShowDelete(true)}
+              >
+                <BiTrash />
+                Xóa tòa nhà
+              </Button>
             </>
           )
         }
@@ -185,7 +197,10 @@ const BuildingDetailPage = ({ buildingId }) => {
           <div className="flex-1 min-w-0 flex flex-col gap-1">
             <span className="small text-secondary">Tòa nhà</span>
             <h1 className="h3 fw-bold mb-0">{building.name}</h1>
-            <span>{building.address}</span>
+            <span className="flex items-center gap-2">
+              <BiMap className="shrink-0 text-secondary" />
+              {building.address}
+            </span>
             <div className="flex flex-wrap gap-2 pt-1">
               <span className="badge rounded-pill bg-secondary-subtle text-secondary-emphasis">
                 {building.floorCount} tầng
@@ -208,10 +223,10 @@ const BuildingDetailPage = ({ buildingId }) => {
           </div>
         </div>
 
-        {/* thông tin 2 cột; * đỏ ở tên, địa chỉ (bắt buộc khi tạo, UC-12) */}
+        {/* thông tin 2 cột: tên, địa chỉ, số tầng đã ở phần định danh phía trên nên không lặp lại */}
         <div className="grid lg:grid-cols-2 column-gap-5">
           <div>
-            <FieldRow label="Manager phụ trách">
+            <InfoRow icon={BiUser} label="Manager phụ trách" required>
               {building.manager ? (
                 isAdmin ? (
                   <Link to={`/managers/${building.manager._id}`}>{building.manager.name}</Link>
@@ -219,7 +234,7 @@ const BuildingDetailPage = ({ buildingId }) => {
                   building.manager.name
                 )
               ) : (
-                <span className="text-secondary">
+                <span className="text-secondary fw-normal">
                   Chưa có Manager
                   {isAdmin && (
                     <>
@@ -229,17 +244,19 @@ const BuildingDetailPage = ({ buildingId }) => {
                   )}
                 </span>
               )}
-            </FieldRow>
-            <FieldRow label="Ngày tạo">{formatDate(building.createdAt)}</FieldRow>
+            </InfoRow>
+            <InfoRow icon={BiTime} label="Ngày tạo" required>
+              {formatDate(building.createdAt)}
+            </InfoRow>
           </div>
           <div>
-            <FieldRow label="Mô tả">
+            <InfoRow icon={BiDetail} label="Mô tả" required>
               {building.description ? (
                 <span className="whitespace-pre-line">{building.description}</span>
               ) : (
-                <span className="text-secondary">Chưa có mô tả</span>
+                <span className="text-secondary fw-normal">Chưa có mô tả</span>
               )}
-            </FieldRow>
+            </InfoRow>
           </div>
         </div>
 
