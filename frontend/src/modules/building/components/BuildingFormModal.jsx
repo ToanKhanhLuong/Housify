@@ -1,5 +1,7 @@
-// UC-12 thêm / UC-13 sửa tòa nhà. building = {} là thêm mới, có _id là sửa
-// Số tầng chỉ nhập lúc tạo; sau đó đổi ở tab Tầng (UC-15). Manager phụ trách đổi ở chức năng phân công (UC-11)
+// UC-12 thêm / UC-13 sửa tòa nhà theo mockup docs/mock/Main.dc.html. building = {} là thêm mới, có _id là sửa
+// Số tầng chỉ nhập lúc tạo; sau đó đổi trong chi tiết tòa (UC-15). Manager phụ trách đổi ở chức năng phân công (UC-11)
+// Ảnh: ảnh đầu tiên là ảnh đại diện của tòa (chốt 30/10), dùng ô ảnh của module (BuildingImagesInput)
+// Giới hạn độ dài lấy theo BE (building.validation.js): tên 2–100, địa chỉ 5–255, mô tả ≤ 1000 ký tự
 import { useState } from 'react';
 import { Button, Col, Form, Modal, Row, Spinner } from 'react-bootstrap';
 import { toast } from 'react-toastify';
@@ -9,7 +11,10 @@ import buildingApi from '../building.api';
 import { validateBuilding } from '../building.validate';
 import BuildingImagesInput from './BuildingImagesInput';
 
-const BuildingFormModal = ({ building, onHide, onSaved }) => {
+const DESCRIPTION_MAX = 1000;
+
+// building mặc định {}: trang danh sách mở "Thêm tòa nhà" không truyền building (trước đây đọc undefined._id làm sập trang)
+const BuildingFormModal = ({ building = {}, onHide, onSaved }) => {
   const isEdit = Boolean(building._id);
   const [form, setForm] = useState({
     name: building.name ?? '',
@@ -22,6 +27,8 @@ const BuildingFormModal = ({ building, onHide, onSaved }) => {
   const [submitting, setSubmitting] = useState(false);
 
   const handleChange = (event) => setForm({ ...form, [event.target.name]: event.target.value });
+  // ảnh tải lên xong mới gọi về nên dùng prev để không ghi đè ô vừa nhập
+  const handleImages = (images) => setForm((prev) => ({ ...prev, images }));
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -46,40 +53,50 @@ const BuildingFormModal = ({ building, onHide, onSaved }) => {
       onSaved(response.data);
     } catch (error) {
       setErrors(toFieldErrors(error.errors)); // 422: lỗi hiện dưới từng ô
-      if (!error.errors) toast.error(error.message); // vd UC-12 E01 trùng tên tòa
+      if (!error.errors) toast.error(error.message); // vd UC-12 E01 "Tên tòa nhà đã tồn tại"
       setSubmitting(false);
     }
   };
 
   return (
-    <Modal show onHide={onHide} centered size="lg" backdrop="static">
+    // cỡ mặc định của Bootstrap (~500px) như mockup: form ngắn, khung hẹp cho gọn
+    <Modal show onHide={onHide} centered backdrop="static">
       <Form onSubmit={handleSubmit} noValidate>
         <Modal.Header closeButton={!submitting}>
           <Modal.Title className="h5">{isEdit ? 'Chỉnh sửa tòa nhà' : 'Thêm tòa nhà'}</Modal.Title>
         </Modal.Header>
         <Modal.Body>
+          {/* tên và số tầng chung một hàng cho modal ngắn lại */}
           <Row>
-            <Col md={isEdit ? 12 : 8}>
+            <Col xs={isEdit ? 12 : 8}>
               <Input
                 label="Tên tòa nhà"
                 name="name"
+                placeholder="VD: Housify Cầu Giấy"
+                maxLength={100}
                 value={form.name}
                 onChange={handleChange}
                 error={errors.name}
+                disabled={submitting}
+                autoFocus
                 required
               />
             </Col>
+            {/* số tầng chỉ nhập lúc tạo; sau đó đổi trong chi tiết tòa */}
             {!isEdit && (
-              <Col md={4}>
+              <Col xs={4}>
                 <Input
                   label="Số tầng"
                   name="floorCount"
                   type="number"
                   min={1}
                   step={1}
+                  inputMode="numeric"
                   value={form.floorCount}
                   onChange={handleChange}
                   error={errors.floorCount}
+                  disabled={submitting}
+                  title="Tầng 1 đến N, sửa được sau trong chi tiết tòa."
                   required
                 />
               </Col>
@@ -88,9 +105,12 @@ const BuildingFormModal = ({ building, onHide, onSaved }) => {
               <Input
                 label="Địa chỉ"
                 name="address"
+                placeholder="Số nhà, đường, quận, thành phố"
+                maxLength={255}
                 value={form.address}
                 onChange={handleChange}
                 error={errors.address}
+                disabled={submitting}
                 required
               />
             </Col>
@@ -99,16 +119,20 @@ const BuildingFormModal = ({ building, onHide, onSaved }) => {
                 label="Mô tả"
                 name="description"
                 as="textarea"
-                rows={3}
+                rows={2}
+                maxLength={DESCRIPTION_MAX}
+                placeholder="Tiện ích, giờ giấc, lưu ý cho khách thuê…"
                 value={form.description}
                 onChange={handleChange}
                 error={errors.description}
+                helpText={`${form.description.length}/${DESCRIPTION_MAX} ký tự`}
+                disabled={submitting}
               />
             </Col>
             <Col xs={12}>
               <BuildingImagesInput
                 value={form.images}
-                onChange={(images) => setForm({ ...form, images })}
+                onChange={handleImages}
                 disabled={submitting}
               />
             </Col>
@@ -117,7 +141,7 @@ const BuildingFormModal = ({ building, onHide, onSaved }) => {
         <Modal.Footer className="justify-content-start">
           <Button type="submit" variant="primary" disabled={submitting}>
             {submitting && <Spinner animation="border" size="sm" className="me-2" />}
-            {isEdit ? 'Lưu' : 'Tạo'}
+            Lưu
           </Button>
           <Button variant="secondary" onClick={onHide} disabled={submitting}>
             Hủy

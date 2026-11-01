@@ -18,7 +18,11 @@ const BuildingImagesInput = ({ value = [], onChange, disabled = false }) => {
 
   return (
     <div>
-      <Form.Label>Ảnh tòa nhà</Form.Label>
+      {/* chốt 30/10: ảnh đầu tiên là ảnh đại diện của tòa (ghi chung dòng nhãn cho modal không cao thêm) */}
+      <Form.Label>
+        Ảnh tòa nhà{' '}
+        <span className="fw-normal small text-secondary">· ảnh đầu tiên là ảnh đại diện</span>
+      </Form.Label>
       {value.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
           {value.map((url) => (

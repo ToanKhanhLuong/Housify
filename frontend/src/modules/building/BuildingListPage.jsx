@@ -1,241 +1,287 @@
-// UC-13: danh sách tòa nhà đang hoạt động (Admin). Tab theo việc phân công Manager, ô tìm tên / địa chỉ
-// Bấm dòng mở chi tiết; "Thêm tòa nhà" mở form UC-12
-import { useCallback, useEffect, useState } from 'react';
-import { Button, Card, Form, InputGroup, ListGroup, Nav } from 'react-bootstrap';
+// UC-13: danh sách tòa nhà (Admin) theo mockup docs/mock/Main.dc.html và chốt 30/10. UC-12: nút "Thêm tòa nhà"
+// Thanh ControlBar: tìm theo tên / địa chỉ, bộ lọc Manager phụ trách, đổi Thẻ / Bảng (mặc định thẻ)
+// Thẻ: ảnh đại diện = ảnh đầu tiên, số tầng, số phòng theo trạng thái, Manager. BE trả mảng, không phân trang
+import { useEffect, useState } from 'react';
+import { Button, Card } from 'react-bootstrap';
+import { BiPlus, BiReset } from 'react-icons/bi';
 import { useNavigate } from 'react-router-dom';
-import { BiReset, BiSearch } from 'react-icons/bi';
-import PageHeader from '../../components/PageHeader';
+import ControlBar from '../../components/ControlBar';
 import DataTable from '../../components/DataTable';
+import ItemCard from '../../components/ItemCard';
 import EmptyState from '../../components/EmptyState';
 import ErrorState from '../../components/ErrorState';
 import SkeletonRows from '../../components/SkeletonRows';
+import { ROOM_STATUS } from '../../constants/enums';
+import { ROOM_STATUS_LABEL } from '../../constants/statusLabels';
+import { formatFilterQuery } from '../../utils/filter';
 import buildingApi from './building.api';
 import BuildingFormModal from './components/BuildingFormModal';
 
-const TABS = [
-  { key: 'all', label: 'Tất cả' },
-  { key: 'assigned', label: 'Có Manager' },
-  { key: 'unassigned', label: 'Chưa có Manager' },
+const FILTER_GROUPS = [
+  {
+    id: 'hasManager',
+    label: 'Manager phụ trách',
+    type: 'checkbox',
+    options: [
+      { value: 'true', label: 'Đã có Manager' },
+      { value: 'false', label: 'Chưa có Manager' },
+    ],
+  },
 ];
+
+// số phòng theo trạng thái: chấm màu theo nhãn trạng thái phòng (Trống / Đang thuê / Bảo trì)
+const STAT_ITEMS = [
+  { key: 'available', status: ROOM_STATUS.AVAILABLE },
+  { key: 'occupied', status: ROOM_STATUS.OCCUPIED },
+  { key: 'maintenance', status: ROOM_STATUS.MAINTENANCE },
+];
+
+const RoomStats = ({ stats = {} }) => (
+  <>
+    {STAT_ITEMS.map((item) => (
+      <span key={item.key} className="inline-flex items-center gap-1">
+        <span
+          className={`inline-block w-2 h-2 rounded-circle bg-${ROOM_STATUS_LABEL[item.status].variant}`}
+        />
+        {stats[item.key] ?? 0} {ROOM_STATUS_LABEL[item.status].label.toLowerCase()}
+      </span>
+    ))}
+    <span className="text-secondary">· {stats.total ?? 0} phòng</span>
+  </>
+);
+
+// chữ cái đầu của 2 tiếng cuối: "Trần Văn Quản" → "VQ" (giống avatar ở trang Quản lý Manager)
+// tự viết trong module vì luật 7 không cho import ManagerAvatar từ module manager
+const initialsOf = (name = '') =>
+  name
+    .trim()
+    .split(/\s+/)
+    .slice(-2)
+    .map((word) => word[0]?.toUpperCase() ?? '')
+    .join('') || '?';
+
+// Manager phụ trách: avatar tròn chữ cái đầu + tên (như mockup), chưa có thì nhãn vàng
+const ManagerLabel = ({ manager }) =>
+  manager ? (
+    <span className="flex items-center gap-2 text-body">
+      <span className="flex items-center justify-center w-7 h-7 shrink-0 rounded-circle bg-primary-subtle text-primary-emphasis small fw-semibold">
+        {initialsOf(manager.name)}
+      </span>
+      {manager.name}
+    </span>
+  ) : (
+    <span className="badge rounded-pill bg-warning-subtle text-warning-emphasis">
+      Chưa có Manager
+    </span>
+  );
 
 const BuildingListPage = () => {
   const navigate = useNavigate();
-  const [buildings, setBuildings] = useState(null); // null: đang tải
+  const [buildings, setBuildings] = useState([]);
+  const [loading, setLoading] = useState(true); // lần tải đầu (và Thử lại): khung xương
+  const [refreshing, setRefreshing] = useState(false); // tìm / lọc lại: làm mờ danh sách cũ
   const [loadError, setLoadError] = useState('');
-  const [tab, setTab] = useState('all');
-  const [keyword, setKeyword] = useState('');
+  const [query, setQuery] = useState('');
+  const [filters, setFilters] = useState({ hasManager: [] });
+  const [view, setView] = useState('cards');
+  const [reloadKey, setReloadKey] = useState(0); // tăng lên để tải lại (Thử lại, sau khi thêm)
   const [showForm, setShowForm] = useState(false);
 
-  const loadBuildings = useCallback(() => {
-    const params = {};
-    if (keyword.trim()) params.q = keyword.trim();
-    if (tab === 'assigned') params.hasManager = 'true';
-    if (tab === 'unassigned') params.hasManager = 'false';
+  // chọn cả "Đã có" và "Chưa có" Manager = không lọc
+  const hasManager = filters.hasManager.length === 1 ? filters.hasManager[0] : '';
 
+  // ô tìm đã tự đợi 300ms trong ControlBar nên ở đây gọi ngay
+  // ignore: bỏ kết quả lần gọi cũ khi bộ lọc đã đổi tiếp (tránh hiện sai kết quả khi gõ nhanh)
+  useEffect(() => {
+    let ignore = false;
     buildingApi
-      .list(params)
+      .list(formatFilterQuery({ q: query.trim(), hasManager }))
       .then((response) => {
+        if (ignore) return;
         setBuildings(Array.isArray(response.data) ? response.data : []);
         setLoadError('');
       })
-      .catch((error) => {
-        setBuildings([]);
-        setLoadError(error.message);
+      .catch((error) => !ignore && setLoadError(error.message))
+      .finally(() => {
+        if (ignore) return;
+        setLoading(false);
+        setRefreshing(false);
       });
-  }, [keyword, tab]);
+    return () => {
+      ignore = true;
+    };
+  }, [query, hasManager, reloadKey]);
 
-  useEffect(() => {
-    const timer = setTimeout(loadBuildings, 300);
-    return () => clearTimeout(timer);
-  }, [loadBuildings]);
-
-  const handleRetry = () => {
-    setBuildings(null);
-    loadBuildings();
+  const handleSearchChange = (value) => {
+    setQuery(value);
+    setRefreshing(true);
   };
 
-  const handleReset = () => {
-    setKeyword('');
-    setTab('all');
+  const handleFilterChange = (next) => {
+    setFilters({ hasManager: next.hasManager ?? [] });
+    setRefreshing(true);
   };
 
-  const managerOf = (building) =>
-    building.manager?.name ?? <span className="text-secondary">Chưa có Manager</span>;
+  const handleResetFilters = () => {
+    setQuery('');
+    setFilters({ hasManager: [] });
+    setRefreshing(true);
+  };
+
+  const reload = () => {
+    setLoading(true);
+    setReloadKey((key) => key + 1);
+  };
+
+  const isFiltering = Boolean(query.trim() || filters.hasManager.length);
 
   const columns = [
-    {
-      key: 'name',
-      title: 'Tòa nhà',
-      render: (row) => (
-        <div className="min-w-0">
-          <div className="fw-semibold">{row.name}</div>
-          <div className="text-secondary truncate">{row.address}</div>
-        </div>
-      ),
-    },
+    { key: 'name', title: 'Tên tòa nhà', className: 'fw-semibold' },
+    { key: 'address', title: 'Địa chỉ' },
     { key: 'floorCount', title: 'Số tầng', align: 'end' },
     {
-      key: 'roomStats',
+      key: 'total',
       title: 'Số phòng',
       align: 'end',
-      render: (row) => (
-        <span>
-          {row.roomStats?.total ?? 0} phòng{' '}
-          <span className="small text-secondary">
-            ({row.roomStats?.available ?? 0} trống)
-          </span>
-        </span>
-      ),
+      render: (row) => row.roomStats?.total ?? 0,
     },
-    { key: 'manager', title: 'Manager phụ trách', render: managerOf },
+    {
+      key: 'available',
+      title: 'Phòng trống',
+      align: 'end',
+      render: (row) => row.roomStats?.available ?? 0,
+    },
+    {
+      key: 'manager',
+      title: 'Manager phụ trách',
+      render: (row) => <ManagerLabel manager={row.manager} />,
+    },
   ];
 
-  const loading = buildings === null;
-  const isFiltered = Boolean(keyword.trim()) || tab !== 'all';
-  const shown = buildings ?? [];
-
-  const renderEmpty = () =>
-    !isFiltered ? (
-      <EmptyState message="Chưa có tòa nhà nào. Bấm Thêm tòa nhà để bắt đầu.">
-        <Button variant="secondary" onClick={() => setShowForm(true)}>
-          Thêm tòa nhà
-        </Button>
-      </EmptyState>
-    ) : (
-      <EmptyState message="Không có tòa nhà nào khớp với bộ lọc.">
-        <Button variant="secondary" onClick={handleReset}>
-          Xóa bộ lọc
-        </Button>
-      </EmptyState>
-    );
-
-  const renderBody = () => {
-    if (loading)
+  const renderContent = () => {
+    if (loading) {
       return (
         <Card>
-          <SkeletonRows rows={4} columns={4} />
-        </Card>
-      );
-    if (loadError) {
-      return (
-        <Card>
-          <ErrorState
-            message="Không tải được danh sách tòa nhà."
-            detail={loadError}
-            onRetry={handleRetry}
-          />
+          <Card.Body>
+            <SkeletonRows rows={4} columns={4} media />
+          </Card.Body>
         </Card>
       );
     }
-    if (shown.length === 0) return <Card>{renderEmpty()}</Card>;
-    return (
-      <>
-        {/* máy tính, tablet: bảng */}
-        <div className="hidden md:block">
-          <DataTable
-            columns={columns}
-            data={shown}
-            onRowClick={(row) => navigate(`/buildings/${row._id}`)}
-          />
-        </div>
-        {/* điện thoại: mỗi tòa một thẻ 2 dòng */}
-        <Card className="md:hidden">
-          <ListGroup variant="flush">
-            {shown.map((building) => (
-              <ListGroup.Item
-                key={building._id}
-                action
-                onClick={() => navigate(`/buildings/${building._id}`)}
-                className="py-3"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="fw-semibold">{building.name}</span>
-                  <span className="small text-secondary whitespace-nowrap tabular-nums">
-                    {building.floorCount} tầng · {building.roomStats?.total ?? 0} phòng ({building.roomStats?.available ?? 0} trống)
-                  </span>
-                </div>
-                <div className="text-secondary truncate">{building.address}</div>
-                <div className="small">{managerOf(building)}</div>
-              </ListGroup.Item>
-            ))}
-          </ListGroup>
+    if (loadError) {
+      return (
+        <ErrorState
+          message="Không tải được danh sách tòa nhà"
+          detail={loadError}
+          onRetry={reload}
+        />
+      );
+    }
+    if (buildings.length === 0) {
+      return (
+        <Card>
+          <Card.Body>
+            {isFiltering ? (
+              <EmptyState message="Không có tòa nhà nào phù hợp. Thử đổi từ khóa hoặc bỏ bớt bộ lọc.">
+                <Button
+                  variant="secondary"
+                  className="flex items-center gap-1"
+                  onClick={handleResetFilters}
+                >
+                  <BiReset />
+                  Xóa bộ lọc
+                </Button>
+              </EmptyState>
+            ) : (
+              <EmptyState message="Chưa có tòa nhà nào. Bấm Thêm tòa nhà để bắt đầu.">
+                <Button variant="secondary" onClick={() => setShowForm(true)}>
+                  Thêm tòa nhà
+                </Button>
+              </EmptyState>
+            )}
+          </Card.Body>
         </Card>
-      </>
+      );
+    }
+
+    if (view === 'table') {
+      return (
+        <DataTable
+          columns={columns}
+          data={buildings}
+          onRowClick={(row) => navigate(`/buildings/${row._id}`)}
+        />
+      );
+    }
+
+    // dạng thẻ: ảnh đại diện = ảnh đầu tiên ('' → khung "Chưa có ảnh")
+    return (
+      // màn rộng 4 tòa một hàng; hẹp dần còn 3, 2, 1
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+        {buildings.map((building) => (
+          <ItemCard
+            key={building._id}
+            to={`/buildings/${building._id}`}
+            // no-underline: ItemCard là link, index.css gạch chân mọi link khi rê chuột → tắt riêng cho thẻ
+            // khung ảnh (khối đầu của ItemCard) theo tỉ lệ 16:9 thay cho cao cố định ~112px: ảnh phủ kín khung,
+            // không còn dải trắng hai bên, và vì khung cao hơn nên ảnh ít bị cắt
+            className="no-underline [&>div:first-child]:h-auto [&>div:first-child]:aspect-video"
+            image={building.images?.[0] ?? ''}
+            title={building.name}
+            badge={
+              <span className="badge rounded-pill bg-secondary-subtle text-secondary-emphasis">
+                {building.floorCount} tầng
+              </span>
+            }
+            subtitle={building.address}
+            stats={<RoomStats stats={building.roomStats} />}
+            footer={<ManagerLabel manager={building.manager} />}
+          />
+        ))}
+      </div>
     );
   };
 
   return (
     <>
-      <PageHeader
-        title="Tòa nhà"
-        subtitle={
-          loading || loadError
-            ? undefined
-            : `${shown.length} tòa nhà`
-        }
-        actions={
-          <Button variant="primary" onClick={() => setShowForm(true)}>
-            Thêm tòa nhà
-          </Button>
-        }
-      />
-
-      {/* hàng trên: tab lọc theo trạng thái phân công Manager */}
-      <div className="flex items-center gap-3 border-bottom mb-3">
-        <div className="min-w-0 flex-1 overflow-x-auto">
-          <Nav variant="underline" className="flex-nowrap" activeKey={tab} onSelect={setTab}>
-            {TABS.map((item) => (
-              <Nav.Item key={item.key}>
-                <Nav.Link
-                  eventKey={item.key}
-                  className={`flex items-center gap-2 whitespace-nowrap ${tab === item.key ? '' : 'text-secondary'}`}
-                >
-                  {item.label}
-                </Nav.Link>
-              </Nav.Item>
-            ))}
-          </Nav>
-        </div>
-      </div>
-
-      {/* hàng dưới: ô tìm; xóa bộ lọc chỉ hiện khi đang lọc */}
-      <div className="flex flex-wrap items-center gap-2 mb-3">
-        <InputGroup className="w-full md:w-80">
-          <InputGroup.Text className="text-secondary">
-            <BiSearch size={16} aria-hidden="true" />
-          </InputGroup.Text>
-          <Form.Control
-            name="keyword"
-            type="search"
-            placeholder="Tìm tên hoặc địa chỉ tòa"
-            value={keyword}
-            onChange={(event) => setKeyword(event.target.value)}
-            aria-label="Tìm tên hoặc địa chỉ tòa"
-          />
-        </InputGroup>
-        <div className="flex items-center gap-2 ms-auto">
-          {isFiltered && (
+      {/* không dùng overflow-hidden: bảng Bộ lọc xổ ra ngoài thẻ sẽ bị cắt */}
+      <Card className="mb-3">
+        <ControlBar
+          actions={
             <Button
-              variant="secondary"
-              size="sm"
-              onClick={handleReset}
+              variant="primary"
               className="flex items-center gap-1"
+              onClick={() => setShowForm(true)}
             >
-              <BiReset />
-              Xóa bộ lọc
+              <BiPlus />
+              Thêm tòa nhà
             </Button>
-          )}
-        </div>
-      </div>
+          }
+          searchValue={query}
+          onSearchChange={handleSearchChange}
+          searchPlaceholder="Tìm theo tên hoặc địa chỉ..."
+          filterGroups={FILTER_GROUPS}
+          selectedFilters={filters}
+          onFilterChange={handleFilterChange}
+          count={loading || loadError ? null : `${buildings.length} tòa nhà`}
+          view={view}
+          onViewChange={setView}
+        />
+      </Card>
 
-      {renderBody()}
+      <div
+        className={`transition-opacity ${refreshing ? 'opacity-50' : ''}`}
+        aria-busy={refreshing}
+      >
+        {renderContent()}
+      </div>
 
       {showForm && (
         <BuildingFormModal
           onHide={() => setShowForm(false)}
           onSaved={() => {
             setShowForm(false);
-            loadBuildings();
+            reload();
           }}
         />
       )}
