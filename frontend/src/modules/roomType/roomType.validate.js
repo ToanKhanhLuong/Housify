@@ -2,10 +2,9 @@
 export const validateRoomType = ({ name = '', capacity }) => {
   const errors = {};
   const trimmedName = String(name ?? '').trim();
+  // BE chỉ bắt buộc có tên, không giới hạn độ dài → FE theo đúng BE
   if (!trimmedName) {
     errors.name = 'Tên loại phòng không được để trống';
-  } else if (trimmedName.length < 2 || trimmedName.length > 50) {
-    errors.name = 'Tên loại phòng từ 2 đến 50 ký tự';
   }
 
   const capNum = Number(capacity);
