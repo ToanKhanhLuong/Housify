@@ -1,8 +1,12 @@
-// Component quản lý danh sách phòng bên trong trang chi tiết tòa nhà (UC-16..19)
-import { useCallback, useEffect, useState } from 'react';
-import { Button, Card, Col, Form, InputGroup, ListGroup, Row } from 'react-bootstrap';
-import { useNavigate } from 'react-router-dom';
-import { BiPlus, BiReset, BiSearch } from 'react-icons/bi';
+// Tab "Phòng" trong chi tiết tòa (UC-15..19, chốt 30/10) theo mockup docs/mock/BuildingDetail.dc.html
+// Thanh ControlBar: "Thêm phòng", "Quản lý tầng" (Admin) · tìm mã phòng · lọc trạng thái / loại phòng / tầng / giá thuê
+// Hai dạng xem: "Theo tầng" (mỗi tầng một hàng, mỗi phòng một ô màu theo trạng thái) và "Bảng"
+// Lọc gửi lên BE: status, roomTypeId, floor chọn nhiều (nối dấu phẩy), minPrice / maxPrice (api.md)
+import { useEffect, useState } from 'react';
+import { Button, Card } from 'react-bootstrap';
+import { Link, useNavigate } from 'react-router-dom';
+import { BiLayer, BiListUl, BiPlus } from 'react-icons/bi';
+import ControlBar from '../../../components/ControlBar';
 import DataTable from '../../../components/DataTable';
 import EmptyState from '../../../components/EmptyState';
 import ErrorState from '../../../components/ErrorState';
@@ -11,118 +15,212 @@ import StatusBadge from '../../../components/StatusBadge';
 import MoneyText from '../../../components/MoneyText';
 import { ROOM_STATUS } from '../../../constants/enums';
 import { ROOM_STATUS_LABEL } from '../../../constants/statusLabels';
+import { formatFilterQuery } from '../../../utils/filter';
 import roomApi from '../../room/room.api';
 import roomTypeApi from '../../roomType/roomType.api';
 import RoomFormModal from '../../room/components/RoomFormModal';
+import BuildingFloorsModal from './BuildingFloorsModal';
 
-const STATUS_OPTIONS = [
-  { value: ROOM_STATUS.AVAILABLE, label: ROOM_STATUS_LABEL[ROOM_STATUS.AVAILABLE].label },
-  { value: ROOM_STATUS.OCCUPIED, label: ROOM_STATUS_LABEL[ROOM_STATUS.OCCUPIED].label },
-  { value: ROOM_STATUS.MAINTENANCE, label: ROOM_STATUS_LABEL[ROOM_STATUS.MAINTENANCE].label },
+const STATUS_ORDER = [ROOM_STATUS.AVAILABLE, ROOM_STATUS.OCCUPIED, ROOM_STATUS.MAINTENANCE];
+
+// màu ô phòng theo trạng thái (class hf-tile-* trong index.css chung)
+const TILE_CLASS = {
+  [ROOM_STATUS.AVAILABLE]: 'hf-tile-ok',
+  [ROOM_STATUS.OCCUPIED]: 'hf-tile-plum',
+  [ROOM_STATUS.MAINTENANCE]: 'hf-tile-warn',
+};
+
+const VIEW_OPTIONS = [
+  { id: 'floors', icon: BiLayer, title: 'Theo tầng' },
+  { id: 'table', icon: BiListUl, title: 'Dạng bảng' },
 ];
 
-const BuildingRoomsTab = ({ building, canEdit, onRoomChanged }) => {
+const EMPTY_FILTERS = {
+  status: [],
+  roomTypeId: [],
+  floor: [],
+  minPrice: undefined,
+  maxPrice: undefined,
+};
+
+// chú thích màu: chấm theo màu nhãn trạng thái phòng
+const Legend = ({ count }) => (
+  <div className="flex flex-wrap items-center gap-3 small">
+    {STATUS_ORDER.map((status) => (
+      <span key={status} className="inline-flex items-center gap-1">
+        <span
+          className={`inline-block w-2 h-2 rounded-circle bg-${ROOM_STATUS_LABEL[status].variant}`}
+        />
+        {ROOM_STATUS_LABEL[status].label}
+      </span>
+    ))}
+    <span className="text-secondary">· {count} phòng</span>
+  </div>
+);
+
+// ô một phòng ở dạng "Theo tầng" (gọn, 3 dòng): mã + trạng thái, loại · diện tích, số người + giá
+const RoomTile = ({ room }) => (
+  <Link
+    to={`/rooms/${room._id}`}
+    className={`hf-tile w-38 p-2 gap-1 small no-underline ${TILE_CLASS[room.status] ?? ''}`}
+  >
+    <span className="flex items-center justify-between gap-1">
+      <span className="fw-bold">{room.roomNumber}</span>
+      <StatusBadge map={ROOM_STATUS_LABEL} value={room.status} />
+    </span>
+    <span className="truncate">
+      {room.roomType?.name ?? '—'} · {room.area} m²
+    </span>
+    {/* số người và giá chung một dòng cho ô gọn */}
+    <span className="flex items-center justify-between gap-1">
+      <span className="text-secondary">
+        {room.occupantCount ?? 0}/{room.roomType?.capacity ?? '—'} người
+      </span>
+      <span className="fw-semibold">
+        <MoneyText value={room.rentPrice} />
+      </span>
+    </span>
+  </Link>
+);
+
+const BuildingRoomsTab = ({ building, canEdit, onRoomChanged, onBuildingChanged }) => {
   const navigate = useNavigate();
-  const [rooms, setRooms] = useState(null); // null: đang tải
+  const [rooms, setRooms] = useState([]);
   const [roomTypes, setRoomTypes] = useState([]);
+  const [loading, setLoading] = useState(true); // lần tải đầu: khung xương
+  const [refreshing, setRefreshing] = useState(false); // tìm / lọc lại: làm mờ danh sách cũ
   const [loadError, setLoadError] = useState('');
+  const [query, setQuery] = useState('');
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [view, setView] = useState('floors');
+  const [reloadKey, setReloadKey] = useState(0);
   const [showCreate, setShowCreate] = useState(false);
+  const [showFloors, setShowFloors] = useState(false);
 
-  // Bộ lọc
-  const [keyword, setKeyword] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('');
-  const [selectedFloor, setSelectedFloor] = useState('');
-  const [selectedRoomType, setSelectedRoomType] = useState('');
-  const [minPrice, setMinPrice] = useState('');
-  const [maxPrice, setMaxPrice] = useState('');
-  const [priceError, setPriceError] = useState('');
-
-  // Tải danh mục loại phòng để lọc
+  // danh mục loại phòng để lọc và để form thêm phòng chọn
   useEffect(() => {
     roomTypeApi
       .list()
-      .then((res) => setRoomTypes(Array.isArray(res.data) ? res.data : []))
+      .then((response) => setRoomTypes(Array.isArray(response.data) ? response.data : []))
       .catch(() => setRoomTypes([]));
   }, []);
 
-  const loadRooms = useCallback(() => {
-    if (minPrice && maxPrice && Number(minPrice) > Number(maxPrice)) {
-      setPriceError('Giá từ không được lớn hơn giá đến');
-      return;
-    }
-    setPriceError('');
-
-    const params = {};
-    if (keyword.trim()) params.q = keyword.trim();
-    if (selectedStatus) params.status = selectedStatus;
-    if (selectedFloor) params.floor = selectedFloor;
-    if (selectedRoomType) params.roomTypeId = selectedRoomType;
-    if (minPrice !== '') params.minPrice = Number(minPrice);
-    if (maxPrice !== '') params.maxPrice = Number(maxPrice);
-
-    roomApi
-      .list(building._id, params)
-      .then((res) => {
-        setRooms(Array.isArray(res.data) ? res.data : []);
-        setLoadError('');
-      })
-      .catch((err) => {
-        setRooms([]);
-        setLoadError(err.message);
-      });
-  }, [building._id, keyword, selectedStatus, selectedFloor, selectedRoomType, minPrice, maxPrice]);
-
-  useEffect(() => {
-    const timer = setTimeout(loadRooms, 300);
-    return () => clearTimeout(timer);
-  }, [loadRooms]);
-
-  const handleResetFilters = () => {
-    setKeyword('');
-    setSelectedStatus('');
-    setSelectedFloor('');
-    setSelectedRoomType('');
-    setMinPrice('');
-    setMaxPrice('');
-    setPriceError('');
-  };
-
-  const isFiltered = Boolean(
-    keyword.trim() ||
-      selectedStatus ||
-      selectedFloor ||
-      selectedRoomType ||
-      minPrice !== '' ||
-      maxPrice !== '',
+  // khoảng giá sai thì không gọi BE (BE cũng chặn bằng 422)
+  const priceError =
+    filters.minPrice && filters.maxPrice && Number(filters.minPrice) > Number(filters.maxPrice)
+      ? 'Giá từ không được lớn hơn giá đến'
+      : '';
+  // khóa chuỗi để effect chỉ chạy khi bộ lọc thật sự đổi
+  const filterKey = JSON.stringify(
+    formatFilterQuery({
+      q: query.trim(),
+      ...filters,
+      minPrice: filters.minPrice,
+      maxPrice: filters.maxPrice,
+    }),
   );
 
-  const floorOptions = Array.from({ length: building.floorCount ?? 0 }, (_, i) => ({
-    value: String(i + 1),
-    label: `Tầng ${i + 1}`,
-  }));
+  // ô tìm đã tự đợi 300ms trong ControlBar; ignore: bỏ kết quả lần gọi cũ khi bộ lọc đã đổi tiếp
+  useEffect(() => {
+    if (priceError) return undefined;
+    let ignore = false;
+    roomApi
+      .list(building._id, JSON.parse(filterKey))
+      .then((response) => {
+        if (ignore) return;
+        setRooms(Array.isArray(response.data) ? response.data : []);
+        setLoadError('');
+      })
+      .catch((error) => !ignore && setLoadError(error.message))
+      .finally(() => {
+        if (ignore) return;
+        setLoading(false);
+        setRefreshing(false);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [building._id, filterKey, priceError, reloadKey]);
+
+  const handleSearchChange = (value) => {
+    setQuery(value);
+    setRefreshing(true);
+  };
+
+  const handleFilterChange = (next) => {
+    setFilters({
+      status: next.status ?? [],
+      roomTypeId: next.roomTypeId ?? [],
+      floor: next.floor ?? [],
+      minPrice: next.minPrice,
+      maxPrice: next.maxPrice,
+    });
+    setRefreshing(true);
+  };
+
+  const reload = () => {
+    setRefreshing(true);
+    setReloadKey((key) => key + 1);
+  };
+
+  const handleResetFilters = () => {
+    setQuery('');
+    setFilters(EMPTY_FILTERS);
+    setRefreshing(true);
+  };
+
+  const isFiltering = Boolean(
+    query.trim() ||
+    filters.status.length ||
+    filters.roomTypeId.length ||
+    filters.floor.length ||
+    filters.minPrice ||
+    filters.maxPrice,
+  );
+
+  const filterGroups = [
+    {
+      id: 'status',
+      label: 'Trạng thái',
+      type: 'checkbox',
+      options: STATUS_ORDER.map((status) => ({
+        value: status,
+        label: ROOM_STATUS_LABEL[status].label,
+      })),
+    },
+    {
+      id: 'roomTypeId',
+      label: 'Loại phòng',
+      type: 'checkbox',
+      options: roomTypes.map((roomType) => ({ value: roomType._id, label: roomType.name })),
+    },
+    {
+      id: 'floor',
+      label: 'Tầng',
+      type: 'checkbox',
+      options: Array.from({ length: building.floorCount ?? 0 }, (_, index) => ({
+        value: String(index + 1),
+        label: `Tầng ${index + 1}`,
+      })),
+    },
+    {
+      id: 'price',
+      label: 'Giá thuê (đ)',
+      type: 'range',
+      minField: 'minPrice',
+      maxField: 'maxPrice',
+    },
+  ];
 
   const columns = [
+    { key: 'roomNumber', title: 'Mã phòng', className: 'fw-semibold' },
+    { key: 'floorNumber', title: 'Tầng', render: (row) => `Tầng ${row.floorNumber}` },
+    { key: 'roomType', title: 'Loại phòng', render: (row) => row.roomType?.name ?? '—' },
+    { key: 'area', title: 'Diện tích', align: 'end', render: (row) => `${row.area} m²` },
     {
-      key: 'roomNumber',
-      title: 'Mã phòng',
-      className: 'fw-semibold',
-    },
-    {
-      key: 'floorNumber',
-      title: 'Tầng',
-      align: 'center',
-      render: (row) => `Tầng ${row.floorNumber}`,
-    },
-    {
-      key: 'roomType',
-      title: 'Loại phòng',
-      render: (row) => row.roomType?.name ?? '—',
-    },
-    {
-      key: 'area',
-      title: 'Diện tích',
-      align: 'end',
-      render: (row) => `${row.area} m²`,
+      key: 'occupantCount',
+      title: 'Đang ở',
+      render: (row) => `${row.occupantCount ?? 0}/${row.roomType?.capacity ?? '—'} người`,
     },
     {
       key: 'rentPrice',
@@ -131,231 +229,131 @@ const BuildingRoomsTab = ({ building, canEdit, onRoomChanged }) => {
       render: (row) => <MoneyText value={row.rentPrice} />,
     },
     {
-      key: 'deposit',
-      title: 'Tiền cọc',
-      align: 'end',
-      render: (row) => <MoneyText value={row.deposit} />,
-    },
-    {
-      key: 'capacity',
-      title: 'Sức chứa',
-      align: 'center',
-      render: (row) => `Tối đa ${row.roomType?.capacity ?? '—'} người`,
-    },
-    {
-      key: 'occupantCount',
-      title: 'Đang ở',
-      align: 'center',
-      render: (row) => `${row.occupantCount ?? 0} người`,
-    },
-    {
       key: 'status',
       title: 'Trạng thái',
       render: (row) => <StatusBadge map={ROOM_STATUS_LABEL} value={row.status} />,
     },
   ];
 
-  const renderContent = () => {
-    if (rooms === null) {
-      return (
-        <Card>
-          <SkeletonRows rows={4} columns={6} />
-        </Card>
-      );
-    }
-    if (loadError) {
-      return (
-        <Card>
-          <ErrorState
-            message="Không tải được danh sách phòng."
-            detail={loadError}
-            onRetry={loadRooms}
-          />
-        </Card>
-      );
-    }
-    if (rooms.length === 0) {
-      return (
-        <Card>
-          {isFiltered ? (
-            <EmptyState message="Không có phòng nào khớp với bộ lọc.">
-              <Button variant="secondary" onClick={handleResetFilters}>
-                Xóa bộ lọc
-              </Button>
-            </EmptyState>
-          ) : (
-            <EmptyState message="Tòa nhà chưa có phòng nào.">
-              {canEdit && (
-                <Button variant="primary" onClick={() => setShowCreate(true)}>
-                  Thêm phòng đầu tiên
-                </Button>
-              )}
-            </EmptyState>
-          )}
-        </Card>
-      );
-    }
+  // dạng "Theo tầng": tầng cao nhất ở trên; đang lọc thì ẩn tầng không có phòng khớp
+  const renderFloors = () => {
+    const floors = Array.from({ length: building.floorCount ?? 0 }, (_, index) => {
+      const floorNumber = building.floorCount - index;
+      const floorRooms = rooms
+        .filter((room) => room.floorNumber === floorNumber)
+        .sort((a, b) => a.roomNumber.localeCompare(b.roomNumber, 'vi', { numeric: true }));
+      return { floorNumber, rooms: floorRooms };
+    }).filter((floor) => !isFiltering || floor.rooms.length > 0);
 
     return (
-      <>
-        {/* Máy tính: bảng */}
-        <div className="hidden md:block">
-          <DataTable
-            columns={columns}
-            data={rooms}
-            onRowClick={(row) => navigate(`/rooms/${row._id}`)}
-          />
-        </div>
-
-        {/* Điện thoại: danh sách thẻ */}
-        <Card className="md:hidden">
-          <ListGroup variant="flush">
-            {rooms.map((room) => (
-              <ListGroup.Item
-                key={room._id}
-                action
-                onClick={() => navigate(`/rooms/${room._id}`)}
-                className="py-3"
-              >
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <span className="fw-semibold">Phòng {room.roomNumber}</span>
-                  <StatusBadge map={ROOM_STATUS_LABEL} value={room.status} />
+      <div>
+        {floors.map((floor) => (
+          <div key={floor.floorNumber} className="flex items-start gap-3 py-3 border-top">
+            <div className="w-24 shrink-0 pt-2">
+              <div className="fw-semibold">Tầng {floor.floorNumber}</div>
+              <div className="small text-secondary">{floor.rooms.length} phòng</div>
+            </div>
+            <div className="flex flex-wrap gap-2 flex-1 min-w-0">
+              {floor.rooms.map((room) => (
+                <RoomTile key={room._id} room={room} />
+              ))}
+              {floor.rooms.length === 0 && (
+                <div className="flex items-center px-3 py-2 rounded border border-dashed small text-secondary">
+                  Chưa có phòng
                 </div>
-                <div className="small text-secondary mb-1">
-                  Tầng {room.floorNumber} · {room.roomType?.name ?? '—'} · {room.area} m² · Sức chứa {room.roomType?.capacity ?? '—'} người
-                </div>
-                <div className="flex items-center justify-between gap-2 small">
-                  <span className="fw-medium text-primary">
-                    <MoneyText value={room.rentPrice} />/tháng
-                  </span>
-                  <span className="text-secondary">
-                    Đang ở: {room.occupantCount ?? 0} người
-                  </span>
-                </div>
-              </ListGroup.Item>
-            ))}
-          </ListGroup>
-        </Card>
-      </>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
     );
   };
 
-  return (
-    <div>
-      {/* Thanh công cụ và bộ lọc */}
-      <div className="mb-3">
-        <Row className="g-2 mb-2">
-          <Col md={3}>
-            <InputGroup>
-              <InputGroup.Text className="text-secondary">
-                <BiSearch size={16} />
-              </InputGroup.Text>
-              <Form.Control
-                type="search"
-                placeholder="Tìm mã phòng..."
-                value={keyword}
-                onChange={(e) => setKeyword(e.target.value)}
-              />
-            </InputGroup>
-          </Col>
-          <Col md={2}>
-            <Form.Select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-            >
-              <option value="">Tất cả trạng thái</option>
-              {STATUS_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </Form.Select>
-          </Col>
-          <Col md={2}>
-            <Form.Select
-              value={selectedFloor}
-              onChange={(e) => setSelectedFloor(e.target.value)}
-            >
-              <option value="">Tất cả tầng</option>
-              {floorOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </Form.Select>
-          </Col>
-          <Col md={2}>
-            <Form.Select
-              value={selectedRoomType}
-              onChange={(e) => setSelectedRoomType(e.target.value)}
-            >
-              <option value="">Tất cả loại phòng</option>
-              {roomTypes.map((rt) => (
-                <option key={rt._id} value={rt._id}>
-                  {rt.name}
-                </option>
-              ))}
-            </Form.Select>
-          </Col>
+  const renderContent = () => {
+    if (loading) return <SkeletonRows rows={4} columns={4} />;
+    if (loadError) {
+      return (
+        <ErrorState message="Không tải được danh sách phòng" detail={loadError} onRetry={reload} />
+      );
+    }
+    if (rooms.length === 0) {
+      return isFiltering ? (
+        <EmptyState message="Không tìm thấy phòng phù hợp">
+          <Button variant="secondary" onClick={handleResetFilters}>
+            Xóa bộ lọc
+          </Button>
+        </EmptyState>
+      ) : (
+        <EmptyState message="Tòa nhà chưa có phòng nào.">
           {canEdit && (
-            <Col md={3} className="text-end ms-auto">
-              <Button
-                variant="primary"
-                onClick={() => setShowCreate(true)}
-                className="flex items-center gap-1 ms-auto"
-              >
-                <BiPlus />
-                Thêm phòng
-              </Button>
-            </Col>
+            <Button variant="secondary" onClick={() => setShowCreate(true)}>
+              Thêm phòng
+            </Button>
           )}
-        </Row>
+        </EmptyState>
+      );
+    }
+    if (view === 'table') {
+      return (
+        <DataTable
+          columns={columns}
+          data={rooms}
+          onRowClick={(row) => navigate(`/rooms/${row._id}`)}
+        />
+      );
+    }
+    return renderFloors();
+  };
 
-        {/* Lọc khoảng giá */}
-        <Row className="g-2 items-center">
-          <Col md={2}>
-            <Form.Control
-              type="number"
-              placeholder="Giá từ (₫)"
-              min={0}
-              value={minPrice}
-              onChange={(e) => setMinPrice(e.target.value)}
-            />
-          </Col>
-          <Col md={2}>
-            <Form.Control
-              type="number"
-              placeholder="Giá đến (₫)"
-              min={0}
-              value={maxPrice}
-              onChange={(e) => setMaxPrice(e.target.value)}
-            />
-          </Col>
-          {isFiltered && (
-            <Col md={2}>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleResetFilters}
-                className="flex items-center gap-1"
-              >
-                <BiReset />
-                Xóa bộ lọc
-              </Button>
-            </Col>
-          )}
-          {priceError && (
-            <Col xs={12}>
-              <div className="small text-danger">{priceError}</div>
-            </Col>
-          )}
-        </Row>
+  return (
+    <div className="flex flex-col gap-3">
+      {/* không dùng overflow-hidden: bảng Bộ lọc xổ ra ngoài thẻ sẽ bị cắt */}
+      <Card>
+        <ControlBar
+          actions={
+            canEdit && (
+              <>
+                <Button
+                  variant="primary"
+                  className="flex items-center gap-1"
+                  onClick={() => setShowCreate(true)}
+                >
+                  <BiPlus />
+                  Thêm phòng
+                </Button>
+                <Button
+                  variant="secondary"
+                  className="flex items-center gap-1"
+                  onClick={() => setShowFloors(true)}
+                >
+                  <BiLayer />
+                  Quản lý tầng
+                </Button>
+              </>
+            )
+          }
+          searchValue={query}
+          onSearchChange={handleSearchChange}
+          searchPlaceholder="Tìm theo mã phòng..."
+          filterGroups={filterGroups}
+          selectedFilters={filters}
+          onFilterChange={handleFilterChange}
+          view={view}
+          onViewChange={setView}
+          viewOptions={VIEW_OPTIONS}
+        />
+      </Card>
+
+      {priceError && <div className="small text-danger">{priceError}</div>}
+      <Legend count={rooms.length} />
+
+      <div
+        className={`transition-opacity ${refreshing ? 'opacity-50' : ''}`}
+        aria-busy={refreshing}
+      >
+        {renderContent()}
       </div>
 
-      {/* Danh sách phòng */}
-      {renderContent()}
-
-      {/* Modal Thêm phòng (Admin) */}
       {showCreate && (
         <RoomFormModal
           building={building}
@@ -363,8 +361,19 @@ const BuildingRoomsTab = ({ building, canEdit, onRoomChanged }) => {
           onHide={() => setShowCreate(false)}
           onSaved={() => {
             setShowCreate(false);
-            loadRooms();
+            reload();
             onRoomChanged?.();
+          }}
+        />
+      )}
+
+      {showFloors && (
+        <BuildingFloorsModal
+          building={building}
+          onHide={() => setShowFloors(false)}
+          onChanged={(updated) => {
+            onBuildingChanged?.(updated);
+            reload();
           }}
         />
       )}
