@@ -2,7 +2,7 @@
 // (PENDING của hóa đơn khác PENDING của tài khoản). Dùng: <StatusBadge map={INVOICE_STATUS_LABEL} value={...} />
 import {
     CONTRACT_STATUS, CONTRACT_TYPE, INCIDENT_STATUS, INCIDENT_TYPE, INVOICE_ITEM_TYPE,
-    INVOICE_STATUS, OCCUPANT_STATUS, ROLE, ROOM_STATUS, TERMINATION_STATUS, TERMINATION_TYPE, USER_STATUS,
+    INVOICE_STATUS, NOTIFICATION_TYPE, OCCUPANT_STATUS, ROLE, ROOM_STATUS, TERMINATION_STATUS, TERMINATION_TYPE, USER_STATUS,
 } from './enums';
 
 export const ROLE_LABEL = {
@@ -79,6 +79,25 @@ export const INCIDENT_STATUS_LABEL = {
     [INCIDENT_STATUS.IN_PROGRESS]: { label: 'Đang xử lý', variant: 'info' },
     [INCIDENT_STATUS.RESOLVED]: { label: 'Đã giải quyết', variant: 'success' },
     [INCIDENT_STATUS.REJECTED]: { label: 'Từ chối', variant: 'danger' },
+};
+
+// Nhóm loại thông báo cho nhãn ở trang Thông báo (UC-41, chữ theo mockup Notifications.dc.html)
+export const NOTIFICATION_TYPE_LABEL = {
+    [NOTIFICATION_TYPE.INVOICE_SENT]: { label: 'Hóa đơn', variant: 'secondary' },
+    [NOTIFICATION_TYPE.INVOICE_CANCELLED]: { label: 'Hóa đơn', variant: 'secondary' },
+    [NOTIFICATION_TYPE.PAYMENT_SUCCESS]: { label: 'Thanh toán', variant: 'secondary' },
+    [NOTIFICATION_TYPE.PAYMENT_REMINDER]: { label: 'Thanh toán', variant: 'secondary' },
+    [NOTIFICATION_TYPE.CONTRACT_RENEWED]: { label: 'Hợp đồng', variant: 'secondary' },
+    [NOTIFICATION_TYPE.CONTRACT_ENDED]: { label: 'Hợp đồng', variant: 'secondary' },
+    [NOTIFICATION_TYPE.DEPOSIT_REFUNDED]: { label: 'Hợp đồng', variant: 'secondary' },
+    [NOTIFICATION_TYPE.TERMINATION_REQUEST]: { label: 'Đơn chấm dứt', variant: 'secondary' },
+    [NOTIFICATION_TYPE.TERMINATION_CONFIRMED]: { label: 'Đơn chấm dứt', variant: 'secondary' },
+    [NOTIFICATION_TYPE.TERMINATION_REJECTED]: { label: 'Đơn chấm dứt', variant: 'secondary' },
+    [NOTIFICATION_TYPE.TERMINATION_CANCELLED]: { label: 'Đơn chấm dứt', variant: 'secondary' },
+    [NOTIFICATION_TYPE.MANAGER_ASSIGNED]: { label: 'Phân công', variant: 'secondary' },
+    [NOTIFICATION_TYPE.MANAGER_UNASSIGNED]: { label: 'Phân công', variant: 'secondary' },
+    [NOTIFICATION_TYPE.INCIDENT_UPDATE]: { label: 'Sự cố', variant: 'secondary' },
+    [NOTIFICATION_TYPE.ANNOUNCEMENT]: { label: 'Thông báo chung', variant: 'secondary' },
 };
 
 // Đổi bảng nhãn thành options cho <Select>: toOptions(ROOM_STATUS_LABEL) → [{ value: 'AVAILABLE', label: 'Trống' }, ...]

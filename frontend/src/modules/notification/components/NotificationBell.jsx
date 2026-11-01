@@ -7,7 +7,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { BiBell } from 'react-icons/bi';
 import { toast } from 'react-toastify';
 import EmptyState from '../../../components/EmptyState';
-import Loading from '../../../components/Loading';
+import ErrorState from '../../../components/ErrorState';
+import SkeletonRows from '../../../components/SkeletonRows';
 import { useAuth } from '../../../context/AuthContext';
 import notificationApi from '../notification.api';
 import {
@@ -194,8 +195,16 @@ const NotificationBell = () => {
     };
 
     const renderList = () => {
-        if (loadError) return <div className="px-3 py-4 small text-danger">{loadError}</div>;
-        if (!items) return <Loading />;
+        if (loadError) {
+            return (
+                <ErrorState
+                    message="Không tải được thông báo"
+                    detail={loadError}
+                    onRetry={() => loadLatest(tab)}
+                />
+            );
+        }
+        if (!items) return <SkeletonRows rows={3} columns={2} media />;
         if (items.length === 0)
             return (
                 <EmptyState
