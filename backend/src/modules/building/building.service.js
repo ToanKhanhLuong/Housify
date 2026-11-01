@@ -124,10 +124,14 @@ export const getBuildings = async (query = {}, user) => {
     filter.$or = [{ name: regex }, { address: regex }];
   }
 
-  if (query.hasManager === 'true') {
-    filter.managerId = { $exists: true, $ne: null };
-  } else if (query.hasManager === 'false') {
-    filter.managerId = null;
+  // validate (booleanString) đã đổi "true"/"false" thành boolean; nhận cả chuỗi phòng khi gọi không qua validate
+  // Chỉ Admin lọc theo có / chưa có Manager: Manager đã bị giới hạn tòa mình ở trên, không được ghi đè
+  if (user.role !== ROLE.MANAGER) {
+    if (query.hasManager === true || query.hasManager === 'true') {
+      filter.managerId = { $exists: true, $ne: null };
+    } else if (query.hasManager === false || query.hasManager === 'false') {
+      filter.managerId = null;
+    }
   }
 
   // Sắp theo tên tăng dần
