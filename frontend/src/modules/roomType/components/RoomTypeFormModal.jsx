@@ -1,7 +1,8 @@
 // UC-20: form thêm / sửa loại phòng. roomType = {} là thêm mới, có _id là sửa; nút "Xóa" nằm trong form sửa
-// Tên và Sức chứa (capacity ≥ 1) là bắt buộc
+// Tên và Sức chứa (capacity ≥ 1) là bắt buộc. Theo mockup docs/mock/RoomTypes.dc.html
 import { useState } from 'react';
 import { Button, Form, Modal, Spinner } from 'react-bootstrap';
+import { BiTrash } from 'react-icons/bi';
 import { toast } from 'react-toastify';
 import Input from '../../../components/Input';
 import { hasErrors, toFieldErrors } from '../../../utils/formErrors';
@@ -62,11 +63,8 @@ const RoomTypeFormModal = ({ roomType = {}, onHide, onSaved, onDelete }) => {
             value={form.name}
             onChange={(event) => setForm({ ...form, name: event.target.value })}
             error={errors.name}
-            helpText={
-              isEdit
-                ? 'Tên mới hiện ngay ở mọi phòng đang dùng loại này'
-                : 'Ví dụ: Phòng đơn, Studio'
-            }
+            placeholder="VD: Phòng đôi"
+            helpText={isEdit ? 'Tên mới hiện ngay ở mọi phòng đang dùng loại này' : undefined}
             required
             autoFocus
           />
@@ -79,7 +77,11 @@ const RoomTypeFormModal = ({ roomType = {}, onHide, onSaved, onDelete }) => {
             value={form.capacity}
             onChange={(event) => setForm({ ...form, capacity: event.target.value })}
             error={errors.capacity}
-            helpText="Sức chứa tối đa cho phép của mọi phòng thuộc loại này"
+            helpText={
+              isEdit
+                ? `${roomType.roomCount > 0 ? `Đang dùng ở ${roomType.roomCount} phòng` : 'Chưa có phòng nào dùng'}. Giảm sức chứa không được thấp hơn số người đang ở của phòng đông nhất thuộc loại này.`
+                : 'Sức chứa tối đa cho phép của mọi phòng thuộc loại này'
+            }
             required
             className="mb-0"
           />
@@ -93,7 +95,14 @@ const RoomTypeFormModal = ({ roomType = {}, onHide, onSaved, onDelete }) => {
             Hủy
           </Button>
           {isEdit && (
-            <Button variant="danger" className="ms-auto" onClick={onDelete} disabled={submitting}>
+            // nút đỏ chỉ dùng ở hộp xác nhận; ở đây là nút thường đứng cuối
+            <Button
+              variant="secondary"
+              className="ms-auto flex items-center gap-1"
+              onClick={onDelete}
+              disabled={submitting}
+            >
+              <BiTrash />
               Xóa
             </Button>
           )}
