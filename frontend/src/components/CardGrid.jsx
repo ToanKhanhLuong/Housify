@@ -1,12 +1,7 @@
 // Khung lưới hiển thị thẻ (Card Grid) responsive kiểu Odoo Kanban
-const CardGrid = ({ children, minWidth = '300px', className = '' }) => {
+const CardGrid = ({ children, className = '' }) => {
     return (
-        <div
-            className={`grid gap-3.5 ${className}`}
-            style={{
-                gridTemplateColumns: `repeat(auto-fill, minmax(${minWidth}, 1fr))`,
-            }}
-        >
+        <div className={`grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-3.5 ${className}`}>
             {children}
         </div>
     );

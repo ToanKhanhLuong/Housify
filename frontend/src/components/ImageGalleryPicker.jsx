@@ -1,7 +1,7 @@
 // Ô quản lý nhiều ảnh (ImageGalleryPicker) theo Main.dc.html và BuildingDetail.dc.html
 // Gồm: Ảnh đại diện lớn, hàng ảnh thu nhỏ bên dưới, nút "+ Tải ảnh lên"
 import { useState } from 'react';
-import { Spinner } from 'react-bootstrap';
+import { Badge, Button, Form, Spinner } from 'react-bootstrap';
 import { BiPlus, BiTrash, BiStar } from 'react-icons/bi';
 import { toast } from 'react-toastify';
 import uploadApi from '../api/upload.api';
@@ -70,7 +70,7 @@ const ImageGalleryPicker = ({
             {label && <label className="text-xs font-semibold text-gray-700">{label}</label>}
 
             {/* Ảnh đại diện lớn */}
-            <div className="w-full h-44 rounded border border-[#e1e3e6] overflow-hidden bg-gray-50 flex items-center justify-center relative">
+            <div className="w-full h-44 rounded border overflow-hidden bg-gray-50 flex items-center justify-center relative">
                 {coverImage ? (
                     <img
                         src={coverImage}
@@ -83,9 +83,9 @@ const ImageGalleryPicker = ({
                     </div>
                 )}
                 {coverImage && (
-                    <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded text-[11px] font-semibold bg-black/60 text-white">
+                    <Badge bg="dark" className="absolute bottom-2 left-2">
                         Ảnh đại diện
-                    </span>
+                    </Badge>
                 )}
             </div>
 
@@ -94,31 +94,33 @@ const ImageGalleryPicker = ({
                 {images.map((url, idx) => (
                     <div
                         key={url + idx}
-                        className="relative group w-20 h-16 rounded border border-[#e1e3e6] overflow-hidden bg-gray-100 shrink-0"
+                        className="relative group w-20 h-16 rounded border overflow-hidden bg-gray-100 shrink-0"
                     >
                         <img src={url} alt={`Ảnh ${idx + 1}`} className="w-full h-full object-cover" />
 
                         {/* Thao tác khi hover: đặt làm cover, xóa */}
                         {!disabled && (
-                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white">
+                            <div className="absolute inset-0 bg-black/50 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
                                 {idx !== 0 && (
-                                    <button
-                                        type="button"
-                                        className="p-1 hover:text-yellow-400 border-0 bg-transparent text-white"
+                                    <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        className="flex p-1"
                                         title="Đặt làm ảnh đại diện"
                                         onClick={() => handleSetCover(idx)}
                                     >
                                         <BiStar size={14} />
-                                    </button>
+                                    </Button>
                                 )}
-                                <button
-                                    type="button"
-                                    className="p-1 hover:text-red-400 border-0 bg-transparent text-white"
+                                <Button
+                                    variant="danger"
+                                    size="sm"
+                                    className="flex p-1"
                                     title="Xóa ảnh"
                                     onClick={() => handleRemoveImage(idx)}
                                 >
                                     <BiTrash size={14} />
-                                </button>
+                                </Button>
                             </div>
                         )}
                     </div>
@@ -135,7 +137,7 @@ const ImageGalleryPicker = ({
                                 <span className="text-[11px] text-gray-600 font-medium">+ Thêm ảnh</span>
                             </>
                         )}
-                        <input
+                        <Form.Control
                             type="file"
                             multiple
                             accept="image/*"

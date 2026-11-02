@@ -19,7 +19,7 @@ const ItemCard = ({
         <>
             {/* Ảnh đại diện hoặc khung placeholder */}
             {image !== undefined && (
-                <div className="w-full h-32 overflow-hidden border-b border-[#e1e3e6] shrink-0 bg-gray-50 flex items-center justify-center">
+                <div className="w-full h-32 overflow-hidden border-bottom shrink-0 bg-gray-50 flex items-center justify-center">
                     {image ? (
                         <img
                             src={image}
@@ -62,7 +62,7 @@ const ItemCard = ({
 
                 {/* Chân thẻ (phân cách bằng đường kẻ mảnh) */}
                 {footer && (
-                    <div className="pt-2 mt-auto border-t border-[#eef0f2] text-xs text-gray-600 flex items-center justify-between">
+                    <div className="pt-2 mt-auto border-top text-xs text-gray-600 flex items-center justify-between">
                         {footer}
                     </div>
                 )}

@@ -28,10 +28,10 @@ const PasswordInput = ({ label, name, error, required = false, helpText, disable
                     className="pe-5 bg-none! [&::-ms-reveal]:hidden"
                     {...props}
                 />
-                {/* nút secondary (đúng 4 kiểu nút) nhưng trong suốt, không viền để nằm gọn trong ô, ăn theo màu nền của ô */}
+                {/* nút không nền, không viền để nằm gọn trong ô, ăn theo màu nền của ô; rê chuột mới hiện xám */}
                 <Button
                     variant="secondary"
-                    className="absolute end-0 top-0 h-full flex items-center px-3 bg-transparent border-0 text-secondary"
+                    className="hf-btn-ghost absolute end-0 top-0 h-full flex items-center px-3 border-0 text-secondary"
                     onClick={() => setVisible(!visible)}
                     disabled={disabled}
                     aria-label={toggleLabel}
