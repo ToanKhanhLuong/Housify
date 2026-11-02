@@ -37,7 +37,7 @@ const Sidebar = ({ show, onHide, collapsed, onToggleCollapse }) => {
                     <Button
                         variant="secondary"
                         size="sm"
-                        className="flex shrink-0 bg-transparent border-0 text-secondary"
+                        className="hf-btn-ghost flex shrink-0 border-0 text-secondary"
                         onClick={onToggleCollapse}
                         aria-label={collapsed ? 'Mở rộng menu' : 'Thu gọn menu'}
                         aria-expanded={!collapsed}

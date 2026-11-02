@@ -57,13 +57,13 @@ const Header = ({ onToggleMenu, title }) => {
                 {/* UC-41: chuông có số thông báo chưa đọc (giữ nguyên logic NotificationBell của Hiếu) */}
                 <NotificationBell />
 
-                <div className="w-[1px] h-6 bg-[#e1e3e6] mx-1" />
+                <div className="h-6 mx-1 border-start" />
 
                 {/* Nút tài khoản theo Topbar.dc.html */}
                 <Dropdown align="end">
                     <Dropdown.Toggle
-                        as="button"
-                        className="flex items-center gap-2 h-10 px-2 border-0 bg-transparent rounded hover:bg-gray-100 transition-colors text-gray-800"
+                        variant="secondary"
+                        className="hf-btn-ghost flex items-center gap-2 h-10 px-2 border-0 fw-normal text-gray-800 after:hidden"
                         id="user-menu-toggle"
                     >
                         <span className="hf-av w-8 h-8 text-xs font-bold">
@@ -76,7 +76,7 @@ const Header = ({ onToggleMenu, title }) => {
                         <BiChevronDown size={16} className="text-gray-500" />
                     </Dropdown.Toggle>
 
-                    <Dropdown.Menu className="shadow-lg border-[#e1e3e6] min-w-[200px] py-1">
+                    <Dropdown.Menu className="shadow-lg min-w-[200px] py-1">
                         {user?.role !== ROLE.ADMIN && (
                             <Dropdown.Item as={Link} to="/profile" className="flex items-center gap-2 py-2 text-sm text-gray-700">
                                 <BiUser size={16} />
@@ -90,7 +90,7 @@ const Header = ({ onToggleMenu, title }) => {
                         <Dropdown.Divider className="my-1 border-gray-100" />
                         <Dropdown.Item
                             onClick={() => setShowLogout(true)}
-                            className="flex items-center gap-2 py-2 text-sm text-[#a3241b] hover:bg-red-50"
+                            className="flex items-center gap-2 py-2 text-sm text-danger hover:bg-red-50"
                         >
                             <BiLogOut size={16} />
                             <span>Đăng xuất</span>

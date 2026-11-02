@@ -2,7 +2,7 @@
 // - Tiêu đề rõ ràng, nút đóng ✕
 // - Body hỗ trợ chia 2 cột chuẩn
 // - Footer: Nút chính bên trái (Lưu, Hủy), nút Xóa (nếu có) bên phải variant danger
-import { Button, Modal, Spinner } from 'react-bootstrap';
+import { Button, Form, Modal, Spinner } from 'react-bootstrap';
 import { BiX } from 'react-icons/bi';
 
 const ModalForm = ({
@@ -27,27 +27,27 @@ const ModalForm = ({
 
     return (
         <Modal show={show} onHide={onHide} size={size} centered backdrop="static">
-            <form onSubmit={handleSubmit}>
-                <Modal.Header className="py-3 px-4 border-b border-[#eef0f2] flex items-center justify-between">
+            <Form onSubmit={handleSubmit}>
+                <Modal.Header className="py-3 px-4 border-bottom flex items-center justify-between">
                     <Modal.Title className="text-base font-bold text-gray-900 m-0">
                         {title}
                     </Modal.Title>
-                    <button
-                        type="button"
-                        className="w-8 h-8 flex items-center justify-center border-0 bg-transparent text-gray-500 hover:text-gray-900 rounded"
+                    <Button
+                        variant="secondary"
+                        className="hf-btn-ghost w-8 h-8 flex items-center justify-center p-0 text-gray-500 hover:text-gray-900"
                         onClick={onHide}
                         aria-label="Đóng"
                         disabled={loading}
                     >
                         <BiX size={20} />
-                    </button>
+                    </Button>
                 </Modal.Header>
 
                 <Modal.Body className="p-4">
                     {children}
                 </Modal.Body>
 
-                <Modal.Footer className="py-3 px-4 border-t border-[#eef0f2] flex items-center justify-between">
+                <Modal.Footer className="py-3 px-4 border-top flex items-center justify-between">
                     {/* Nút thao tác chính luôn bên trái */}
                     <div className="flex items-center gap-2">
                         <Button
@@ -81,7 +81,7 @@ const ModalForm = ({
                         </Button>
                     )}
                 </Modal.Footer>
-            </form>
+            </Form>
         </Modal>
     );
 };

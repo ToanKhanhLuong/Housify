@@ -103,7 +103,7 @@ const BADGE_GROUPS = [
 
 const Section = ({ title, children }) => (
     <Card className="mb-4">
-        <Card.Header className="fw-semibold bg-white border-b border-[#e1e3e6]">{title}</Card.Header>
+        <Card.Header className="fw-semibold bg-white border-bottom">{title}</Card.Header>
         <Card.Body>{children}</Card.Body>
     </Card>
 );
@@ -205,7 +205,7 @@ const UiKitPage = () => {
                 }
             >
                 <ActionDropdown
-                    title="Thao tác ▾"
+                    title="Thao tác"
                     items={[
                         { label: 'Phân công lại', icon: BiUserCheck, onClick: () => toast.info('Đã chọn Phân công') },
                         { label: 'Khóa tài khoản', icon: BiLockAlt, onClick: () => toast.warning('Đã chọn Khóa') },
@@ -220,7 +220,7 @@ const UiKitPage = () => {
                 <p className="text-sm text-gray-600 mb-3">
                     Thanh điều khiển một hàng: Nút chính trái | Ô tìm kiếm đa năng ở giữa (search debounced 300ms, facet tags xóa bằng backspace/click x, dropdown bộ lọc 2 cột) | Đếm số lượng + Switch Thẻ/Bảng phải.
                 </p>
-                <div className="border border-[#e1e3e6] rounded mb-3 overflow-hidden">
+                <div className="border rounded mb-3 overflow-hidden">
                     <ControlBar
                         actions={
                             <Button variant="primary" size="sm" onClick={() => setShowModalForm(true)}>
@@ -250,7 +250,7 @@ const UiKitPage = () => {
                 <p className="text-sm text-gray-600 mb-3">
                     Thẻ bấm được cả khối, responsive, hover viền đổi sang màu tím mận (#714B67). Hỗ trợ ảnh, tiêu đề, badge số tầng, thống kê chấm màu, chân thẻ thông tin người phụ trách.
                 </p>
-                <CardGrid minWidth="300px">
+                <CardGrid>
                     {SAMPLE_BUILDINGS.map((b) => (
                         <ItemCard
                             key={b._id}

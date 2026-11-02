@@ -106,6 +106,7 @@ src/
 | Cần                                       | Dùng                                                                                              | KHÔNG dùng                             |
 | ------------------------------------------ | -------------------------------------------------------------------------------------------------- | ---------------------------------------- |
 | Nút                                       | `Button` của react-bootstrap                                                                    | `<button>`, Button tự viết           |
+| Nút không nền (icon trên thanh, ✕, mũi tên) | `<Button variant="secondary" className="hf-btn-ghost">`: chỉ hiện xám khi rê chuột            | `bg-transparent` gắn lên nút        |
 | Ô nhập có nhãn + lỗi                  | `Input`                                                                                          | `Form.Group` tự ghép                 |
 | Ô chọn                                   | `Select` + `toOptions()`                                                                       | `<select>`                             |
 | Ô lọc trên thanh lọc trang danh sách    | `FilterSelect` (có `label` thì nhãn nằm trong ô)                                              | `Select` có nhãn nằm trên ô           |
@@ -134,6 +135,8 @@ src/
 
 Lưu ý: `p-3`, `gap-3`, `mb-4`… có ở cả Bootstrap lẫn Tailwind, **Bootstrap thắng**. Khoảng cách luôn tính theo thang Bootstrap (1 = 0.25rem, 2 = 0.5rem, 3 = 1rem, 4 = 1.5rem, 5 = 3rem).
 
+Class trùng tên với Bootstrap (`bg-transparent`, `opacity-0`, `text-white`…) có `!important` và **luôn thắng**, kể cả `hover:`, `group-hover:`, dấu `!` của Tailwind. Vd `opacity-0 group-hover:opacity-100` không bao giờ hiện, phải viết `md:opacity-0 md:group-hover:opacity-100`.
+
 ---
 
 ## 6. Phần chung có sẵn
@@ -159,7 +162,7 @@ Lưu ý: `p-3`, `gap-3`, `mb-4`… có ở cả Bootstrap lẫn Tailwind, **Boot
 | `EmptyState`   | `message`, `children`                                                                                                                                                                            |                                                                                                                                                                                                                                                                                                                                                           |
 | `SkeletonRows` | `rows`, `columns`, `media` | Khung xương khi đang tải: thanh xám phẳng đúng chỗ dữ liệu, bố cục không nhảy. `media` chừa ô ảnh 40px đầu dòng |
 | `ControlBar`   | `actions`, `searchValue`, `onSearchChange`, `searchPlaceholder`, `filterGroups`, `selectedFilters`, `onFilterChange`, `groupByOptions`, `selectedGroupBy`, `onGroupByChange`, `count`, `view`, `onViewChange` | Thanh điều khiển Odoo một hàng (actions trái, search/facets/dropdown filter & group giữa, count + switch Thẻ/Bảng phải). Đi kèm helper `formatFilterQuery`, `groupArrayBy` (`src/utils/filter.js`) |
-| `CardGrid`     | `children`, `minWidth`, `className` | Lưới thẻ responsive kiểu Odoo Kanban |
+| `CardGrid`     | `children`, `className` | Lưới thẻ responsive kiểu Odoo Kanban |
 | `ItemCard`     | `to`, `onClick`, `image`, `placeholderText`, `title`, `badge`, `subtitle`, `stats`, `footer`, `children` | Thẻ đối tượng bấm được cả khối, hover viền đổi sang màu tím mận `#714B67` |
 | `ModalForm`    | `show`, `onHide`, `title`, `onSubmit`, `submitText`, `cancelText`, `loading`, `onDelete`, `deleteText`, `size`, `children` | Modal form 2 cột chuẩn, nút Lưu/Hủy bên trái, nút Xóa bên phải |
 | `ActionDropdown` | `title` (mặc định "Thao tác"), `items` (`[{ label, icon, onClick, danger, disabled, divider }]`), `align`, `children` | Nút "Thao tác ▾" xổ ra menu phụ / nguy hiểm ở trang chi tiết |

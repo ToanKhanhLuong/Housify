@@ -24,7 +24,7 @@ const PageHeader = ({ title, subtitle, backTo, breadcrumbs, actions, children })
                         <span key={idx} className="flex items-center gap-2">
                             {idx > 0 && <span className="text-gray-400 font-normal">/</span>}
                             {crumbTo && !isLast ? (
-                                <Link to={crumbTo} className="text-[#017e84] hover:underline">
+                                <Link to={crumbTo} className="hover:underline">
                                     {crumbText}
                                 </Link>
                             ) : (
