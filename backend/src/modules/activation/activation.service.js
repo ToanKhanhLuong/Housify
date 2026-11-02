@@ -12,6 +12,7 @@ import {
     TOKEN_STATUS,
     USER_STATUS,
     CONTRACT_STATUS,
+    CONTRACT_TYPE,
     ROOM_STATUS,
     OCCUPANT_STATUS,
     AUDIT_ACTION,
@@ -22,6 +23,7 @@ import Manager from '../../models/Manager.js';
 import ActivationToken from '../../models/ActivationToken.js';
 import Contract from '../../models/Contract.js';
 import Room from '../../models/Room.js';
+import RoomType from '../../models/RoomType.js';
 import Building from '../../models/Building.js';
 import Occupant from '../../models/Occupant.js';
 
@@ -197,6 +199,11 @@ export const getContractActivationInfo = async (token) => {
         isRepresentative: false,
     }).sort({ createdAt: 1 });
 
+    // [NHÁNH THỬ test_activatecustomer] Bên A của hợp đồng = Manager tạo hợp đồng (createdBy, cũng là người nhận cọc)
+    const manager = await Manager.findOne({ userId: contract.createdBy })
+        .select('name phone address dateOfBirth')
+        .lean();
+
     return {
         building: {
             name: building?.name || '',
@@ -208,8 +215,19 @@ export const getContractActivationInfo = async (token) => {
             floorNumber: room.floorNumber,
             roomTypeName: room.roomTypeId?.name || '',
             area: room.area,
+            capacity: room.roomTypeId?.capacity ?? null, // [NHÁNH THỬ] số người tối đa theo loại phòng
         },
+        // [NHÁNH THỬ] null khi không tìm thấy hồ sơ Manager
+        manager: manager
+            ? {
+                  name: manager.name,
+                  phone: manager.phone,
+                  address: manager.address || '',
+                  dateOfBirth: manager.dateOfBirth || null,
+              }
+            : null,
         contractType: contract.contractType,
+        createdAt: contract.createdAt, // [NHÁNH THỬ] lúc Manager tạo và gửi hợp đồng = lúc Bên A xác nhận điện tử
         startDate: contract.startDate,
         endDate: contract.endDate,
         rentPrice: contract.rentPrice,
@@ -240,8 +258,11 @@ export const activateCustomerContract = async ({
     agreed,
     cccdFrontImage,
     cccdBackImage,
+    coOccupants = [],
 }) => {
     const { activationToken, contract } = await validateCustomerContractActivationToken(token);
+    // thời điểm xác nhận điện tử: lưu vào activatedAt và trả về để FE in đúng giờ lên hợp đồng
+    const activatedAt = new Date();
 
     // 1. Kiểm tra phòng còn trống
     const room = await Room.findById(contract.roomId);
@@ -264,6 +285,65 @@ export const activateCustomerContract = async ({
     });
     if (phoneInOccupant) {
         throw new AppError('Số điện thoại đã tồn tại trong hệ thống', 409);
+    }
+
+    // [NHÁNH THỬ test_activatecustomer] 2b. Người ở cùng do người đại diện nhập (luật và câu lỗi giống createContract của An)
+    const newCoOccupants = coOccupants.map((co) => ({
+        name: co.name.trim(),
+        cccd: co.cccd.trim(),
+        phone: co.phone.trim(),
+        dateOfBirth: co.dateOfBirth,
+        address: co.address?.trim() || undefined,
+    }));
+    // người Manager đã nhập sẵn lúc tạo nháp (hợp đồng tạo theo luồng cũ) vẫn được tính
+    const existingCoOccupants = await Occupant.find({
+        contractId: contract._id,
+        isRepresentative: false,
+        status: OCCUPANT_STATUS.STAYED,
+    }).lean();
+    const roomType = await RoomType.findById(room.roomTypeId).lean();
+
+    if (contract.contractType === CONTRACT_TYPE.SINGLE && newCoOccupants.length > 0) {
+        throw new AppError('Hợp đồng đơn không được có người ở cùng', 422);
+    }
+    const coOccupantCount = existingCoOccupants.length + newCoOccupants.length;
+    if (contract.contractType === CONTRACT_TYPE.GROUP && coOccupantCount === 0) {
+        throw new AppError('Hợp đồng nhóm phải có ít nhất 1 người ở cùng', 422);
+    }
+    const totalOccupants = 1 + coOccupantCount;
+    if (roomType && totalOccupants > roomType.capacity) {
+        throw new AppError(
+            `Số người (${totalOccupants}) vượt quá sức chứa tối đa của phòng (${roomType.capacity} người)`,
+            400,
+        );
+    }
+
+    // trùng trong chính hợp đồng: so với người đại diện, người đã có và nhau
+    const cccdSet = new Set([contract.representativeCccd, ...existingCoOccupants.map((co) => co.cccd)]);
+    const phoneSet = new Set([cleanPhone, ...existingCoOccupants.map((co) => co.phone)]);
+    for (const co of newCoOccupants) {
+        if (cccdSet.has(co.cccd)) {
+            throw new AppError(`Số CCCD ${co.cccd} bị trùng lặp trong hợp đồng`, 422);
+        }
+        cccdSet.add(co.cccd);
+        if (phoneSet.has(co.phone)) {
+            throw new AppError(`Số điện thoại ${co.phone} bị trùng lặp trong hợp đồng`, 422);
+        }
+        phoneSet.add(co.phone);
+    }
+
+    // trên toàn hệ thống: không đang ở phòng khác, SĐT không thuộc Manager hay người mang CCCD khác
+    for (const co of newCoOccupants) {
+        const stayedOther = await Occupant.findOne({ cccd: co.cccd, status: OCCUPANT_STATUS.STAYED });
+        if (stayedOther) {
+            throw new AppError(`Người ở cùng mang CCCD ${co.cccd} hiện đang ở phòng khác`, 400);
+        }
+        if (await Manager.findOne({ phone: co.phone })) {
+            throw new AppError(`Số điện thoại ${co.phone} đã thuộc tài khoản quản lý`, 409);
+        }
+        if (await Occupant.findOne({ phone: co.phone, cccd: { $ne: co.cccd } })) {
+            throw new AppError(`Số điện thoại ${co.phone} đã tồn tại trong hệ thống`, 409);
+        }
     }
 
     let customerUserId = null;
@@ -351,12 +431,30 @@ export const activateCustomerContract = async ({
             { session },
         );
 
+        // [NHÁNH THỬ] người ở cùng người đại diện vừa nhập: không có tài khoản, vào ở từ ngày bắt đầu hợp đồng
+        if (newCoOccupants.length > 0) {
+            await Occupant.insertMany(
+                newCoOccupants.map((co) => ({
+                    contractId: contract._id,
+                    isRepresentative: false,
+                    name: co.name,
+                    phone: co.phone,
+                    dateOfBirth: new Date(co.dateOfBirth),
+                    address: co.address,
+                    cccd: co.cccd,
+                    status: OCCUPANT_STATUS.STAYED,
+                    joinDate: contract.startDate,
+                })),
+                { session },
+            );
+        }
+
         // Chuyển hợp đồng sang ACTIVE và lưu thời điểm activatedAt (bằng chứng xác nhận điện tử BR-014)
         const contractUpdate = await Contract.updateOne(
             { _id: contract._id, status: CONTRACT_STATUS.DRAFT },
             {
                 status: CONTRACT_STATUS.ACTIVE,
-                activatedAt: new Date(),
+                activatedAt,
                 depositReceiverId: contract.createdBy,
             },
             { session },
@@ -414,6 +512,7 @@ export const activateCustomerContract = async ({
     });
 
     return {
+        activatedAt,
         warning: mailSent ? undefined : 'Gửi email xác nhận thất bại',
     };
 };

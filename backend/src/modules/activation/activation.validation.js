@@ -1,6 +1,6 @@
 // Validation schema cho module activation (UC-08 bước 6–8 cho Manager, UC-06 cho Customer)
 import Joi from 'joi';
-import { PASSWORD_REGEX, PHONE_REGEX } from '../../helpers/validators.js';
+import { CCCD_REGEX, PASSWORD_REGEX, PHONE_REGEX } from '../../helpers/validators.js';
 
 export const activateManagerSchema = Joi.object({
     token: Joi.string().trim().required().messages({
@@ -62,4 +62,33 @@ export const activateCustomerContractSchema = Joi.object({
         'string.empty': 'Vui lòng tải lên ảnh CCCD mặt sau',
         'any.required': 'Vui lòng tải lên ảnh CCCD mặt sau',
     }),
+    // [NHÁNH THỬ test_activatecustomer] người đại diện tự nhập người ở cùng lúc kích hoạt (thay cho Manager nhập ở UC-24)
+    // Câu lỗi giống contract.validation.js của An
+    coOccupants: Joi.array()
+        .items(
+            Joi.object({
+                name: Joi.string().trim().max(100).required().messages({
+                    'string.empty': 'Vui lòng nhập họ tên người ở cùng',
+                    'string.max': 'Họ tên người ở cùng tối đa 100 ký tự',
+                    'any.required': 'Vui lòng nhập họ tên người ở cùng',
+                }),
+                cccd: Joi.string().trim().pattern(CCCD_REGEX).required().messages({
+                    'string.empty': 'Vui lòng nhập CCCD người ở cùng',
+                    'string.pattern.base': 'CCCD người ở cùng phải đúng 12 chữ số',
+                    'any.required': 'Vui lòng nhập CCCD người ở cùng',
+                }),
+                phone: Joi.string().trim().pattern(PHONE_REGEX).required().messages({
+                    'string.empty': 'Vui lòng nhập SĐT người ở cùng',
+                    'string.pattern.base': 'SĐT người ở cùng không hợp lệ (10 số, bắt đầu bằng 0)',
+                    'any.required': 'Vui lòng nhập SĐT người ở cùng',
+                }),
+                dateOfBirth: Joi.date().max('now').required().messages({
+                    'date.base': 'Ngày sinh người ở cùng không hợp lệ',
+                    'date.max': 'Ngày sinh không được ở tương lai',
+                    'any.required': 'Vui lòng nhập ngày sinh người ở cùng',
+                }),
+                address: Joi.string().trim().allow('').max(255),
+            }),
+        )
+        .default([]),
 });
