@@ -13,9 +13,9 @@ import User from '../../models/User.js';
 import Manager from '../../models/Manager.js';
 import Occupant from '../../models/Occupant.js';
 import Building from '../../models/Building.js';
-import Contract from '../../models/Contract.js';
 import Room from '../../models/Room.js';
 import OtpToken from '../../models/OtpToken.js';
+import Contract from '../../models/Contract.js';
 
 // Tòa Customer đang ở: người ở STAYED → hợp đồng ACTIVE → phòng → tòa (cùng chuỗi kiểm tra với GET /buildings/:id/rules)
 // Trả { _id, name, address, images, manager: { name, phone } | null } hoặc null khi chưa có phòng đang thuê
@@ -97,6 +97,13 @@ export const login = async ({ identifier, password, remember = false }) => {
     if (/^\d{12}$/.test(cleanIdentifier)) {
         const occupant = await Occupant.findOne({ cccd: cleanIdentifier, isRepresentative: true });
         if (!occupant || !occupant.userId) {
+            const draftContract = await Contract.findOne({
+                representativeCccd: cleanIdentifier,
+                status: CONTRACT_STATUS.DRAFT,
+            });
+            if (draftContract) {
+                throw new AppError('Tài khoản chưa được kích hoạt. Vui lòng kiểm tra email để kích hoạt hợp đồng', 403);
+            }
             // Sai mật khẩu hoặc không có tài khoản đều báo chung một câu để tránh dò tài khoản
             throw new AppError(MSG.INVALID_CREDENTIALS, 401);
         }
