@@ -1,11 +1,15 @@
 // Kiểm tra dữ liệu nhập các form của module service (UC-21, 22). Trả { field: message }, rỗng là hợp lệ
 // Chỉ để người dùng thấy lỗi ngay; BE vẫn kiểm tra lại (trùng tên…). Dùng: if (hasErrors(validateService(form))) …
 
-// UC-21: tên, đơn vị tính, cách tính đều bắt buộc. isFixed trong form là chuỗi 'true' / 'false', '' là chưa chọn
+// UC-21: tên (2–100 ký tự), đơn vị tính (tối đa 30), cách tính đều bắt buộc, câu lỗi giống BE. isFixed trong form là chuỗi 'true' / 'false', '' là chưa chọn
 export const validateService = ({ name, unit, isFixed }) => {
     const errors = {};
-    if (!name.trim()) errors.name = 'Vui lòng nhập tên dịch vụ';
+    const nameLength = name.trim().length;
+    if (!nameLength) errors.name = 'Vui lòng nhập tên dịch vụ';
+    else if (nameLength < 2) errors.name = 'Tên dịch vụ tối thiểu 2 ký tự';
+    else if (nameLength > 100) errors.name = 'Tên dịch vụ tối đa 100 ký tự';
     if (!unit.trim()) errors.unit = 'Vui lòng nhập đơn vị tính';
+    else if (unit.trim().length > 30) errors.unit = 'Đơn vị tính tối đa 30 ký tự';
     if (!isFixed) errors.isFixed = 'Vui lòng chọn cách tính';
     return errors;
 };
