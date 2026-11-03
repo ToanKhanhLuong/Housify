@@ -2,6 +2,7 @@
 // Manager (/invoices/:id) – nút theo trạng thái: Nháp → Gửi (UC-35, xem lại trước), Chỉnh sửa (UC-34), Hủy (UC-37)
 //                                             Chờ thanh toán → Gửi lại thông báo (UC-35), Hủy (UC-37)
 // Customer (/my-invoices/:id) – chỉ xem: mã QR khi chờ thanh toán, còn hạn / quá hạn, dấu "Đã thanh toán" (UC-36)
+// Đã thanh toán (cả 2 vai trò): trong dấu "Đã thanh toán" có mã giao dịch SePay + link "Xem biên lai" (UC-36 bước 3)
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Button, Card, Image, Placeholder, Spinner } from 'react-bootstrap';
 import { BiBell, BiCheck, BiEditAlt, BiSave, BiSend, BiXCircle } from 'react-icons/bi';
@@ -26,6 +27,7 @@ import { dueStatus, monthLabel, roomOf } from './invoiceFormat';
 import { toDraftItems, toPayloadItems } from './invoiceItems';
 import CancelInvoiceModal from './components/CancelInvoiceModal';
 import InvoiceItemsTable from './components/InvoiceItemsTable';
+import PaymentTransactions from './components/PaymentTransactions';
 import SendInvoiceModal from './components/SendInvoiceModal';
 
 // Customer không thấy nháp nên thanh trạng thái bắt đầu từ Chờ thanh toán. Đã hủy tự hiện ở cuối (StatusSteps)
@@ -33,7 +35,8 @@ const MANAGER_STEPS = [INVOICE_STATUS.DRAFT, INVOICE_STATUS.PENDING, INVOICE_STA
 const CUSTOMER_STEPS = [INVOICE_STATUS.PENDING, INVOICE_STATUS.PAID];
 
 // ô "Đã thanh toán": nền xanh lá nhạt, dấu ✓ lớn chìm sau chữ (cùng kiểu ô xác nhận điện tử của hợp đồng)
-const PaidStamp = ({ invoice }) => {
+// children: dòng mã giao dịch + link "Xem biên lai" (UC-36 bước 3)
+const PaidStamp = ({ invoice, children }) => {
   const { text, variant } = dueStatus(invoice);
   return (
     <div className="relative overflow-hidden rounded border border-success bg-success-subtle px-4 py-4 text-center">
@@ -45,6 +48,7 @@ const PaidStamp = ({ invoice }) => {
         <span className="h5 fw-bold text-uppercase text-success-emphasis mb-0">Đã thanh toán</span>
         <span className="small">Lúc {formatDateTime(invoice.paidAt)}</span>
         <span className={`small fw-semibold text-${variant}-emphasis`}>{text}</span>
+        {children}
       </div>
     </div>
   );
@@ -390,8 +394,12 @@ const InvoiceDetailPage = () => {
           </div>
           {isPending && <PaymentQr invoice={invoice} isManager={isManager} />}
           {isPaid && (
-            <div>
-              <PaidStamp invoice={invoice} />
+            // căn giữa theo chiều dọc so với bảng các khoản thu (màn hình lớn, 2 cột)
+            <div className="lg:self-center">
+              <PaidStamp invoice={invoice}>
+                {/* UC-36 bước 3: mã giao dịch SePay + link sang biên lai */}
+                <PaymentTransactions invoice={invoice} isManager={isManager} />
+              </PaidStamp>
             </div>
           )}
         </div>
