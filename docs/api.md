@@ -271,13 +271,134 @@ Chỉ Admin (Manager, Customer gọi → 403). Id sai định dạng → 404 nh�
 
 ## Cư dân – `occupant` (UC-30..33)
 
-| Method    | Path                         | Role | Ghi chú                                                                                                                                                                                                                                                             |
-| --------- | ---------------------------- | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET       | `/occupants`               | M    | `?roomId=&status=`                                                                                                                                                                                                                                                 |
-| GET / PUT | `/occupants/:id`           | M C  | Đại diện sửa được hồ sơ mình (kèm `email`, lưu ở users) và người ở cùng phòng mình. GET trả kèm `cccdFrontUrl`, `cccdBackUrl` (chỉ Manager của tòa và người đại diện phòng gọi được API này); ảnh gửi lên là publicId |
-| GET       | `/me/room-members`         | C    |                                                                                                                                                                                                                                                                      |
-| POST      | `/contracts/:id/occupants` | M    | Thêm người ở cùng: `{ name, cccd, phone, dateOfBirth, joinDate, relationship }`                                                                                                                                                                               |
-| PATCH     | `/occupants/:id/leave`     | M    | `{ exitDate, note }`                                                                                                                                                                                                                                               |
+| Method | Path                       | Role | Ghi chú                                                                                                                                                                                                                                                             |
+| ------ | -------------------------- | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/occupants`               | M    | Danh sách cư dân trong tòa của Manager (UC-30). Query: `?roomId=&status=STAYED,LEFT&page=1&limit=10` (mặc định `status=STAYED` chỉ lấy cư dân đang ở thuộc hợp đồng `ACTIVE`; không bao giờ gồm cư dân của hợp đồng `DRAFT` hay `CANCELLED`). Trả 200 `{ items: [{ _id, contractId, userId, name, cccd, phone, dateOfBirth, address, relationship, isRepresentative, roleLabel, status, joinDate, exitDate, room: { _id, roomNumber, floorNumber, status } }], total, page, limit, totalPages }`. Lỗi: 403 "Bạn không có quyền thực hiện thao tác này"; 404 "Không tìm thấy phòng"; 422 "Giá trị lọc không hợp lệ" |
+| GET    | `/me/room-members`         | C    | Customer (người đại diện) xem danh sách thành viên trong hợp đồng `ACTIVE` của mình (UC-30). Trả 200 `{ contractId, room: { _id, roomNumber, floorNumber, status, capacity }, items: [{ _id, name, cccd, phone, email?, dateOfBirth, address, relationship, isRepresentative, roleLabel, status, joinDate, exitDate, cccdFrontUrl, cccdBackUrl }] }` |
+| GET    | `/occupants/:id`           | M C  | Chi tiết cư dân kèm link ảnh CCCD có chữ ký `cccdFrontUrl`, `cccdBackUrl` (UC-30). Chỉ Manager của tòa và người đại diện của hợp đồng đó gọi được. Lỗi: 403 "Bạn không có quyền thực hiện thao tác này"; 404 "Không tìm thấy cư dân" |
+| PUT    | `/occupants/:id`           | M C  | Sửa thông tin cư dân (UC-31). Body: `{ name?, phone?, dateOfBirth?, address?, cccd?, relationship?, cccdFrontImage?, cccdBackImage? }`. Manager sửa mọi cư dân trong tòa mình (`DRAFT` hoặc `ACTIVE`, gồm cả `name` và `cccd` của đại diện = đổi tên đăng nhập; chỉ đổi trong hồ sơ cư dân, KHÔNG đổi `representativeCccd` của hợp đồng). Đại diện chỉ sửa người ở cùng trong HĐ `ACTIVE` của mình; gọi cho chính hồ sơ mình → chặn 400 "Thông tin của bạn vui lòng cập nhật ở trang Hồ sơ cá nhân". Kiểm tra CCCD đủ 12 chữ số (`CCCD_REGEX` / `isCccd`). Ghi log `UPDATE_OCCUPANT`. Lỗi: 400 "Thông tin của bạn vui lòng cập nhật ở trang Hồ sơ cá nhân"; 400 trùng CCCD trong phòng / CCCD thuộc tài khoản khác; 403 "Bạn không có quyền thực hiện thao tác này"; 404 "Không tìm thấy cư dân"; 409 "Số điện thoại đã tồn tại trong hệ thống"; 422 "Số CCCD phải gồm đúng 12 chữ số" |
+| POST   | `/contracts/:id/occupants` | M    | Thêm người ở cùng vào hợp đồng `ACTIVE` (UC-32). Body: `{ name, cccd, phone, dateOfBirth, address?, joinDate?, relationship?, cccdFrontImage?, cccdBackImage? }`. Tạo cư dân `isRepresentative: false`, `status: 'STAYED'`, ghi log `ADD_OCCUPANT`. Lỗi: 400 "Chỉ thêm được người ở cùng khi hợp đồng đang hiệu lực"; 400 "Phòng đã đạt sức chứa tối đa (X người)"; 400 "CCCD đã tồn tại trong danh sách cư dân của phòng"; 403 "Bạn không có quyền thực hiện thao tác này"; 404 "Không tìm thấy hợp đồng"; 409 "Số điện thoại đã tồn tại trong hệ thống"; 422 "Số CCCD phải gồm đúng 12 chữ số" |
+| PATCH  | `/occupants/:id/leave`     | M    | Rút tên người ở cùng khỏi phòng (UC-33). Body: `{ exitDate?, note? }` (`exitDate` mặc định hôm nay, không trước `joinDate`). Chuyển cư dân sang `LEFT` + `exitDate`, không xóa bản ghi, ghi log `REMOVE_OCCUPANT`. Lỗi: 400 "Không thể xóa người đại diện theo luồng này — vui lòng dùng chấm dứt hợp đồng"; 400 "Người này đã chuyển đi"; 400 "Chỉ rút tên được người ở cùng khi hợp đồng đang hiệu lực"; 400 "Ngày chuyển ra không được trước ngày bắt đầu ở"; 403 "Bạn không có quyền thực hiện thao tác này"; 404 "Không tìm thấy cư dân" |
+
+### Chi tiết mẫu Request / Response (UC-30, UC-31, UC-32, UC-33)
+
+#### `GET /api/occupants?roomId=...&status=STAYED&page=1&limit=10` — UC-30 (Role: M)
+- **Response 200:**
+```json
+{
+  "success": true,
+  "message": "Lấy danh sách cư dân thành công",
+  "data": {
+    "items": [
+      {
+        "_id": "66f2...",
+        "contractId": "66f1...",
+        "userId": "66f3...",
+        "name": "Nguyễn Văn Đại Diện",
+        "cccd": "031204005476",
+        "phone": "0987654321",
+        "dateOfBirth": "2003-05-15T00:00:00.000Z",
+        "address": "123 Cầu Giấy, Hà Nội",
+        "relationship": null,
+        "isRepresentative": true,
+        "roleLabel": "Đại diện",
+        "status": "STAYED",
+        "joinDate": "2026-09-01T00:00:00.000Z",
+        "exitDate": null,
+        "room": { "_id": "66f0...", "roomNumber": "102", "floorNumber": 1, "status": "OCCUPIED" }
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 1
+  }
+}
+```
+
+#### `GET /api/occupants/:id` — UC-30 (Role: M, C)
+- **Response 200:**
+```json
+{
+  "success": true,
+  "message": "Lấy chi tiết cư dân thành công",
+  "data": {
+    "_id": "66f2...",
+    "contractId": "66f1...",
+    "userId": null,
+    "isRepresentative": false,
+    "roleLabel": "Ở cùng",
+    "name": "Trần Thị Bạn Cùng Phòng",
+    "phone": "0988123456",
+    "email": null,
+    "dateOfBirth": "2003-08-20T00:00:00.000Z",
+    "address": "456 Giải Phóng, Hà Nội",
+    "cccd": "031203009999",
+    "relationship": "Bạn cùng lớp",
+    "status": "STAYED",
+    "joinDate": "2026-09-01T00:00:00.000Z",
+    "exitDate": null,
+    "cccdFrontImage": "housify/cccd/front_abc",
+    "cccdBackImage": "housify/cccd/back_abc",
+    "cccdFrontUrl": "https://res.cloudinary.com/.../authenticated/s--...--/housify/cccd/front_abc",
+    "cccdBackUrl": "https://res.cloudinary.com/.../authenticated/s--...--/housify/cccd/back_abc",
+    "room": {
+      "_id": "66f0...",
+      "roomNumber": "102",
+      "floorNumber": 1,
+      "status": "OCCUPIED",
+      "building": { "_id": "66d...", "name": "Housify Hòa Lạc", "address": "Hòa Lạc, Hà Nội" }
+    },
+    "contract": {
+      "_id": "66f1...",
+      "contractType": "GROUP",
+      "status": "ACTIVE",
+      "startDate": "2026-09-01T00:00:00.000Z",
+      "endDate": "2027-08-31T23:59:59.999Z"
+    }
+  }
+}
+```
+
+#### `GET /api/me/room-members` — UC-30 (Role: C)
+- **Response 200:**
+```json
+{
+  "success": true,
+  "message": "Lấy danh sách thành viên phòng thành công",
+  "data": {
+    "contractId": "66f1...",
+    "room": { "_id": "66f0...", "roomNumber": "102", "floorNumber": 1, "status": "OCCUPIED", "capacity": 2 },
+    "items": [
+      {
+        "_id": "66f2...",
+        "name": "Nguyễn Văn Đại Diện",
+        "cccd": "031204005476",
+        "phone": "0987654321",
+        "email": "customer@housify.vn",
+        "isRepresentative": true,
+        "roleLabel": "Đại diện",
+        "status": "STAYED",
+        "joinDate": "2026-09-01T00:00:00.000Z",
+        "cccdFrontUrl": null,
+        "cccdBackUrl": null
+      }
+    ]
+  }
+}
+```
+
+#### `PUT /api/occupants/:id` — UC-31 (Role: M, C)
+- **Request:** `{ "name": "Trần Thị Minh", "phone": "0912345679", "dateOfBirth": "2003-08-20", "cccd": "001303012345", "relationship": "Em gái", "address": "Hà Nội" }`
+- **Response 200:** `{ "success": true, "message": "Cập nhật thông tin cư dân thành công", "data": { "_id": "66f2...", "name": "Trần Thị Minh", "cccd": "001303012345", ... } }`
+
+#### `POST /api/contracts/:id/occupants` — UC-32 (Role: M)
+- **Request:** `{ "name": "Lê Hoàng Nam", "cccd": "001203056789", "phone": "0977112233", "dateOfBirth": "2003-04-12", "joinDate": "2026-10-01", "relationship": "Bạn học", "address": "Cầu Giấy, Hà Nội" }`
+- **Response 201:** `{ "success": true, "message": "Thêm người ở cùng thành công", "data": { "_id": "66f9...", "isRepresentative": false, "status": "STAYED", ... } }`
+
+#### `PATCH /api/occupants/:id/leave` — UC-33 (Role: M)
+- **Request:** `{ "exitDate": "2026-11-01", "note": "Ra trường chuyển về quê" }`
+- **Response 200:** `{ "success": true, "message": "Đã cập nhật danh sách cư dân. Hợp đồng không thay đổi, người đại diện vẫn giữ nguyên", "data": { "_id": "66f9...", "status": "LEFT", "exitDate": "2026-11-01T00:00:00.000Z", ... } }`
 
 ## Hóa đơn – `invoice` (UC-34..37)
 
