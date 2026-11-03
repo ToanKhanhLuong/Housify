@@ -11,6 +11,7 @@ import {
   BiCheckCircle,
   BiDoorOpen,
   BiEditAlt,
+  BiFile,
   BiGroup,
   BiLayer,
   BiMoney,
@@ -216,7 +217,7 @@ const RoomDetailPage = () => {
             : [{ label: 'Tòa của tôi', to: '/my-building' }, `Phòng ${room.roomNumber}`]
         }
         actions={
-          isAdmin && (
+          isAdmin ? (
             <>
               <Button
                 variant="primary"
@@ -258,6 +259,19 @@ const RoomDetailPage = () => {
                 Xóa phòng
               </Button>
             </>
+          ) : (
+            // Manager: phòng Trống thì tạo hợp đồng ngay cho phòng này (UC-24, mở form chọn sẵn phòng)
+            room.status === ROOM_STATUS.AVAILABLE && (
+              <Button
+                as={Link}
+                to={`/contracts/new?roomId=${room._id}`}
+                variant="primary"
+                className="flex items-center gap-2 no-underline"
+              >
+                <BiFile />
+                Tạo hợp đồng
+              </Button>
+            )
           )
         }
       >

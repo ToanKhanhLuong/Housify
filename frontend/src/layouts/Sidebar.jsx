@@ -15,16 +15,19 @@ const Sidebar = ({ show, onHide, collapsed, onToggleCollapse }) => {
     // Manager chưa được phân công tòa (BR-023): mọi mục menu đều mờ không bấm được
     const isManagerNoBuilding = user?.role === ROLE.MANAGER && !user?.building;
 
-    // khi thu gọn: chỉ còn icon căn giữa; ngăn kéo trên điện thoại luôn hiện đủ chữ
-    const centerClass = collapsed ? 'justify-content-lg-center' : '';
-    const labelClass = collapsed ? 'd-lg-none' : '';
+    // Thu gọn / mở rộng mượt: chữ luôn nằm trên 1 dòng (whitespace-nowrap), mục menu cắt phần thừa (overflow-hidden),
+    // chữ chỉ mờ dần / hiện dần theo bề rộng sidebar; icon đứng yên một chỗ (không đổi căn giữa ↔ căn trái).
+    // Trước đây chữ hiện ngay khi sidebar còn hẹp nên bị xuống 2–3 dòng rồi nhảy lại → cảm giác giật.
+    // Ngăn kéo trên điện thoại luôn hiện đủ chữ (chỉ áp dụng từ 992px)
+    const itemClass = 'overflow-hidden whitespace-nowrap';
+    const labelClass = `transition-opacity duration-200 ${collapsed ? 'min-[992px]:opacity-0' : ''}`;
 
     return (
         <Offcanvas
             show={show}
             onHide={onHide}
             responsive="lg"
-            className={`w-64 shrink-0 border-end bg-white lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto min-[992px]:transition-[width] min-[992px]:duration-200 ${collapsed ? 'min-[992px]:w-16' : ''}`}
+            className={`print:hidden w-64 shrink-0 border-end bg-white lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto min-[992px]:transition-[width] min-[992px]:duration-200 ${collapsed ? 'min-[992px]:w-16' : ''}`}
         >
             <Offcanvas.Header closeButton className="border-bottom">
                 <Brand />
@@ -32,7 +35,7 @@ const Sidebar = ({ show, onHide, collapsed, onToggleCollapse }) => {
             <Offcanvas.Body className="flex-column p-0">
                 {/* màn hình lớn ẩn Offcanvas.Header nên đặt logo ở đây, cao bằng header (h-14) */}
                 <div
-                    className={`d-none d-lg-flex items-center gap-2 h-14 px-3 border-bottom ${centerClass}`}
+                    className={`d-none d-lg-flex items-center gap-2 h-14 px-3 border-bottom ${itemClass}`}
                 >
                     <Button
                         variant="secondary"
@@ -45,7 +48,10 @@ const Sidebar = ({ show, onHide, collapsed, onToggleCollapse }) => {
                     >
                         <BiMenu size={20} />
                     </Button>
-                    {!collapsed && <Brand />}
+                    {/* logo luôn có mặt, chỉ mờ đi khi thu gọn để không bật ra / biến mất đột ngột */}
+                    <div className={labelClass} aria-hidden={collapsed}>
+                        <Brand />
+                    </div>
                 </div>
                 <Nav variant="pills" className="flex-column gap-1 p-2">
                     {items.map(({ label, path, icon: Icon, disabled }) => {
@@ -63,7 +69,7 @@ const Sidebar = ({ show, onHide, collapsed, onToggleCollapse }) => {
                                     }
                                 >
                                     <div
-                                        className={`hf-nav-off flex items-center gap-2 rounded px-3 py-2 ${centerClass}`}
+                                        className={`hf-nav-off flex items-center gap-2 rounded px-3 py-2 ${itemClass}`}
                                     >
                                         <Icon size={18} className="shrink-0" />
                                         <span className={labelClass}>{label}</span>
@@ -78,7 +84,7 @@ const Sidebar = ({ show, onHide, collapsed, onToggleCollapse }) => {
                                 as={NavLink}
                                 to={path}
                                 onClick={onHide}
-                                className={`flex items-center gap-2 ${centerClass}`}
+                                className={`flex items-center gap-2 ${itemClass}`}
                                 aria-label={label}
                                 title={collapsed ? label : undefined}
                             >
