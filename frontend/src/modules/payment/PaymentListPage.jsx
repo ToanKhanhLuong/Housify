@@ -1,6 +1,7 @@
-// UC-39: lịch sử thanh toán. Manager (/payments) xem giao dịch cả tòa mình; Customer (/my-payments) xem phòng mình
-// Mỗi dòng là 1 giao dịch SePay đã khớp hóa đơn (BE chỉ lưu giao dịch đã trả; hóa đơn chờ / đã hủy xem ở trang Hóa đơn)
-// Khuôn danh sách như trang Hóa đơn: ControlBar (lọc khoảng ngày trả), đổi Thẻ / Bảng, Pager. Bấm một dòng → popup chi tiết
+// UC-39: lịch sử thanh toán. Manager (/payments) xem biên lai cả tòa mình; Customer (/my-payments) xem phòng mình
+// Payment = biên lai đã chuyển tiền (như ảnh chụp chuyển khoản), khác hóa đơn = khoản phải trả. Mỗi thẻ là 1 giao dịch
+// SePay đã khớp hóa đơn (hóa đơn chờ / đã hủy xem ở trang Hóa đơn). Mặc định xem dạng biên lai, đổi được sang Bảng
+// ControlBar (lọc khoảng ngày trả), Pager. Bấm một biên lai → popup "Biên lai thanh toán"
 // Ô tìm: gõ "11/2026" (cả tháng) hoặc "3/11/2026" (1 ngày) – API không có ?q nên FE đổi sang from / to
 import { useEffect, useState } from 'react';
 import { Button, Card } from 'react-bootstrap';
@@ -9,7 +10,6 @@ import ControlBar from '../../components/ControlBar';
 import DataTable from '../../components/DataTable';
 import EmptyState from '../../components/EmptyState';
 import ErrorState from '../../components/ErrorState';
-import ItemCard from '../../components/ItemCard';
 import MoneyText from '../../components/MoneyText';
 import Pager from '../../components/Pager';
 import SkeletonRows from '../../components/SkeletonRows';
@@ -20,6 +20,7 @@ import paymentApi from './payment.api';
 import { monthLabel, searchToRange } from './paymentFormat';
 import OnTimeBadge from './components/OnTimeBadge';
 import PaymentDetailModal from './components/PaymentDetailModal';
+import ReceiptCard from './components/ReceiptCard';
 
 const LIMIT = 12; // 12 thẻ = 3 hàng × 4 cột
 const EMPTY_FILTERS = { from: '', to: '' };
@@ -40,7 +41,7 @@ const PaymentListPage = () => {
   const [query, setQuery] = useState('');
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [page, setPage] = useState(1);
-  const [view, setView] = useState('table');
+  const [view, setView] = useState('cards'); // mặc định xem dạng biên lai
   const [reloadKey, setReloadKey] = useState(0);
   const [selected, setSelected] = useState(null); // giao dịch đang mở popup
 
@@ -188,18 +189,11 @@ const PaymentListPage = () => {
     return (
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
         {items.map((payment) => (
-          <ItemCard
+          <ReceiptCard
             key={payment._id}
+            payment={payment}
+            showRoom={isManager}
             onClick={() => setSelected(payment)}
-            title={<MoneyText value={payment.amount} />}
-            badge={<OnTimeBadge label={payment.statusLabel} />}
-            subtitle={`${isManager ? `Phòng ${payment.invoice?.roomNumber || '—'} · ` : ''}Kỳ ${monthLabel(payment.invoice?.month)} · ${payment.invoice?.invoiceCode ?? '—'}`}
-            footer={
-              <>
-                <span>{formatDateTime(payment.paidAt)}</span>
-                <span>{payment.bankName}</span>
-              </>
-            }
           />
         ))}
       </div>
@@ -217,11 +211,17 @@ const PaymentListPage = () => {
           filterGroups={FILTER_GROUPS}
           selectedFilters={filters}
           onFilterChange={handleFilterChange}
-          count={loading || loadError ? null : `${total} giao dịch`}
+          count={loading || loadError ? null : `${total} biên lai`}
           view={view}
           onViewChange={setView}
         />
       </Card>
+
+      <div className="small text-secondary mb-3">
+        Mỗi biên lai là một lần chuyển khoản đã được hệ thống tự ghi nhận qua SePay
+        {isManager ? '' : ' – không cần chụp màn hình gửi quản lý'}. Số tiền phải trả từng tháng
+        xem ở trang Hóa đơn.
+      </div>
 
       <div
         className={`transition-opacity ${refreshing ? 'opacity-50' : ''}`}
