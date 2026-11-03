@@ -1,4 +1,4 @@
-// UC-19 bổ sung (iter 2, Manager): trong chi tiết phòng hiện hợp đồng đang hiệu lực và cư dân đang ở
+// UC-19 (Manager): trong chi tiết phòng hiện hợp đồng đang hiệu lực và cư dân đang ở
 // - Hợp đồng: người đại diện, loại, thời hạn, giá thuê → link sang hợp đồng. Chỉ có nháp thì báo chờ khách kích hoạt
 // - Cư dân: avatar chữ viết tắt, Đại diện / quan hệ, SĐT → bấm mở chi tiết cư dân; còn chỗ thì nút "Thêm người"
 //   (popup thêm nằm ở trang Cư dân: mở với phòng chọn sẵn, thêm xong quay lại phòng này)
