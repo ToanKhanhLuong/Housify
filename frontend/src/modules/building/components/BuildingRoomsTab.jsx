@@ -1,6 +1,6 @@
 // Tab "Phòng" trong chi tiết tòa (UC-15..19, chốt 30/10) theo mockup docs/mock/BuildingDetail.dc.html
 // Thanh ControlBar: "Thêm phòng", "Quản lý tầng" (Admin) · tìm mã phòng · lọc trạng thái / loại phòng / tầng / giá thuê
-// Hai dạng xem: "Theo tầng" (mỗi tầng một hàng, mỗi phòng một ô màu theo trạng thái) và "Bảng"
+// Hai dạng xem: "Theo tầng" (mỗi tầng một hàng cuộn ngang, mỗi phòng một ô màu theo trạng thái) và "Bảng"
 // Lọc gửi lên BE: status, roomTypeId, floor chọn nhiều (nối dấu phẩy), minPrice / maxPrice (api.md)
 import { useEffect, useState } from 'react';
 import { Button, Card } from 'react-bootstrap';
@@ -62,7 +62,7 @@ const Legend = ({ count }) => (
 const RoomTile = ({ room }) => (
   <Link
     to={`/rooms/${room._id}`}
-    className={`hf-tile w-38 p-2 gap-1 small no-underline ${TILE_CLASS[room.status] ?? ''}`}
+    className={`hf-tile w-38 shrink-0 p-2 gap-1 small no-underline ${TILE_CLASS[room.status] ?? ''}`}
   >
     <span className="flex items-center justify-between gap-1">
       <span className="fw-bold">{room.roomNumber}</span>
@@ -188,16 +188,21 @@ const BuildingRoomsTab = ({ building, canEdit, onRoomChanged, onBuildingChanged 
         label: ROOM_STATUS_LABEL[status].label,
       })),
     },
+    // loại phòng cạnh trạng thái cho bảng lọc đỡ dài; quá 3 loại thì cuộn
     {
       id: 'roomTypeId',
       label: 'Loại phòng',
       type: 'checkbox',
+      beside: true,
+      maxVisible: 3,
       options: roomTypes.map((roomType) => ({ value: roomType._id, label: roomType.name })),
     },
+    // tòa nhiều tầng: quá 5 tầng thì cuộn
     {
       id: 'floor',
       label: 'Tầng',
       type: 'checkbox',
+      maxVisible: 5,
       options: Array.from({ length: building.floorCount ?? 0 }, (_, index) => ({
         value: String(index + 1),
         label: `Tầng ${index + 1}`,
@@ -249,11 +254,12 @@ const BuildingRoomsTab = ({ building, canEdit, onRoomChanged, onBuildingChanged 
       <div>
         {floors.map((floor) => (
           <div key={floor.floorNumber} className="flex items-start gap-3 py-3 border-top">
-            <div className="w-24 shrink-0 pt-2">
+            <div className="w-24 shrink-0 pt-3">
               <div className="fw-semibold">Tầng {floor.floorNumber}</div>
               <div className="small text-secondary">{floor.rooms.length} phòng</div>
             </div>
-            <div className="flex flex-wrap gap-2 flex-1 min-w-0">
+            {/* mỗi tầng một hàng, nhiều phòng thì cuộn ngang (không xuống dòng); p-1 chừa chỗ cho viền sáng khi rê chuột */}
+            <div className="flex flex-nowrap gap-2 flex-1 min-w-0 overflow-x-auto p-1 pb-2">
               {floor.rooms.map((room) => (
                 <RoomTile key={room._id} room={room} />
               ))}

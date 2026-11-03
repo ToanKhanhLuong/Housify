@@ -16,6 +16,9 @@ import { BiCheck, BiChevronDown, BiFilterAlt, BiGridAlt, BiListUl, BiSearch, BiX
  *   [{ id: 'status', label: 'Trạng thái', type: 'checkbox'|'radio', options: [{ value, label }] },
  *    { id: 'price', label: 'Giá thuê (đ)', type: 'range', minField: 'minPrice', maxField: 'maxPrice' },
  *    { id: 'month', label: 'Kỳ', type: 'month', max: '2026-11' }]   // 1 ô chọn tháng/năm, giá trị 'YYYY-MM'; max tùy chọn
+ *   Tùy chọn thêm cho mỗi nhóm:
+ *     maxVisible: 5   – checkbox / radio nhiều hơn 5 lựa chọn thì có thanh cuộn (hỗ trợ 3..6)
+ *     beside: true    – đặt nhóm này cạnh nhóm ngay trước (2 cột), vd Loại phòng cạnh Trạng thái
  * @param {Object} selectedFilters - Object bộ lọc hiện tại: { status: ['AVAILABLE'], minPrice: 1000000, month: '2026-11' }
  * @param {Function} onFilterChange - Callback khi bộ lọc thay đổi: (newFilters) => void
  * @param {Array} groupByOptions - Danh sách tùy chọn nhóm theo: [{ value: 'floor', label: 'Tầng' }]
@@ -26,6 +29,19 @@ import { BiCheck, BiChevronDown, BiFilterAlt, BiGridAlt, BiListUl, BiSearch, BiX
  * @param {Function} onViewChange - Callback đổi chế độ xem
  * @param {Array} viewOptions - Các nút switch view (mặc định [{ id: 'cards', icon: BiGridAlt, title: 'Thẻ' }, { id: 'table', icon: BiListUl, title: 'Bảng' }])
  */
+// maxVisible: nhóm checkbox / radio có nhiều lựa chọn hơn số này thì danh sách có thanh cuộn, chỉ cao đủ maxVisible dòng
+// (mỗi dòng hf-opt cao 32px + khoảng cách 2px; lớp Tailwind phải viết sẵn đầy đủ nên chỉ hỗ trợ 3..6)
+const MAX_VISIBLE_CLASS = {
+    3: 'max-h-[6.5rem]',
+    4: 'max-h-[8.625rem]',
+    5: 'max-h-[10.75rem]',
+    6: 'max-h-[12.875rem]',
+};
+const scrollClass = (group) =>
+    group.maxVisible && (group.options?.length ?? 0) > group.maxVisible
+        ? `${MAX_VISIBLE_CLASS[group.maxVisible] ?? MAX_VISIBLE_CLASS[5]} overflow-y-auto pe-1`
+        : '';
+
 const ControlBar = ({
     actions,
     searchValue = '',
@@ -229,6 +245,13 @@ const ControlBar = ({
         }
     }
 
+    // Gom nhóm lọc thành hàng: nhóm có beside: true đứng cạnh nhóm ngay trước (2 cột) cho bảng lọc đỡ dài
+    const filterRows = [];
+    filterGroups.forEach((group) => {
+        if (group.beside && filterRows.length > 0) filterRows[filterRows.length - 1].push(group);
+        else filterRows.push([group]);
+    });
+
     // Xử lý phím Backspace xóa facet cuối
     const handleKeyDown = (e) => {
         if (e.key === 'Backspace' && localQuery === '' && facets.length > 0) {
@@ -311,13 +334,17 @@ const ControlBar = ({
                                     <span>Bộ lọc</span>
                                 </div>
 
-                                {filterGroups.map((group, gIdx) => (
-                                    <div key={group.id} className="mb-2">
-                                        {gIdx > 0 && <div className="hf-sep" />}
+                                {filterRows.map((row, rowIndex) => (
+                                    <div key={row[0].id} className="mb-2">
+                                        {rowIndex > 0 && <div className="hf-sep" />}
+                                        {/* nhóm có beside: true nằm cùng hàng với nhóm trước (2 cột) */}
+                                        <div className={row.length > 1 ? 'grid grid-cols-2 gap-3' : ''}>
+                                        {row.map((group) => (
+                                    <div key={group.id} className="min-w-0">
                                         <div className="hf-sub">{group.label}</div>
 
                                         {group.type === 'checkbox' && (
-                                            <div className="flex flex-col gap-0.5">
+                                            <div className={`flex flex-col gap-0.5 ${scrollClass(group)}`}>
                                                 {group.options?.map((opt) => {
                                                     const checked = (selectedFilters[group.id] || []).includes(opt.value);
                                                     return (
@@ -338,7 +365,7 @@ const ControlBar = ({
                                         )}
 
                                         {group.type === 'radio' && (
-                                            <div className="flex flex-col gap-0.5">
+                                            <div className={`flex flex-col gap-0.5 ${scrollClass(group)}`}>
                                                 {group.options?.map((opt) => {
                                                     const checked = selectedFilters[group.id] === opt.value;
                                                     return (
@@ -399,6 +426,9 @@ const ControlBar = ({
                                                 </Button>
                                             </div>
                                         )}
+                                    </div>
+                                        ))}
+                                        </div>
                                     </div>
                                 ))}
                             </div>
