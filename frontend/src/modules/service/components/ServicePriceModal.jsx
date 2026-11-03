@@ -90,7 +90,7 @@ const ServicePriceModal = ({ service, buildingId, buildingName, prices, onHide, 
                     <DataTable
                         columns={columns}
                         data={sortPrices(prices)}
-                        emptyMessage="Dịch vụ chưa có mức giá nào ở tòa này"
+                        emptyMessage="Chưa đặt giá ở tòa này – hóa đơn của tòa sẽ không có dòng dịch vụ này"
                     />
 
                     <div className="fw-semibold mt-4 mb-2">Mức giá mới</div>

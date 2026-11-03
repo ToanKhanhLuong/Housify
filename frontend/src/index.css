@@ -68,8 +68,8 @@
       transform 0.15s ease-in-out;
   }
 
-  /* rê chuột: nút nhích lên 1px; bấm xuống thì về chỗ cũ */
-  .btn:not(:disabled):not(.disabled):hover {
+  /* rê chuột: nút nhích lên 1px; bấm xuống thì về chỗ cũ. Nút không nền và nút trong ô, menu thì đứng yên */
+  .btn:not(:disabled):not(.disabled):not(.hf-btn-ghost, .hf-opt, .hf-vs, .hf-facet-x):hover {
     transform: translateY(-1px);
   }
 
@@ -104,6 +104,15 @@
     --bs-btn-disabled-bg: #eceef1;
     --bs-btn-disabled-border-color: #eceef1;
     --bs-btn-focus-shadow-rgb: 107, 114, 128;
+  }
+
+  /* nút không nền: chỉ hiện xám khi rê chuột. Dùng <Button variant="secondary" className="hf-btn-ghost">.
+     Không dùng bg-transparent: class đó của Bootstrap có !important nên đè mất màu hover */
+  .hf-btn-ghost {
+    --bs-btn-bg: transparent;
+    --bs-btn-border-color: transparent;
+    --bs-btn-disabled-bg: transparent;
+    --bs-btn-disabled-border-color: transparent;
   }
 
   .form-control:focus,
@@ -450,6 +459,7 @@
     outline: none;
     font: inherit;
     height: 28px;
+    padding: 1px 2px;
     color: #1f2937;
     background: transparent;
   }
@@ -489,6 +499,7 @@
     align-items: center;
     justify-content: center;
     padding: 0;
+    border-radius: 0;
   }
   .hf-facet-x:hover {
     background-color: #d8dbe0;
@@ -506,6 +517,7 @@
     min-width: 36px;
     padding: 0 10px;
     border: 0;
+    border-radius: 0;
     background-color: #ffffff;
     color: #4b5563;
     display: inline-flex;
