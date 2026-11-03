@@ -75,4 +75,19 @@ router.post(
     contractController.cancelDraftContract,
 );
 
+// UC-45: Xem trước & xác nhận hoàn cọc (Manager)
+router.get(
+    '/contracts/:id/refund-preview',
+    requireRole(ROLE.MANAGER),
+    validate(contractIdParamSchema, 'params'),
+    contractController.getRefundPreview,
+);
+
+router.post(
+    '/contracts/:id/refund-deposit',
+    requireRole(ROLE.MANAGER),
+    validate(contractIdParamSchema, 'params'),
+    contractController.refundDeposit,
+);
+
 export default router;

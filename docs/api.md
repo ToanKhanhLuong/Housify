@@ -166,10 +166,10 @@ Chỉ Admin (Manager, Customer gọi → 403). Id sai định dạng → 404 nh�
 | POST      | `/contracts/:id/resend-invite`  | M            | Gửi lại lời mời (UC-24 A2). Vô hiệu link cũ, sinh link mới 24h, gửi mail. Trả 200 `{ rawToken, warning? }`. Lỗi: 400 "Chỉ có thể gửi lại lời mời cho hợp đồng ở trạng thái nháp"; 403 "Bạn không có quyền thực hiện thao tác này"; 404 "Không tìm thấy hợp đồng" |
 | POST      | `/contracts/:id/renew`          | M            | Gia hạn hợp đồng (UC-27). Body: `{ months?: 12, notes? }` (months nguyên > 0, mặc định 12; chỉ dời `endDate`, báo chuông `CONTRACT_RENEWED` + gửi mail). Trả 200 `{ _id, endDate, ..., warning? }`. Lỗi: 400 "Chỉ gia hạn được hợp đồng đang hiệu lực"; 403 "Bạn không có quyền thực hiện thao tác này"; 404 "Không tìm thấy hợp đồng"; 422 "Số tháng gia hạn phải là số nguyên lớn hơn 0" |
 | POST      | `/contracts/:id/cancel`         | M            | Hủy hợp đồng nháp (UC-46). Body: `{ reason? }` (chỉ DRAFT; 1 transaction: HĐ → CANCELLED, link mời → EXPIRED, người ở cùng → LEFT, phòng giữ AVAILABLE, gửi mail). Trả 200 `{ _id, status: 'CANCELLED', ..., warning? }`. Lỗi: 400 "Chỉ hủy được hợp đồng nháp. Hợp đồng đang hiệu lực phải chấm dứt qua đơn chấm dứt"; 403 "Bạn không có quyền thực hiện thao tác này"; 404 "Không tìm thấy hợp đồng" |
-| GET       | `/contracts/:id/refund-preview` | M            | Tiền cọc + hóa đơn chưa thanh toán                                                                                                                                    |
-| POST      | `/contracts/:id/refund-deposit` | M            |                                                                                                                                                                              |
+| GET       | `/contracts/:id/refund-preview` | M            | Xem trước hoàn cọc (UC-45): chỉ hợp đồng `ENDED` do hết hạn tự nhiên (không có đơn chấm dứt `CONFIRMED`) và chưa hoàn cọc. Trả 200 `{ contractId, room: { _id, roomNumber, floorNumber, buildingName }, deposit, canRefund: true, hasPendingInvoices, pendingInvoiceCount, pendingInvoiceTotal, pendingInvoices, warning }`. Lỗi: 400 "Hợp đồng chấm dứt trước hạn không được hoàn cọc"; 400 "Chỉ có thể hoàn cọc cho hợp đồng đã kết thúc"; 400 "Hợp đồng này đã được hoàn cọc vào lúc [thời điểm] bởi [người hoàn]"; 403 "Bạn không có quyền thực hiện thao tác này"; 404 "Không tìm thấy hợp đồng" |
+| POST      | `/contracts/:id/refund-deposit` | M            | Xác nhận hoàn cọc (UC-45): lưu `depositRefundedAt`, `depositRefundedBy`, gửi chuông `DEPOSIT_REFUNDED` + email cho người đại diện, ghi log `UPDATE_CONTRACT`. Trả 200 `{ _id, deposit, depositRefundedAt, depositRefundedBy, hasPendingInvoices, pendingInvoiceCount, pendingInvoiceTotal, pendingInvoices, invoiceWarning, warning? }`. Lỗi như `refund-preview` |
 
-### Chi tiết mẫu Request / Response (UC-25, UC-26, UC-27, UC-46)
+### Chi tiết mẫu Request / Response (UC-25, UC-26, UC-27, UC-45, UC-46)
 
 #### `GET /api/contracts?status=DRAFT,ACTIVE&roomId=...&page=1&limit=10` — UC-25 (Role: M, C)
 - **Response 200:**
@@ -258,16 +258,96 @@ Chỉ Admin (Manager, Customer gọi → 403). Id sai định dạng → 404 nh�
 - **Request:** `{ "reason": "Khách đổi ý không thuê nữa" }`
 - **Response 200:** `{ "success": true, "message": "Đã hủy hợp đồng nháp", "data": { "_id": "...", "status": "CANCELLED", "warning": "..." } }`
 
+#### `GET /api/contracts/:id/refund-preview` — UC-45 (Role: M)
+- **Response 200:**
+```json
+{
+  "success": true,
+  "message": "Lấy thông tin xem trước hoàn cọc thành công",
+  "data": {
+    "contractId": "66f1...",
+    "room": { "_id": "66f0...", "roomNumber": "405", "floorNumber": 4, "buildingName": "Housify Hòa Lạc" },
+    "deposit": 5200000,
+    "canRefund": true,
+    "hasPendingInvoices": false,
+    "pendingInvoiceCount": 0,
+    "pendingInvoiceTotal": 0,
+    "pendingInvoices": [],
+    "warning": null
+  }
+}
+```
+
+#### `POST /api/contracts/:id/refund-deposit` — UC-45 (Role: M)
+- **Response 200:**
+```json
+{
+  "success": true,
+  "message": "Ghi nhận hoàn trả tiền đặt cọc thành công",
+  "data": {
+    "_id": "66f1...",
+    "status": "ENDED",
+    "deposit": 5200000,
+    "depositRefundedAt": "2026-11-03T10:30:00.000Z",
+    "depositRefundedBy": "66e0...",
+    "hasPendingInvoices": false,
+    "pendingInvoiceCount": 0,
+    "pendingInvoiceTotal": 0,
+    "pendingInvoices": [],
+    "invoiceWarning": null
+  }
+}
+```
+
 ## Chấm dứt – `termination` (UC-28, 29)
 
-| Method | Path                                         | Role  | Ghi chú                                  |
-| ------ | -------------------------------------------- | ----- | ----------------------------------------- |
-| POST   | `/contracts/:id/terminations`              | M     | `{ type, reason, effectiveDate, note }` |
-| GET    | `/terminations`                            | A M C | `?status=&type=`                        |
-| GET    | `/terminations/:id`                        | A M C | kèm `signatureValid`                   |
-| POST   | `/terminations/:id/confirm`                | C     | `{ agreed: true }`                      |
-| POST   | `/terminations/:id/approve` · `/reject` | A     | reject cần `{ reason }`                |
-| POST   | `/terminations/:id/cancel`                 | M     | `{ reason }`                            |
+| Method | Path                            | Role  | Ghi chú                                                                                                                                                                                                                                                                                               |
+| ------ | ------------------------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST   | `/contracts/:id/terminations`   | M     | Tạo đơn chấm dứt trên hợp đồng `ACTIVE` (UC-28, UC-29). Body: `{ type?: 'MUTUAL' \| 'UNILATERAL', reason, effectiveDate, note? }` (mặc định `type = 'MUTUAL'`). Gửi xong khóa nội dung đơn, HĐ vẫn `ACTIVE`. Với `MUTUAL`: báo chuông + mail đại diện. Với `UNILATERAL`: báo chuông Admin. Lỗi: 400 "Chỉ có thể tạo đơn chấm dứt cho hợp đồng đang hiệu lực"; 400 "Hợp đồng đã có đơn chấm dứt đang xử lý" (khi đã có đơn `PENDING` hoặc đơn `CONFIRMED`); 403 "Bạn không có quyền thực hiện thao tác này"; 404 "Không tìm thấy hợp đồng"; 422 thiếu lý do / ngày hiệu lực |
+| GET    | `/terminations`                 | A M C | Danh sách đơn chấm dứt có phân trang. Query: `?status=&type=&contractId=&page=1&limit=10` (Admin lọc `?type=UNILATERAL&status=PENDING` để xem đơn đơn phương chờ duyệt; Manager chỉ thấy tòa mình; Customer chỉ thấy HĐ mình đại diện). Trả 200 `{ items, total, page, limit, totalPages }` |
+| GET    | `/terminations/:id`             | A M C | Chi tiết đơn chấm dứt kèm xác nhận điện tử (`signatureValid`, `shortSignature`, `signedBy`, `signedAt`, `electronicConfirmation`). Với đơn `MUTUAL` đã xác nhận bởi khách: trả `electronicConfirmation: { statusText: 'Đã xác nhận điện tử', validityText: 'Hợp lệ' \| 'Không hợp lệ', signedBy, signedAt, handledIp, shortSignature }`. Với đơn tự động xác nhận sau 7 ngày: trả `statusText: 'Tự động xác nhận sau 7 ngày — đã nhắc [n] lần'`. Lỗi: 403 "Bạn không có quyền thực hiện thao tác này"; 404 "Không tìm thấy đơn chấm dứt hợp đồng" |
+| POST   | `/terminations/:id/confirm`     | C     | Người đại diện xác nhận đơn `MUTUAL` (UC-28). Body: `{ agreed: true }`. Chuyển `PENDING → CONFIRMED`, lưu `handledBy`, `handledAt`, `handledIp`, `signatureHash = sha256(nội dung đơn + người xác nhận + thời điểm)`. Nếu `effectiveDate` đã tới hoặc đã qua → kết thúc hợp đồng ngay trong cùng transaction (`contract → ENDED`, `room → AVAILABLE`, cư dân `STAYED → LEFT`). Báo Customer + Manager, gửi mail Customer. Lỗi: 400 "Chỉ đơn chấm dứt hai bên thỏa thuận mới do khách hàng xác nhận"; 400 "Đơn chấm dứt này không còn ở trạng thái chờ xác nhận"; 403 "Bạn không có quyền thực hiện thao tác này"; 404 "Không tìm thấy đơn chấm dứt hợp đồng"; 422 "Vui lòng tích chọn đồng ý nội dung đơn chấm dứt hợp đồng" |
+| POST   | `/terminations/:id/approve`     | A     | Admin phê duyệt đơn `UNILATERAL` (UC-29). Chuyển `PENDING → CONFIRMED`, lưu `handledBy`, `handledAt`. Nếu `effectiveDate` đã tới/qua → kết thúc hợp đồng ngay. Báo Customer (kèm lý do, ngày hiệu lực) + Manager, gửi mail Customer. Lỗi: 400 "Admin chỉ phê duyệt đơn chấm dứt đơn phương"; 400 "Đơn chấm dứt này không còn ở trạng thái chờ duyệt"; 404 "Không tìm thấy đơn chấm dứt hợp đồng" |
+| POST   | `/terminations/:id/reject`      | A     | Admin từ chối đơn `UNILATERAL` (UC-29). Body: `{ reason }` (bắt buộc). Chuyển `PENDING → REJECTED`, lưu `rejectReason`, báo Manager, hợp đồng vẫn `ACTIVE`. Lỗi: 400 "Admin chỉ từ chối đơn chấm dứt đơn phương"; 400 "Đơn chấm dứt này không còn ở trạng thái chờ duyệt"; 404 "Không tìm thấy đơn chấm dứt hợp đồng"; 422 "Vui lòng nhập lý do từ chối đơn chấm dứt" |
+| POST   | `/terminations/:id/cancel`      | M     | Manager hủy đơn khi còn `PENDING` (UC-28, UC-29). Body: `{ reason }` (bắt buộc). Chuyển `PENDING → CANCELLED`, lưu `cancelledBy`, `cancelReason`, báo Customer. Lỗi: 400 "Chỉ có thể hủy đơn chấm dứt khi đang ở trạng thái chờ xử lý"; 403 "Bạn không có quyền thực hiện thao tác này"; 404 "Không tìm thấy đơn chấm dứt hợp đồng"; 422 "Vui lòng nhập lý do hủy đơn chấm dứt" |
+
+### Chi tiết mẫu Request / Response (UC-28, UC-29)
+
+#### `POST /api/contracts/:id/terminations` — UC-28, UC-29 (Role: M)
+- **Request:** `{ "type": "MUTUAL", "reason": "Khách tốt nghiệp ra trường sớm", "effectiveDate": "2026-11-30", "note": "Bàn giao chìa khóa và thẻ từ lúc 10h" }`
+- **Response 201:** `{ "success": true, "message": "Đã gửi đơn chấm dứt hợp đồng", "data": { "_id": "6727...", "contractId": "66f1...", "type": "MUTUAL", "reason": "Khách tốt nghiệp ra trường sớm", "effectiveDate": "2026-11-30T00:00:00.000Z", "note": "Bàn giao chìa khóa và thẻ từ lúc 10h", "status": "PENDING", "autoConfirmed": false, "requestedBy": "66e0..." } }`
+
+#### `POST /api/terminations/:id/confirm` — UC-28 (Role: C)
+- **Request:** `{ "agreed": true }`
+- **Response 200:**
+```json
+{
+  "success": true,
+  "message": "Đã xác nhận điện tử đơn chấm dứt hợp đồng",
+  "data": {
+    "_id": "6727...",
+    "status": "CONFIRMED",
+    "autoConfirmed": false,
+    "handledBy": "66f3...",
+    "handledAt": "2026-11-03T10:30:00.000Z",
+    "handledIp": "127.0.0.1",
+    "signatureHash": "a1b2c3d4e5f6...",
+    "signatureValid": true,
+    "shortSignature": "A1B2C3D4E5F6",
+    "signedBy": "Nguyễn Văn Đại Diện",
+    "signedAt": "2026-11-03T10:30:00.000Z",
+    "electronicConfirmation": {
+      "statusText": "Đã xác nhận điện tử",
+      "validityText": "Hợp lệ",
+      "signedBy": "Nguyễn Văn Đại Diện",
+      "signedAt": "2026-11-03T10:30:00.000Z",
+      "handledIp": "127.0.0.1",
+      "shortSignature": "A1B2C3D4E5F6"
+    },
+    "contractEndedImmediately": false
+  }
+}
+```
 
 ## Cư dân – `occupant` (UC-30..33)
 
@@ -444,10 +524,10 @@ Chỉ Admin (Manager, Customer gọi → 403). Id sai định dạng → 404 nh�
 
 ## Dev – chỉ khi dev / demo (`devOnly`)
 
-| Method | Path                    | Role | Ghi chú                                      |
-| ------ | ----------------------- | ---- | --------------------------------------------- |
-| POST   | `/dev/jobs/:name/run` | A    | chạy job ngay, không phải đợi            |
-| POST   | `/dev/sepay-simulate` | A    | `{ invoiceCode, amount }` giả lập webhook |
+| Method | Path                    | Role | Ghi chú                                                                                                                                                                                          |
+| ------ | ----------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| POST   | `/dev/jobs/:name/run` | A    | Chạy ngay 1 job tự động (`terminationReminder`, `terminationEffective`, `contractExpiry`, `accountAfterEnd`, `paymentReminder`). Trả 200 `{ jobName, executedAt, result }`. Lỗi: 404 "Không tìm thấy" (khi `ENABLE_DEV_ROUTES` tắt); 404 "Không tìm thấy job..." (sai `:name`); 403 không phải Admin |
+| POST   | `/dev/sepay-simulate` | A    | `{ invoiceCode, amount }` giả lập webhook                                                                                                                                                     |
 
 > Quy ước: mọi id trong response là `_id`. Lỗi 401 chỉ dùng khi phiên không hợp lệ (FE tự đăng xuất).
 

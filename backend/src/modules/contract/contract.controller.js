@@ -95,3 +95,28 @@ export const cancelDraftContract = asyncHandler(async (request, response) => {
 
     return ok(response, responseData, 'Đã hủy hợp đồng nháp');
 });
+
+export const getRefundPreview = asyncHandler(async (request, response) => {
+    const data = await contractService.getRefundPreview({
+        managerId: request.user.id,
+        contractId: request.params.id,
+    });
+
+    return ok(response, data, 'Lấy thông tin xem trước hoàn cọc thành công');
+});
+
+export const refundDeposit = asyncHandler(async (request, response) => {
+    const { contract, invoiceWarning, warning, ...rest } = await contractService.refundDeposit({
+        managerId: request.user.id,
+        contractId: request.params.id,
+    });
+
+    const responseData = {
+        ...contract.toObject(),
+        ...rest,
+        invoiceWarning,
+        warning,
+    };
+
+    return ok(response, responseData, 'Ghi nhận hoàn trả tiền đặt cọc thành công');
+});

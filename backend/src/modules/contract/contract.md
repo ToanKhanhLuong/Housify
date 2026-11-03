@@ -157,15 +157,27 @@
 
 ### Hệ thống tự kết thúc khi hết hạn
 
-- Cuối ngày kết thúc của hợp đồng, nếu hợp đồng vẫn Đang hiệu lực, chưa được gia hạn và không có đơn chấm dứt đã xác nhận, hệ thống thực hiện trong cùng một giao dịch:
+- Khi ngày kết thúc của hợp đồng đã tới hoặc đã qua mà hợp đồng vẫn Đang hiệu lực và không có đơn chấm dứt ở trạng thái Đã xác nhận, hệ thống thực hiện trong cùng một giao dịch:
   - Chuyển hợp đồng sang **Đã kết thúc**.
   - Chuyển phòng sang **Trống**.
   - Chuyển toàn bộ cư dân đang ở sang **đã chuyển đi** với ngày chuyển ra là ngày kết thúc hợp đồng.
-- Gửi thông báo trong ứng dụng và email cho người đại diện cùng Manager quản lý tòa.
-- Sau 24 giờ kể từ khi hợp đồng kết thúc, tài khoản người đại diện được chuyển sang trạng thái **ngưng hoạt động**.
+  - Nếu hợp đồng đang có đơn chấm dứt ở trạng thái Chờ xử lý thì tự động chuyển đơn đó sang **Đã hủy** với lý do *"Hợp đồng đã hết hạn"*.
+  - Tạo thông báo trong ứng dụng gửi cho người đại diện và Manager quản lý tòa nhà.
+- Gửi email thông báo kết thúc hợp đồng cho người đại diện.
+- Sau 24 giờ kể từ khi hợp đồng kết thúc (nếu khách không còn hợp đồng Đang hiệu lực nào khác), hệ thống chuyển tài khoản người đại diện sang trạng thái **ngưng hoạt động** và ghi nhật ký.
 
-### Manager ghi nhận hoàn cọc
+### Manager xem trước và ghi nhận hoàn cọc
 
-- Chỉ áp dụng cho hợp đồng **Đã kết thúc đúng hạn** (không có đơn chấm dứt đã xác nhận) và chỉ được ghi nhận hoàn cọc **một lần duy nhất**.
-- Manager kiểm tra số tiền cọc trên hợp đồng và danh sách hóa đơn chưa thanh toán (nếu có), sau đó xác nhận đã hoàn cọc bằng tiền mặt.
-- Hệ thống lưu thời điểm hoàn cọc, người thực hiện, gửi thông báo và email cho người đại diện.
+- **Điều kiện được hoàn cọc:** chỉ áp dụng cho hợp đồng ở trạng thái **Đã kết thúc** do hết hạn tự nhiên (không có bất kỳ đơn chấm dứt nào ở trạng thái Đã xác nhận) và mỗi hợp đồng chỉ được ghi nhận hoàn cọc **một lần duy nhất**.
+- **Xem trước thông tin hoàn cọc:** hệ thống trả về số tiền đặt cọc trên hợp đồng kèm danh sách các hóa đơn đang chờ thanh toán (nếu có) và thông báo cảnh báo tổng số hóa đơn cùng tổng số tiền chưa thanh toán để Manager đối chiếu trước khi trả tiền mặt.
+- **Xác nhận hoàn cọc:**
+  - Hệ thống thực hiện trong cùng một giao dịch: lưu thời điểm hoàn cọc, lưu Manager thực hiện hoàn cọc, tạo thông báo hoàn tiền đặt cọc cho người đại diện và ghi nhật ký cập nhật hợp đồng.
+  - Sau khi lưu xong, hệ thống bắt buộc gửi email xác nhận hoàn trả tiền đặt cọc cho người đại diện.
+
+**Các trường hợp chặn khi hoàn cọc**
+
+- **Hợp đồng có đơn chấm dứt ở trạng thái Đã xác nhận (chấm dứt trước hạn do thỏa thuận hoặc đơn phương):** từ chối hoàn cọc, báo "Hợp đồng chấm dứt trước hạn không được hoàn cọc".
+- **Hợp đồng chưa ở trạng thái Đã kết thúc:** từ chối, báo "Chỉ có thể hoàn cọc cho hợp đồng đã kết thúc".
+- **Hợp đồng đã được ghi nhận hoàn cọc trước đó:** từ chối, báo rõ thời điểm đã hoàn cọc và họ tên người đã thực hiện hoàn cọc.
+- **Hợp đồng không thuộc tòa nhà Manager quản lý:** từ chối, báo "Bạn không có quyền thực hiện thao tác này".
+- **Gửi email xác nhận hoàn cọc thất bại:** dữ liệu hoàn cọc và thông báo trong ứng dụng vẫn được lưu thành công, hệ thống trả kèm cảnh báo gửi email thất bại.

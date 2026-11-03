@@ -12,6 +12,9 @@ import {
     TOKEN_STATUS,
     NOTIFICATION_TYPE,
     AUDIT_ACTION,
+    INVOICE_STATUS,
+    TERMINATION_STATUS,
+    TERMINATION_TYPE,
 } from '../../constants/enums.js';
 import { AppError } from '../../utils/AppError.js';
 import { paginate } from '../../utils/pagination.js';
@@ -28,6 +31,8 @@ import Occupant from '../../models/Occupant.js';
 import User from '../../models/User.js';
 import Manager from '../../models/Manager.js';
 import ActivationToken from '../../models/ActivationToken.js';
+import TerminationRequest from '../../models/TerminationRequest.js';
+import Invoice from '../../models/Invoice.js';
 
 const escapeHtml = (str) => String(str).replace(/[&<>"']/g, (char) => ({
     '&': '&amp;',
@@ -983,5 +988,443 @@ export const cancelDraftContract = async ({ managerId, contractId, data = {} }) 
     return {
         contract,
         warning: mailSent ? undefined : 'Gửi email thông báo hủy hợp đồng thất bại',
+    };
+};
+
+const formatDateTimeVn = (date) => {
+    const d = new Date(date);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    return `${hours}:${minutes} ${day}/${month}/${year}`;
+};
+
+const resolveUserDisplayName = async (userId) => {
+    if (!userId) return 'Hệ thống';
+    const manager = await Manager.findOne({ userId }).select('name').lean();
+    if (manager?.name) return manager.name;
+    const occupant = await Occupant.findOne({ userId, isRepresentative: true }).select('name').lean();
+    if (occupant?.name) return occupant.name;
+    const user = await User.findById(userId).select('email roleId').lean();
+    if (user?.roleId === ROLE.ADMIN) return 'Admin';
+    return user?.email || 'Không xác định';
+};
+
+const sendDepositRefundEmail = (to, roomNumber, buildingName, depositAmount, refundedAt) => sendMail(
+    to,
+    `[Housify] Xác nhận hoàn trả tiền đặt cọc phòng ${roomNumber} - ${buildingName}`,
+    `<p>Xin chào,</p>
+<p>Tiền đặt cọc của hợp đồng thuê phòng <b>${escapeHtml(roomNumber)}</b> tại <b>${escapeHtml(buildingName)}</b> đã được hoàn trả bằng tiền mặt.</p>
+<ul>
+  <li>Số tiền hoàn trả: <b>${Number(depositAmount).toLocaleString('vi-VN')}đ</b></li>
+  <li>Thời điểm ghi nhận: <b>${formatDateTimeVn(refundedAt)}</b></li>
+</ul>
+<p>Cảm ơn bạn đã sử dụng dịch vụ của Housify.</p>`,
+);
+
+const sendContractEndedEmail = (to, roomNumber, buildingName, endDate) => sendMail(
+    to,
+    `[Housify] Thông báo kết thúc hợp đồng thuê phòng ${roomNumber} - ${buildingName}`,
+    `<p>Xin chào,</p>
+<p>Hợp đồng thuê phòng <b>${escapeHtml(roomNumber)}</b> tại <b>${escapeHtml(buildingName)}</b> đã kết thúc do hết thời hạn vào ngày <b>${formatDateVn(endDate)}</b>.</p>
+<p>Vui lòng liên hệ Quản lý tòa nhà để hoàn tất thủ tục bàn giao và nhận lại tiền đặt cọc theo quy định.</p>
+<p>Trân trọng,<br/>Đội ngũ Housify</p>`,
+);
+
+/**
+ * Kiểm tra điều kiện hoàn cọc và lấy danh sách hóa đơn chưa thanh toán của hợp đồng (UC-45)
+ */
+const validateAndInspectRefund = async (managerId, contractId) => {
+    const contract = await Contract.findById(contractId);
+    if (!contract) {
+        throw new AppError('Không tìm thấy hợp đồng', 404);
+    }
+
+    const { room, building } = await verifyManagerContractScope(managerId, contract);
+
+    // Kiểm tra có đơn chấm dứt CONFIRMED hay không (chấm dứt trước hạn thì không được hoàn cọc)
+    const confirmedTermination = await TerminationRequest.findOne({
+        contractId: contract._id,
+        status: TERMINATION_STATUS.CONFIRMED,
+    }).lean();
+
+    if (confirmedTermination) {
+        throw new AppError('Hợp đồng chấm dứt trước hạn không được hoàn cọc', 400);
+    }
+
+    if (contract.status !== CONTRACT_STATUS.ENDED) {
+        throw new AppError('Chỉ có thể hoàn cọc cho hợp đồng đã kết thúc', 400);
+    }
+
+    if (contract.depositRefundedAt) {
+        const refundedByName = await resolveUserDisplayName(contract.depositRefundedBy);
+        throw new AppError(
+            `Hợp đồng này đã được hoàn cọc vào lúc ${formatDateTimeVn(contract.depositRefundedAt)} bởi ${refundedByName}`,
+            400,
+        );
+    }
+
+    const pendingInvoices = await Invoice.find({
+        contractId: contract._id,
+        status: INVOICE_STATUS.PENDING,
+    })
+        .select('_id invoiceCode month totalAmount status dueDate sentAt')
+        .sort({ month: 1 })
+        .lean();
+
+    const pendingInvoiceCount = pendingInvoices.length;
+    const pendingInvoiceTotal = pendingInvoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
+    const hasPendingInvoices = pendingInvoiceCount > 0;
+    const invoiceWarning = hasPendingInvoices
+        ? `Còn ${pendingInvoiceCount} hóa đơn chưa thanh toán với tổng số tiền ${pendingInvoiceTotal.toLocaleString('vi-VN')}đ`
+        : null;
+
+    return {
+        contract,
+        room,
+        building,
+        pendingInvoices,
+        pendingInvoiceCount,
+        pendingInvoiceTotal,
+        hasPendingInvoices,
+        invoiceWarning,
+    };
+};
+
+/**
+ * Xem trước thông tin hoàn cọc (UC-45)
+ */
+export const getRefundPreview = async ({ managerId, contractId }) => {
+    const {
+        contract,
+        room,
+        building,
+        pendingInvoices,
+        pendingInvoiceCount,
+        pendingInvoiceTotal,
+        hasPendingInvoices,
+        invoiceWarning,
+    } = await validateAndInspectRefund(managerId, contractId);
+
+    return {
+        contractId: contract._id,
+        room: {
+            _id: room._id,
+            roomNumber: room.roomNumber,
+            floorNumber: room.floorNumber,
+            buildingName: building.name,
+        },
+        deposit: contract.deposit,
+        canRefund: true,
+        hasPendingInvoices,
+        pendingInvoiceCount,
+        pendingInvoiceTotal,
+        pendingInvoices,
+        warning: invoiceWarning,
+    };
+};
+
+/**
+ * Xác nhận hoàn cọc hợp đồng hết hạn (UC-45)
+ */
+export const refundDeposit = async ({ managerId, contractId }) => {
+    const {
+        contract,
+        room,
+        building,
+        pendingInvoices,
+        pendingInvoiceCount,
+        pendingInvoiceTotal,
+        hasPendingInvoices,
+        invoiceWarning,
+    } = await validateAndInspectRefund(managerId, contractId);
+
+    const repOccupant = await Occupant.findOne({
+        contractId: contract._id,
+        isRepresentative: true,
+    }).lean();
+
+    const refundedAt = new Date();
+
+    await withTransaction(async (session) => {
+        contract.depositRefundedAt = refundedAt;
+        contract.depositRefundedBy = managerId;
+        await contract.save({ session });
+
+        if (repOccupant?.userId) {
+            await notify(
+                {
+                    userIds: repOccupant.userId,
+                    type: NOTIFICATION_TYPE.DEPOSIT_REFUNDED,
+                    title: 'Đã hoàn trả tiền đặt cọc',
+                    message: `Tiền đặt cọc ${contract.deposit.toLocaleString('vi-VN')}đ của hợp đồng phòng ${room.roomNumber} (${building.name}) đã được hoàn trả bằng tiền mặt.`,
+                    refId: contract._id,
+                    createdBy: managerId,
+                },
+                session,
+            );
+        }
+
+        await audit(
+            {
+                actorId: managerId,
+                action: AUDIT_ACTION.UPDATE_CONTRACT,
+                targetType: 'contracts',
+                targetId: contract._id,
+                reason: 'Ghi nhận hoàn trả tiền đặt cọc khi kết thúc hợp đồng',
+                metadata: {
+                    deposit: contract.deposit,
+                    before: { depositRefundedAt: null, depositRefundedBy: null },
+                    after: { depositRefundedAt: refundedAt, depositRefundedBy: managerId },
+                    pendingInvoiceCount,
+                    pendingInvoiceTotal,
+                },
+            },
+            session,
+        );
+    });
+
+    const mailSent = await sendDepositRefundEmail(
+        contract.representativeEmail,
+        room.roomNumber,
+        building.name,
+        contract.deposit,
+        refundedAt,
+    );
+
+    return {
+        contract,
+        deposit: contract.deposit,
+        depositRefundedAt: contract.depositRefundedAt,
+        depositRefundedBy: contract.depositRefundedBy,
+        hasPendingInvoices,
+        pendingInvoiceCount,
+        pendingInvoiceTotal,
+        pendingInvoices,
+        invoiceWarning,
+        warning: mailSent ? undefined : 'Gửi email xác nhận hoàn cọc thất bại',
+    };
+};
+
+/**
+ * Job 3 – Hợp đồng hết hạn tự nhiên (UC-45):
+ * Hợp đồng ACTIVE có endDate ≤ hôm nay và không có đơn chấm dứt CONFIRMED:
+ * trong 1 transaction chuyển hợp đồng -> ENDED, phòng -> AVAILABLE, cư dân -> LEFT;
+ * nếu đang có đơn chấm dứt PENDING thì hủy đơn đó với lý do "Hợp đồng đã hết hạn";
+ * báo Customer + Manager, gửi mail Customer.
+ */
+export const runContractExpiryJob = async (now = new Date()) => {
+    const todayStart = startOfVietnamDay(now);
+    const activeContracts = await Contract.find({ status: CONTRACT_STATUS.ACTIVE });
+
+    const expiredContractIds = [];
+
+    for (const contract of activeContracts) {
+        if (startOfVietnamDay(contract.endDate) > todayStart) {
+            continue;
+        }
+
+        // Kiểm tra có đơn chấm dứt CONFIRMED hay không
+        const hasConfirmedTermination = await TerminationRequest.exists({
+            contractId: contract._id,
+            status: TERMINATION_STATUS.CONFIRMED,
+        });
+        if (hasConfirmedTermination) {
+            continue;
+        }
+
+        const room = await Room.findById(contract.roomId).lean();
+        const building = room ? await Building.findOne({ _id: room.buildingId, isDeleted: false }).lean() : null;
+        const repOccupant = await Occupant.findOne({
+            contractId: contract._id,
+            isRepresentative: true,
+        }).lean();
+
+        let didEnd = false;
+
+        await withTransaction(async (session) => {
+            const freshContract = await Contract.findById(contract._id).session(session);
+            if (!freshContract || freshContract.status !== CONTRACT_STATUS.ACTIVE) {
+                return;
+            }
+
+            freshContract.status = CONTRACT_STATUS.ENDED;
+            await freshContract.save({ session });
+
+            await Room.findByIdAndUpdate(
+                freshContract.roomId,
+                { status: ROOM_STATUS.AVAILABLE },
+                { session },
+            );
+
+            await Occupant.updateMany(
+                { contractId: freshContract._id, status: OCCUPANT_STATUS.STAYED },
+                { status: OCCUPANT_STATUS.LEFT, exitDate: freshContract.endDate },
+                { session },
+            );
+
+            // Nếu đang có đơn chấm dứt PENDING thì hủy đơn đó với lý do "Hợp đồng đã hết hạn"
+            await TerminationRequest.updateMany(
+                { contractId: freshContract._id, status: TERMINATION_STATUS.PENDING },
+                {
+                    status: TERMINATION_STATUS.CANCELLED,
+                    cancelReason: 'Hợp đồng đã hết hạn',
+                },
+                { session },
+            );
+
+            const recipientIds = [repOccupant?.userId, building?.managerId].filter(Boolean);
+            if (recipientIds.length > 0) {
+                await notify(
+                    {
+                        userIds: recipientIds,
+                        type: NOTIFICATION_TYPE.CONTRACT_ENDED,
+                        title: 'Hợp đồng thuê phòng đã hết hạn',
+                        message: `Hợp đồng thuê phòng ${room?.roomNumber || ''} (${building?.name || ''}) đã kết thúc do hết thời hạn vào ngày ${formatDateVn(freshContract.endDate)}.`,
+                        refId: freshContract._id,
+                    },
+                    session,
+                );
+            }
+
+            didEnd = true;
+        });
+
+        if (didEnd) {
+            expiredContractIds.push(contract._id);
+            await sendContractEndedEmail(
+                contract.representativeEmail,
+                room?.roomNumber || '',
+                building?.name || '',
+                contract.endDate,
+            );
+        }
+    }
+
+    return {
+        processedCount: expiredContractIds.length,
+        expiredContractIds,
+    };
+};
+
+/**
+ * Job 4 – Đổi trạng thái tài khoản sau 24h kể từ khi hợp đồng kết thúc (UC-28, UC-29, UC-45):
+ * Sau 24h kể từ khi hợp đồng kết thúc (và khách không còn hợp đồng ACTIVE nào khác):
+ * tài khoản người đại diện -> INACTIVE (ghi log DEACTIVATE_USER),
+ * hoặc -> LOCKED nếu kết thúc do đơn phương (ghi log LOCK_USER kèm lý do).
+ */
+export const runAccountAfterEndJob = async (now = new Date()) => {
+    const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+    const activeCustomers = await User.find({
+        roleId: ROLE.CUSTOMER,
+        status: USER_STATUS.ACTIVE,
+    });
+
+    const deactivatedUserIds = [];
+    const lockedUserIds = [];
+
+    for (const user of activeCustomers) {
+        const repOccupants = await Occupant.find({
+            userId: user._id,
+            isRepresentative: true,
+        }).lean();
+
+        if (repOccupants.length === 0) {
+            continue;
+        }
+
+        const contractIds = repOccupants.map((o) => o.contractId);
+        const contracts = await Contract.find({ _id: { $in: contractIds } }).lean();
+
+        // Nếu khách vẫn còn hợp đồng ACTIVE khác thì không khóa / ngưng hoạt động
+        const hasActiveContract = contracts.some((c) => c.status === CONTRACT_STATUS.ACTIVE);
+        if (hasActiveContract) {
+            continue;
+        }
+
+        const endedContracts = contracts
+            .filter((c) => c.status === CONTRACT_STATUS.ENDED)
+            .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+        if (endedContracts.length === 0) {
+            continue;
+        }
+
+        const latestEndedContract = endedContracts[0];
+        const confirmedTermination = await TerminationRequest.findOne({
+            contractId: latestEndedContract._id,
+            status: TERMINATION_STATUS.CONFIRMED,
+        }).lean();
+
+        const referenceEndDate = confirmedTermination
+            ? new Date(confirmedTermination.effectiveDate)
+            : new Date(latestEndedContract.endDate);
+        const updatedTime = new Date(latestEndedContract.updatedAt);
+
+        const elapsedFromRefMs = now.getTime() - referenceEndDate.getTime();
+        const elapsedFromUpdateMs = now.getTime() - updatedTime.getTime();
+
+        // Đủ 24h tính từ mốc kết thúc hợp đồng (ngày hiệu lực / ngày hết hạn) hoặc từ thời điểm cập nhật ENDED
+        if (elapsedFromRefMs < TWENTY_FOUR_HOURS_MS && elapsedFromUpdateMs < TWENTY_FOUR_HOURS_MS) {
+            continue;
+        }
+
+        const isUnilateral = confirmedTermination?.type === TERMINATION_TYPE.UNILATERAL;
+
+        await withTransaction(async (session) => {
+            const freshUser = await User.findById(user._id).session(session);
+            if (!freshUser || freshUser.status !== USER_STATUS.ACTIVE) {
+                return;
+            }
+
+            if (isUnilateral) {
+                freshUser.status = USER_STATUS.LOCKED;
+                await freshUser.save({ session });
+
+                await audit(
+                    {
+                        action: AUDIT_ACTION.LOCK_USER,
+                        targetType: 'users',
+                        targetId: freshUser._id,
+                        reason: confirmedTermination.reason || 'Khóa tài khoản sau 24 giờ kể từ khi chấm dứt hợp đồng đơn phương',
+                        metadata: {
+                            contractId: latestEndedContract._id,
+                            terminationId: confirmedTermination._id,
+                            before: { status: USER_STATUS.ACTIVE },
+                            after: { status: USER_STATUS.LOCKED },
+                        },
+                    },
+                    session,
+                );
+                lockedUserIds.push(freshUser._id);
+            } else {
+                freshUser.status = USER_STATUS.INACTIVE;
+                await freshUser.save({ session });
+
+                await audit(
+                    {
+                        action: AUDIT_ACTION.DEACTIVATE_USER,
+                        targetType: 'users',
+                        targetId: freshUser._id,
+                        reason: 'Ngưng hoạt động tài khoản sau 24 giờ kể từ khi kết thúc hợp đồng',
+                        metadata: {
+                            contractId: latestEndedContract._id,
+                            before: { status: USER_STATUS.ACTIVE },
+                            after: { status: USER_STATUS.INACTIVE },
+                        },
+                    },
+                    session,
+                );
+                deactivatedUserIds.push(freshUser._id);
+            }
+        });
+    }
+
+    return {
+        processedCount: deactivatedUserIds.length + lockedUserIds.length,
+        deactivatedUserIds,
+        lockedUserIds,
     };
 };
