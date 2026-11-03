@@ -219,9 +219,8 @@ export const createContract = async ({ managerId, data }) => {
         throw new AppError('Hợp đồng đơn không được có người ở cùng', 422);
     }
 
-    if (contractType === CONTRACT_TYPE.GROUP && coOccupants.length === 0) {
-        throw new AppError('Hợp đồng nhóm phải có ít nhất 1 người ở cùng', 422);
-    }
+    // [NHÁNH THỬ test_activatecustomer] bỏ luật "Nhóm phải có người ở cùng" lúc tạo: người đại diện tự nhập khi kích hoạt (UC-06),
+    // kiểm "ít nhất 1 người ở cùng" chuyển sang activateCustomerContract. Manager vẫn có thể gửi kèm nếu muốn
 
     const totalOccupants = 1 + coOccupants.length;
     if (totalOccupants > roomType.capacity) {

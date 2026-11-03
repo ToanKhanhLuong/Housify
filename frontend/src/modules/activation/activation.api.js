@@ -7,6 +7,10 @@ const activationApi = {
   checkManagerToken: (token) => api.get(`/activation/manager/${token}`),
   // UC-08 bước 7–8: { token, password, confirmPassword } → tài khoản PENDING → ACTIVE, link hết hiệu lực
   activateManager: (data) => api.post('/activation/manager', data),
+  // UC-06: link mời ký hợp đồng của Customer → thông tin hợp đồng chỉ xem (tòa, phòng, Manager, giá, cọc, người ở cùng, nội quy)
+  checkContractToken: (token) => api.get(`/activation/contract/${token}`),
+  // UC-06: khách điền thông tin + tích đồng ý → tạo tài khoản, hợp đồng ACTIVE. Trả { activatedAt, warning? }
+  activateContract: (data) => api.post('/activation/contract', data),
 };
 
 export default activationApi;
