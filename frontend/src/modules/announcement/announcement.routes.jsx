@@ -1,5 +1,9 @@
-// Route của module announcement. path gốc lấy đúng theo constants/menus.js, cách khai báo xem routes/index.jsx
-// Ví dụ: { path: '/rooms', element: <RoomListPage />, roles: [ROLE.ADMIN, ROLE.MANAGER] }
-const announcementRoutes = [];
+// Route của module announcement (UC-40). Path gốc theo constants/menus.js: Manager /announcements
+import { ROLE } from '../../constants/enums';
+import AnnouncementPage from './AnnouncementPage';
+
+const announcementRoutes = [
+  { path: '/announcements', element: <AnnouncementPage />, roles: [ROLE.MANAGER] },
+];
 
 export default announcementRoutes;
