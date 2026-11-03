@@ -731,7 +731,11 @@ export const getInvoices = async (query, user) => {
 
   if (month) filter.month = month;
   if (status) {
-    filter.status = { $in: status.split(",").map((item) => item.trim()) };
+    // validate (commaSeparatedEnum) đã đổi "PAID,PENDING" thành mảng; vẫn nhận chuỗi phòng khi gọi không qua validate
+    const statusList = Array.isArray(status)
+      ? status
+      : status.split(",").map((item) => item.trim()).filter(Boolean);
+    filter.status = { $in: statusList };
   }
 
   if (user.role === ROLE.CUSTOMER) {
