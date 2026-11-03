@@ -15,10 +15,19 @@ import { BiCheck, BiChevronDown, BiFilterAlt, BiGridAlt, BiListUl, BiSearch, BiX
  * @param {Array} filterGroups - Danh sách nhóm bộ lọc:
  *   [{ id: 'status', label: 'Trạng thái', type: 'checkbox'|'radio', options: [{ value, label }] },
  *    { id: 'price', label: 'Giá thuê (đ)', type: 'range', minField: 'minPrice', maxField: 'maxPrice' },
- *    { id: 'month', label: 'Kỳ', type: 'month', max: '2026-11' }]   // 1 ô chọn tháng/năm, giá trị 'YYYY-MM'; max tùy chọn
+ *    { id: 'month', label: 'Kỳ', type: 'month', max: '2026-11' },   // 1 ô chọn tháng/năm, giá trị 'YYYY-MM'; max tùy chọn
+ *    { id: 'paidAt', label: 'Ngày trả', type: 'dateRange', minField: 'from', maxField: 'to' }] // 2 ô ngày, giá trị 'YYYY-MM-DD'
+
+
+
+
  *   Tùy chọn thêm cho mỗi nhóm:
  *     maxVisible: 5   – checkbox / radio nhiều hơn 5 lựa chọn thì có thanh cuộn (hỗ trợ 3..6)
  *     beside: true    – đặt nhóm này cạnh nhóm ngay trước (2 cột), vd Loại phòng cạnh Trạng thái
+
+
+
+
  * @param {Object} selectedFilters - Object bộ lọc hiện tại: { status: ['AVAILABLE'], minPrice: 1000000, month: '2026-11' }
  * @param {Function} onFilterChange - Callback khi bộ lọc thay đổi: (newFilters) => void
  * @param {Array} groupByOptions - Danh sách tùy chọn nhóm theo: [{ value: 'floor', label: 'Tầng' }]
@@ -215,9 +224,12 @@ const ControlBar = ({
                     value: val,
                 });
             }
-        } else if (group.type === 'range') {
-            const min = selectedFilters[group.minField];
-            const max = selectedFilters[group.maxField];
+        } else if (group.type === 'range' || group.type === 'dateRange') {
+            // dateRange: 'YYYY-MM-DD' → '01/11/2026' trên thẻ
+            const show = (value) =>
+                group.type === 'dateRange' && value ? value.split('-').reverse().join('/') : value;
+            const min = show(selectedFilters[group.minField]);
+            const max = show(selectedFilters[group.maxField]);
             if (min || max) {
                 let rangeText = '';
                 if (min && max) rangeText = `${min} - ${max}`;
@@ -397,20 +409,22 @@ const ControlBar = ({
                                             </div>
                                         )}
 
-                                        {group.type === 'range' && (
+                                        {(group.type === 'range' || group.type === 'dateRange') && (
                                             <div className="flex flex-col gap-2 px-2 py-1">
                                                 <div className="flex items-center gap-2">
                                                     <Form.Control
-                                                        type="number"
+                                                        type={group.type === 'dateRange' ? 'date' : 'number'}
                                                         size="sm"
+                                                        aria-label={`${group.label} từ`}
                                                         placeholder="Từ"
                                                         value={rangeDraft[group.minField] ?? (selectedFilters[group.minField] || '')}
                                                         onChange={(e) => setRangeDraft((prev) => ({ ...prev, [group.minField]: e.target.value }))}
                                                     />
                                                     <span className="text-gray-400">-</span>
                                                     <Form.Control
-                                                        type="number"
+                                                        type={group.type === 'dateRange' ? 'date' : 'number'}
                                                         size="sm"
+                                                        aria-label={`${group.label} đến`}
                                                         placeholder="Đến"
                                                         value={rangeDraft[group.maxField] ?? (selectedFilters[group.maxField] || '')}
                                                         onChange={(e) => setRangeDraft((prev) => ({ ...prev, [group.maxField]: e.target.value }))}
