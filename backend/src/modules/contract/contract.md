@@ -1,28 +1,24 @@
-
 # Module contract
 
-> Vòng đời hợp đồng: tạo nháp, xem, sửa, gia hạn, hủy nháp, tự kết thúc khi hết hạn và hoàn cọc. **UC-24, UC-25, UC-26, UC-27, UC-45, UC-46.**
+> Vòng đời hợp đồng: tạo nháp, xem danh sách và chi tiết, sửa, gia hạn, hủy nháp, tự kết thúc khi hết hạn và hoàn cọc. **UC-24, UC-25, UC-26, UC-27, UC-45, UC-46.**
 > Khách bấm link kích hoạt (UC-06) nằm ở module `activation`. Chấm dứt trước hạn (UC-28, UC-29) nằm ở module `termination`.
 
-**Người làm:** BE An · FE Hưng · Iter 2 (UC-45 làm ở Iter 3)
+**Người làm:** BE An · FE Hưng · Iter 2
 
 **Quyền**
 
-- **Manager:** mọi thao tác, chỉ với hợp đồng thuộc **tòa mình phụ trách**.
-- **Customer:** chỉ **xem** hợp đồng của phòng mình.
+- **Manager:** thực hiện mọi thao tác quản lý hợp đồng, nhưng chỉ trong phạm vi **tòa nhà mình đang được phân công quản lý**. Thao tác ngoài phạm vi tòa nhà sẽ bị từ chối với thông báo "Bạn không có quyền thực hiện thao tác này".
+- **Customer:** chỉ được **xem** hợp đồng của chính mình.
 
 ---
 
 ## Vòng đời hợp đồng
 
-```
-Nháp ──khách kích hoạt (UC-06)──▶ Đang hiệu lực ──hết hạn (UC-45)──────────▶ Đã kết thúc
-  │                                     └──chấm dứt trước hạn (UC-28, 29)──▶ Đã kết thúc
-  └──Manager hủy (UC-46)──▶ Đã hủy
-```
-
-- Đang có đơn chấm dứt thì hợp đồng **vẫn Đang hiệu lực** tới ngày hiệu lực của đơn.
-- Mỗi phòng tại một thời điểm chỉ có **tối đa một** hợp đồng Nháp hoặc Đang hiệu lực.
+- **Nháp** → khách kích hoạt (UC-06) → **Đang hiệu lực**
+- **Nháp** → Manager hủy (UC-46) → **Đã hủy**
+- **Đang hiệu lực** → hết hạn tự nhiên (UC-45) hoặc đến ngày hiệu lực của đơn chấm dứt đã xác nhận (UC-28, UC-29) → **Đã kết thúc**
+- Khi đang có đơn chấm dứt chờ xử lý hoặc chờ đến ngày hiệu lực, hợp đồng **vẫn ở trạng thái Đang hiệu lực** cho tới ngày hiệu lực của đơn.
+- Mỗi phòng tại một thời điểm chỉ có **tối đa một** hợp đồng ở trạng thái Nháp hoặc Đang hiệu lực.
 
 ---
 
@@ -32,35 +28,33 @@ Nháp ──khách kích hoạt (UC-06)──▶ Đang hiệu lực ──hết 
 
 **Luồng chính**
 
-1. Manager chọn phòng **Trống** thuộc tòa mình, bấm "Tạo hợp đồng".
-2. Form hiện sẵn **giá thuê, tiền cọc** lấy từ phòng, chỉ xem.
-3. Manager nhập **ngày bắt đầu, thời hạn (tháng), CCCD người đại diện, email người đại diện**. Hệ thống tự tính ngày kết thúc, kiểm tra định dạng CCCD và email.
-4. Chọn loại hợp đồng:
-   - **Đơn:** một người.
-   - **Nhóm:** nhập thêm thông tin người ở cùng — **họ tên, CCCD, số điện thoại, ngày sinh**.
-5. Bấm "Gửi lời mời ký hợp đồng":
-   - Tạo hợp đồng **Nháp**.
-   - Sinh link mời duy nhất, hạn 24 giờ, gửi email cho khách.
-6. Báo "Đã gửi lời mời thành công", hợp đồng hiện trong danh sách với trạng thái Nháp.
+- Manager chọn phòng đang **Trống** thuộc tòa nhà mình quản lý, mở biểu mẫu tạo hợp đồng.
+- Biểu mẫu hiển thị sẵn **giá thuê và tiền cọc** lấy từ thông tin phòng ở chế độ chỉ xem.
+- Manager nhập **ngày bắt đầu, thời hạn thuê (số tháng), số CCCD người đại diện, email người đại diện** và **ghi chú** (nếu có). Hệ thống tự tính ngày kết thúc theo chu kỳ tháng, kiểm tra định dạng CCCD và email.
+- Manager chọn loại hợp đồng:
+  - **Hợp đồng đơn:** chỉ có một người cư trú là người đại diện.
+  - **Hợp đồng nhóm:** nhập thêm danh sách người ở cùng gồm **họ tên, CCCD, số điện thoại, ngày sinh, địa chỉ, mối quan hệ**.
+- Khi xác nhận tạo hợp đồng, hệ thống thực hiện trong cùng một giao dịch:
+  - Lưu hợp đồng ở trạng thái **Nháp**, chụp lại giá thuê và tiền cọc từ phòng.
+  - Lưu trước danh sách người ở cùng (nếu là hợp đồng nhóm).
+  - Sinh link kích hoạt duy nhất có thời hạn 24 giờ và gửi email lời mời cho người đại diện.
+- Phòng vẫn giữ trạng thái **Trống** cho tới khi khách hàng hoàn tất kích hoạt hợp đồng.
 
 **Các trường hợp**
 
-- **Manager hủy:** không lưu, phòng vẫn Trống.
-- **Gửi lại lời mời** (link cũ hết hạn): link cũ bị vô hiệu, tạo link mới, gửi lại email.
-- **CCCD thuộc khách cũ đã ngưng hoạt động:** cho tạo bình thường. Lúc kích hoạt hệ thống mở lại tài khoản cũ.
-- **Phòng đã có hợp đồng Nháp hoặc Đang hiệu lực:** từ chối, báo phòng không còn trống.
-- **CCCD đang gắn với tài khoản khách có hợp đồng Đang hiệu lực:** từ chối, báo khách đang thuê phòng khác.
-- **CCCD thuộc tài khoản bị khóa** (từng bị chấm dứt do vi phạm): từ chối, không cho thuê lại.
-- **Ngày bắt đầu trong quá khứ:** cảnh báo, **vẫn cho tạo** (hợp đồng hồi tố).
-- **Gửi email lỗi:** hợp đồng **vẫn được tạo**, cảnh báo Manager gửi lại.
-- **Hợp đồng nhóm vượt sức chứa phòng:** từ chối (BR-087).
-
-**Quy tắc**
-
-- Mỗi phòng tối đa **một** hợp đồng Nháp hoặc Đang hiệu lực.
-- Giá thuê và tiền cọc **chép từ phòng lúc tạo**, sau này Admin đổi giá phòng cũng không ảnh hưởng.
-- Link mời sống **24 giờ**, dùng **một lần**, gắn với đúng một hợp đồng.
-- Phòng vẫn **Trống** cho tới khi khách kích hoạt.
+- **Manager hủy thao tác:** không lưu dữ liệu, phòng vẫn Trống.
+- **Gửi lại lời mời:** khi link cũ hết hạn hoặc thất lạc, Manager bấm gửi lại lời mời; hệ thống vô hiệu hóa mọi link mời chưa dùng trước đó của hợp đồng, tạo link mới có hạn 24 giờ, gửi lại email và ghi nhật ký thao tác.
+- **CCCD thuộc khách cũ đã ngưng hoạt động:** cho phép tạo hợp đồng mới bình thường; khi khách kích hoạt, hệ thống sẽ mở lại tài khoản cũ.
+- **Phòng không thuộc tòa nhà Manager quản lý:** từ chối, báo "Bạn không có quyền thực hiện thao tác này".
+- **Phòng không ở trạng thái Trống hoặc đã có hợp đồng Nháp / Đang hiệu lực:** từ chối, không cho tạo thêm hợp đồng.
+- **CCCD người đại diện hoặc người ở cùng đang cư trú ở phòng khác:** từ chối, báo khách đang thuê hoặc đang ở phòng khác.
+- **CCCD hoặc email gắn với tài khoản đã bị khóa do vi phạm:** từ chối, không cho phép tạo hợp đồng mới.
+- **Email thuộc về tài khoản quản trị/quản lý hoặc đã gắn với khách hàng khác:** từ chối.
+- **Số điện thoại người ở cùng bị trùng lặp hoặc đã thuộc về người khác trong hệ thống:** từ chối.
+- **Hợp đồng đơn nhưng gửi kèm người ở cùng, hoặc hợp đồng nhóm nhưng không có người ở cùng:** từ chối.
+- **Tổng số người (gồm người đại diện và người ở cùng) vượt quá sức chứa tối đa của loại phòng:** từ chối.
+- **Ngày bắt đầu nằm trong quá khứ:** vẫn cho tạo (hợp đồng hồi tố) và trả kèm cảnh báo.
+- **Gửi email thất bại:** hợp đồng nháp vẫn được lưu thành công, trả kèm cảnh báo để Manager gửi lại lời mời sau.
 
 ---
 
@@ -70,20 +64,18 @@ Nháp ──khách kích hoạt (UC-06)──▶ Đang hiệu lực ──hết 
 
 **Luồng chính**
 
-1. Vào mục "Hợp đồng":
-   - **Manager:** danh sách hợp đồng của tòa, lọc theo trạng thái và phòng.
-   - **Customer:** hợp đồng hiện tại của phòng mình.
-2. Chọn một hợp đồng → hiện **thông tin phòng, người đại diện, danh sách cư dân, ngày bắt đầu, ngày kết thúc, giá thuê, tiền cọc, trạng thái**.
+- **Xem danh sách hợp đồng:**
+  - **Manager:** xem danh sách các hợp đồng thuộc tòa nhà mình quản lý, hỗ trợ lọc theo trạng thái hợp đồng và theo phòng, kết quả có phân trang và sắp xếp hợp đồng mới nhất lên trước.
+  - **Customer:** xem hợp đồng hiện tại của chính mình (có phân trang).
+- **Xem chi tiết hợp đồng:**
+  - Hiển thị đầy đủ: **thông tin phòng** (số phòng, tầng, loại phòng, sức chứa, tòa nhà), **thông tin người đại diện** (nếu hợp đồng đang ở trạng thái Nháp thì chỉ có CCCD và email; nếu đã kích hoạt thì có đầy đủ họ tên, CCCD, email, số điện thoại, ngày sinh, địa chỉ), **danh sách cư dân** thuộc hợp đồng, **ngày bắt đầu, ngày kết thúc, giá thuê, tiền cọc, trạng thái, ghi chú**.
 
 **Các trường hợp**
 
-- **Chưa có hợp đồng nào:** báo "Chưa có hợp đồng nào".
-- **Customer xem hợp đồng phòng khác:** từ chối, báo không có quyền.
-
-**Quy tắc**
-
-- Customer chỉ xem hợp đồng phòng mình.
-- Manager chỉ xem hợp đồng thuộc tòa được phân công.
+- **Chưa có hợp đồng nào khớp điều kiện:** trả về danh sách rỗng.
+- **Không tìm thấy hợp đồng theo mã yêu cầu:** báo "Không tìm thấy hợp đồng".
+- **Manager lọc theo phòng hoặc mở chi tiết hợp đồng của tòa nhà khác:** từ chối, báo "Bạn không có quyền thực hiện thao tác này".
+- **Customer mở xem chi tiết hợp đồng không phải của mình:** từ chối, báo "Bạn không có quyền xem hợp đồng này".
 
 ---
 
@@ -91,27 +83,23 @@ Nháp ──khách kích hoạt (UC-06)──▶ Đang hiệu lực ──hết 
 
 **Ai dùng:** Manager
 
-**Áp dụng cho hợp đồng Nháp hoặc Đang hiệu lực.**
-
 **Luồng chính**
 
-1. Manager chọn hợp đồng, bấm "Chỉnh sửa" → form hiện các trường được phép sửa.
-2. Sửa, bấm "Lưu" → cập nhật, ghi nhật ký.
-
-**Sửa được gì**
-
-- **Khi Nháp:** CCCD và email người đại diện, ngày bắt đầu, ghi chú, điều khoản đặc biệt. Sửa xong thì gửi lại lời mời.
-- **Khi Đang hiệu lực:** chỉ ghi chú và điều khoản đặc biệt. Giá thuê, tiền cọc, CCCD đại diện, ngày bắt đầu **bị khóa**.
+- Manager chọn hợp đồng thuộc tòa nhà mình quản lý để chỉnh sửa:
+  - **Khi hợp đồng ở trạng thái Nháp:** cho phép sửa **CCCD người đại diện, email người đại diện, ngày bắt đầu, thời hạn thuê (số tháng – hệ thống tự tính lại ngày kết thúc) và ghi chú**.
+  - **Khi hợp đồng ở trạng thái Đang hiệu lực:** chỉ cho phép sửa **ghi chú / điều khoản**. Các trường giá thuê, tiền cọc, CCCD đại diện, email đại diện, ngày bắt đầu, thời hạn đều bị khóa.
+- Khi lưu thay đổi, hệ thống cập nhật hợp đồng và ghi nhật ký thao tác kèm giá trị trước và sau khi sửa.
 
 **Các trường hợp**
 
-- **Manager hủy:** không lưu.
-- **Hợp đồng Đã kết thúc hoặc Đã hủy:** từ chối, báo không sửa được.
-- **Sửa trường bị khóa:** các trường đó hiện dạng chỉ xem trên form.
-
-**Quy tắc**
-
-- Mọi thay đổi ghi nhật ký: ai sửa, lúc nào.
+- **Đổi CCCD hoặc email người đại diện trên hợp đồng Nháp:**
+  - CCCD và email mới phải vượt qua đầy đủ các bước kiểm tra tính hợp lệ và tính duy nhất giống như lúc tạo hợp đồng (không trùng người ở cùng trong hợp đồng, không đang ở phòng khác, không thuộc tài khoản bị khóa, email không thuộc tài khoản khác).
+  - Ngay trong cùng giao dịch cập nhật, toàn bộ link mời kích hoạt cũ chưa sử dụng của hợp đồng sẽ bị chuyển sang hết hiệu lực. Sau đó Manager tự bấm "Gửi lại lời mời" để phát hành link mới cho khách.
+- **Đổi ngày bắt đầu trên hợp đồng Nháp:** hệ thống tính lại ngày kết thúc theo thời hạn thuê và đồng bộ lại ngày vào ở của những người ở cùng đã khai báo trước trong hợp đồng nháp.
+- **Hợp đồng Đang hiệu lực nhưng gửi lên trường khác ngoài ghi chú:** từ chối, báo "Hợp đồng đang hiệu lực chỉ được sửa ghi chú".
+- **Hợp đồng Nháp nhưng gửi lên các trường bị khóa (như giá thuê, tiền cọc, mã phòng, loại hợp đồng):** từ chối.
+- **Hợp đồng ở trạng thái Đã kết thúc hoặc Đã hủy:** từ chối, báo "Không thể chỉnh sửa hợp đồng đã kết thúc hoặc đã hủy".
+- **Hợp đồng không thuộc tòa nhà Manager quản lý:** từ chối, báo "Bạn không có quyền thực hiện thao tác này".
 
 ---
 
@@ -121,21 +109,20 @@ Nháp ──khách kích hoạt (UC-06)──▶ Đang hiệu lực ──hết 
 
 **Luồng chính**
 
-1. Manager chọn hợp đồng Đang hiệu lực sắp hết hạn, bấm "Gia hạn".
-2. Form: **số tháng gia hạn** (mặc định 12), **ngày kết thúc mới** (tự tính), **ghi chú**.
-3. Xác nhận → cập nhật ngày kết thúc, ghi nhật ký.
-4. Khách nhận **thông báo trong ứng dụng và email** về việc gia hạn.
+- Manager chọn hợp đồng **Đang hiệu lực** thuộc tòa nhà mình quản lý và thực hiện gia hạn.
+- Nhập **số tháng gia hạn** (số nguyên lớn hơn 0, mặc định là 12 tháng) và **ghi chú** (tùy chọn).
+- Hệ thống thực hiện trong cùng một giao dịch:
+  - Chỉ **dời ngày kết thúc** của hợp đồng thêm đúng số tháng gia hạn tính nối tiếp từ ngày kết thúc hiện tại. Giá thuê, tiền cọc, danh sách cư dân và điều khoản trên hợp đồng được giữ nguyên.
+  - Tạo thông báo trong ứng dụng gửi tới tài khoản người đại diện.
+  - Ghi nhật ký cập nhật hợp đồng kèm ngày kết thúc cũ và ngày kết thúc mới.
+- Sau khi lưu xong, hệ thống gửi email thông báo gia hạn cho người đại diện.
 
 **Các trường hợp**
 
-- **Manager hủy:** không thay đổi.
-- **Hợp đồng không Đang hiệu lực:** từ chối.
-- **Số tháng không lớn hơn 0:** báo lỗi.
-
-**Quy tắc**
-
-- Chỉ gia hạn hợp đồng Đang hiệu lực.
-- Gia hạn **chỉ dời ngày kết thúc**. Giá thuê, cư dân, điều khoản giữ nguyên, muốn đổi thì tạo hợp đồng mới.
+- **Hợp đồng không ở trạng thái Đang hiệu lực (đang Nháp, Đã kết thúc hoặc Đã hủy):** từ chối, báo "Chỉ gia hạn được hợp đồng đang hiệu lực".
+- **Số tháng gia hạn không phải số nguyên lớn hơn 0:** từ chối, báo lỗi dữ liệu không hợp lệ.
+- **Hợp đồng không thuộc tòa nhà Manager quản lý:** từ chối, báo "Bạn không có quyền thực hiện thao tác này".
+- **Gửi email thông báo lỗi:** việc gia hạn vẫn được lưu thành công, hệ thống trả kèm cảnh báo gửi email thất bại.
 
 ---
 
@@ -143,34 +130,24 @@ Nháp ──khách kích hoạt (UC-06)──▶ Đang hiệu lực ──hết 
 
 **Ai dùng:** Manager
 
-**Dùng khi:** khách không kích hoạt hoặc đổi ý không thuê nữa. Không để hợp đồng nháp treo mãi làm khóa phòng.
-
 **Luồng chính**
 
-1. Manager chọn hợp đồng **Nháp** thuộc tòa mình, bấm "Hủy hợp đồng".
-2. Hiện hộp xác nhận kèm ô **lý do hủy (tùy chọn)**.
-3. Xác nhận → **cùng một lần**:
-   - Hợp đồng → **Đã hủy**.
-   - Link mời còn hiệu lực → hết hiệu lực.
-   - Người ở cùng đã nhập kèm → **đã chuyển đi** (giữ lại, không xóa).
-   - Ghi nhật ký kèm lý do.
-4. Gửi email cho khách: *"Lời mời ký hợp đồng phòng [X] đã bị hủy"*. Báo "Đã hủy hợp đồng".
-5. Phòng vẫn **Trống**, tạo được hợp đồng mới.
+- Khi khách hàng đổi ý không thuê nữa hoặc không kích hoạt hợp đồng, Manager chọn hợp đồng **Nháp** thuộc tòa nhà mình quản lý để hủy (kèm lý do hủy tùy chọn).
+- Hệ thống thực hiện trong cùng một giao dịch:
+  - Chuyển trạng thái hợp đồng sang **Đã hủy**.
+  - Chuyển toàn bộ link mời kích hoạt còn hiệu lực của hợp đồng sang **hết hiệu lực**.
+  - Chuyển trạng thái những người ở cùng đã nhập kèm trong hợp đồng nháp sang **đã chuyển đi** (giữ nguyên bản ghi để lưu vết, không xóa khỏi cơ sở dữ liệu).
+  - Phòng vẫn giữ nguyên trạng thái **Trống**, không thay đổi gì.
+  - Ghi nhật ký cập nhật hợp đồng kèm lý do hủy.
+- Sau khi giao dịch hoàn tất, hệ thống gửi email tới địa chỉ email người đại diện với nội dung: *"Lời mời ký hợp đồng phòng [X] đã bị hủy"*.
+- Sau khi hủy, phòng có thể được chọn để tạo hợp đồng mới ngay lập tức.
 
 **Các trường hợp**
 
-- **Manager hủy thao tác:** không thay đổi gì.
-- **Chỉ nhập sai CCCD, email, ngày bắt đầu:** không cần hủy, sửa ở UC-26 rồi gửi lại lời mời.
-- **Hợp đồng không phải Nháp:** từ chối. Hợp đồng Đang hiệu lực phải chấm dứt qua UC-28 hoặc UC-29.
-- **Khách bấm link sau khi đã hủy:** báo "Link không còn hiệu lực".
-- **Gửi email lỗi:** hợp đồng **vẫn bị hủy**, cảnh báo gửi thư thất bại.
-- **Lỗi lưu:** quay lại như cũ, hợp đồng vẫn Nháp.
-
-**Quy tắc**
-
-- Chỉ hủy được hợp đồng Nháp.
-- Hủy là **vĩnh viễn**, muốn cho thuê lại thì tạo hợp đồng mới. Hợp đồng đã hủy **vẫn lưu** để tra cứu.
-- Người ở cùng của hợp đồng đã hủy **không hiện** trong danh sách cư dân của tòa.
+- **Hợp đồng không ở trạng thái Nháp:** từ chối, báo "Chỉ hủy được hợp đồng nháp. Hợp đồng đang hiệu lực phải chấm dứt qua đơn chấm dứt".
+- **Khách hàng bấm vào link mời cũ sau khi hợp đồng nháp đã bị hủy:** hệ thống từ chối và báo "Link không còn hiệu lực".
+- **Hợp đồng không thuộc tòa nhà Manager quản lý:** từ chối, báo "Bạn không có quyền thực hiện thao tác này".
+- **Gửi email lỗi:** hợp đồng nháp vẫn bị hủy thành công, hệ thống trả kèm cảnh báo gửi email thất bại.
 
 ---
 
@@ -178,39 +155,17 @@ Nháp ──khách kích hoạt (UC-06)──▶ Đang hiệu lực ──hết 
 
 **Ai dùng:** Hệ thống (tự chạy) · Manager (hoàn cọc)
 
-### Hệ thống tự kết thúc
+### Hệ thống tự kết thúc khi hết hạn
 
-**Cuối ngày kết thúc** của hợp đồng, nếu hợp đồng Đang hiệu lực, không được gia hạn và **không có đơn chấm dứt đã xác nhận**, hệ thống làm **cùng một lần**:
-
-- Hợp đồng → **Đã kết thúc**.
-- Phòng → **Trống**.
-- Toàn bộ cư dân đang ở → **đã chuyển đi**, ngày chuyển ra là ngày kết thúc.
-
-Sau đó gửi **thông báo và email** cho người đại diện và Manager: *"Hợp đồng phòng [X] đã kết thúc"*.
-
-**24 giờ sau:** tài khoản người đại diện → **ngưng hoạt động**.
+- Cuối ngày kết thúc của hợp đồng, nếu hợp đồng vẫn Đang hiệu lực, chưa được gia hạn và không có đơn chấm dứt đã xác nhận, hệ thống thực hiện trong cùng một giao dịch:
+  - Chuyển hợp đồng sang **Đã kết thúc**.
+  - Chuyển phòng sang **Trống**.
+  - Chuyển toàn bộ cư dân đang ở sang **đã chuyển đi** với ngày chuyển ra là ngày kết thúc hợp đồng.
+- Gửi thông báo trong ứng dụng và email cho người đại diện cùng Manager quản lý tòa.
+- Sau 24 giờ kể từ khi hợp đồng kết thúc, tài khoản người đại diện được chuyển sang trạng thái **ngưng hoạt động**.
 
 ### Manager ghi nhận hoàn cọc
 
-Sau khi bàn giao phòng, Manager trả cọc **bằng tiền mặt**, hệ thống chỉ ghi nhận.
-
-1. Manager mở hợp đồng Đã kết thúc, bấm "Hoàn cọc".
-2. Hệ thống hiện **số tiền cọc** theo hợp đồng, **các hóa đơn chưa thanh toán** (nếu có), nút "Xác nhận đã hoàn cọc".
-3. Manager xác nhận → lưu thời điểm và người thực hiện.
-4. Gửi **email và thông báo** cho người đại diện: *"Đã hoàn [số tiền] tiền cọc phòng [X]"*.
-
-**Các trường hợp**
-
-- **Lập hóa đơn tháng cuối:** Manager chốt chỉ số điện nước, lập hóa đơn (UC-34) **trong ngày kết thúc** khi hợp đồng còn hiệu lực. Hư hỏng tính vào chi phí phát sinh.
-- **Hợp đồng được gia hạn trước ngày kết thúc:** không xử lý, vì ngày kết thúc đã dời.
-- **Còn hóa đơn chưa thanh toán khi hoàn cọc:** cảnh báo *"Phòng còn [n] hóa đơn chưa thanh toán, tổng [Y]đ"*, **vẫn cho** xác nhận.
-- **Hợp đồng kết thúc do đơn chấm dứt:** **không hoàn cọc**.
-- **Đã hoàn cọc rồi:** không cho ghi nhận lần hai, hiện thời điểm và người đã hoàn.
-- **Lỗi khi tự kết thúc:** quay lại như cũ, lần quét kế tiếp làm lại.
-- **Gửi email lỗi:** dữ liệu vẫn lưu, ghi lỗi, cho gửi lại.
-
-**Quy tắc**
-
-- Chỉ hợp đồng **kết thúc đúng hạn** (không có đơn chấm dứt đã xác nhận) mới được hoàn cọc. Hoàn **đủ** số tiền cọc trên hợp đồng, hư hỏng thu qua hóa đơn.
-- Mỗi hợp đồng chỉ hoàn cọc **một lần**. Tiền cọc hoàn bằng tiền mặt, hệ thống chỉ ghi nhận.
-- Thông báo hoàn cọc **bắt buộc gửi email**, vì tài khoản khách có thể đã ngưng hoạt động.
+- Chỉ áp dụng cho hợp đồng **Đã kết thúc đúng hạn** (không có đơn chấm dứt đã xác nhận) và chỉ được ghi nhận hoàn cọc **một lần duy nhất**.
+- Manager kiểm tra số tiền cọc trên hợp đồng và danh sách hóa đơn chưa thanh toán (nếu có), sau đó xác nhận đã hoàn cọc bằng tiền mặt.
+- Hệ thống lưu thời điểm hoàn cọc, người thực hiện, gửi thông báo và email cho người đại diện.

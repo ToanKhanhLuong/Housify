@@ -97,6 +97,13 @@ export const login = async ({ identifier, password, remember = false }) => {
     if (/^\d{12}$/.test(cleanIdentifier)) {
         const occupant = await Occupant.findOne({ cccd: cleanIdentifier, isRepresentative: true });
         if (!occupant || !occupant.userId) {
+            const draftContract = await Contract.findOne({
+                representativeCccd: cleanIdentifier,
+                status: CONTRACT_STATUS.DRAFT,
+            });
+            if (draftContract) {
+                throw new AppError('Tài khoản chưa được kích hoạt. Vui lòng kiểm tra email để kích hoạt hợp đồng', 403);
+            }
             // Sai mật khẩu hoặc không có tài khoản đều báo chung một câu để tránh dò tài khoản
             throw new AppError(MSG.INVALID_CREDENTIALS, 401);
         }

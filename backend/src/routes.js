@@ -15,7 +15,7 @@ import serviceRoutes from "./modules/service/service.routes.js"; // Toàn  | UC-
 import uploadRoutes from "./modules/upload/upload.routes.js"; // Toàn  | Cloudinary
 
 // --- Iteration 2 ---
-// import contractRoutes from './modules/contract/contract.routes.js';         // An    | UC-24..27, 46 (UC-45 thêm ở iter 3)
+import contractRoutes from './modules/contract/contract.routes.js';         // An    | UC-24..27, 46 (UC-45 thêm ở iter 3)
 // import occupantRoutes from './modules/occupant/occupant.routes.js';         // An    | UC-30..33
 import invoiceRoutes from "./modules/invoice/invoice.routes.js"; // Toàn  | UC-34..37
 import paymentRoutes from "./modules/payment/payment.routes.js"; // Toàn  | UC-38, 39, 42 (webhook SePay)
@@ -42,7 +42,7 @@ router.use(serviceRoutes);
 router.use(uploadRoutes);
 
 // --- Iteration 2 ---
-// router.use(contractRoutes);
+router.use(contractRoutes);
 // router.use(occupantRoutes);
 router.use(invoiceRoutes);
 router.use(paymentRoutes);
