@@ -1,12 +1,15 @@
-// UC-20: quản lý loại phòng (Admin). Bấm dòng mở form sửa, nút "Xóa" nằm trong form sửa
-// Danh sách hiển thị: tên, sức chứa, số phòng đang dùng (roomCount)
+// UC-20: quản lý loại phòng (Admin) theo mockup docs/mock/RoomTypes.dc.html, cùng khuôn danh sách tòa / Manager
+// ControlBar: thêm, tìm theo tên, lọc đang dùng / chưa dùng, đổi Thẻ / Bảng. Danh sách ít, không phân trang → lọc ngay ở FE
+// Bấm thẻ / dòng mở form sửa; nút "Xóa" trong form sửa. Còn phòng dùng thì bị chặn, hiện lý do (câu giống BE)
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Card, Form, InputGroup } from 'react-bootstrap';
+import { Button, Card, Modal } from 'react-bootstrap';
 import { toast } from 'react-toastify';
-import { BiSearch } from 'react-icons/bi';
-import PageHeader from '../../components/PageHeader';
+import { BiPlus, BiReset } from 'react-icons/bi';
+import ControlBar from '../../components/ControlBar';
 import DataTable from '../../components/DataTable';
+import ItemCard from '../../components/ItemCard';
 import ConfirmModal from '../../components/ConfirmModal';
+import BlockedBox from '../../components/BlockedBox';
 import EmptyState from '../../components/EmptyState';
 import ErrorState from '../../components/ErrorState';
 import SkeletonRows from '../../components/SkeletonRows';
@@ -14,14 +17,47 @@ import { formatDate } from '../../utils/format';
 import roomTypeApi from './roomType.api';
 import RoomTypeFormModal from './components/RoomTypeFormModal';
 
+const FILTER_GROUPS = [
+  {
+    id: 'usage',
+    label: 'Tình trạng sử dụng',
+    type: 'checkbox',
+    options: [
+      { value: 'used', label: 'Đang có phòng dùng' },
+      { value: 'unused', label: 'Chưa có phòng dùng' },
+    ],
+  },
+];
+
+const usageText = (roomCount) =>
+  roomCount > 0 ? `Đang dùng ở ${roomCount} phòng` : 'Chưa có phòng nào dùng';
+
+// câu chặn xóa giống BE (roomType.service deleteRoomType)
+const blockedText = (roomCount) => `Không thể xóa loại phòng đang được dùng bởi ${roomCount} phòng`;
+
+// ô tròn ghi sức chứa (giống mockup), màu nhạt theo tông chính
+const CapacityAvatar = ({ capacity }) => (
+  <span
+    className="inline-flex items-center justify-center shrink-0 w-10 h-10 rounded-circle bg-primary-subtle text-primary-emphasis fw-bold"
+    title={`Tối đa ${capacity} người`}
+  >
+    {capacity}
+  </span>
+);
+
 const RoomTypeListPage = () => {
-  const [roomTypes, setRoomTypes] = useState(null); // null: đang tải
+  const [roomTypes, setRoomTypes] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
-  const [keyword, setKeyword] = useState('');
+  const [query, setQuery] = useState('');
+  const [filters, setFilters] = useState({ usage: [] });
+  const [view, setView] = useState('cards');
   const [editing, setEditing] = useState(null); // null: đóng form · {}: thêm mới · loại phòng: sửa
   const [deleting, setDeleting] = useState(null); // loại phòng đang chờ xác nhận xóa
   const [submitting, setSubmitting] = useState(false);
+  const [blockedReason, setBlockedReason] = useState('');
 
+  // dùng .then thay vì await: setState nằm trong callback (luật react-hooks/set-state-in-effect)
   const loadRoomTypes = useCallback(
     () =>
       roomTypeApi
@@ -30,10 +66,8 @@ const RoomTypeListPage = () => {
           setRoomTypes(Array.isArray(response.data) ? response.data : []);
           setLoadError('');
         })
-        .catch((error) => {
-          setRoomTypes([]);
-          setLoadError(error.message);
-        }),
+        .catch((error) => setLoadError(error.message))
+        .finally(() => setLoading(false)),
     [],
   );
 
@@ -42,42 +76,65 @@ const RoomTypeListPage = () => {
   }, [loadRoomTypes]);
 
   const handleRetry = () => {
-    setRoomTypes(null);
+    setLoading(true);
     loadRoomTypes();
   };
 
-  // UC-20: Xóa loại phòng. Bị chặn khi còn phòng sử dụng → hiện đúng message BE trả về
+  const handleResetFilters = () => {
+    setQuery('');
+    setFilters({ usage: [] });
+  };
+
+  // bấm "Xóa" trong form: còn phòng dùng thì báo chặn ngay, không cần hỏi xác nhận
+  const handleAskDelete = (roomType) => {
+    setEditing(null);
+    if (roomType.roomCount > 0) setBlockedReason(blockedText(roomType.roomCount));
+    else setDeleting(roomType);
+  };
+
+  // UC-20: xóa mềm loại phòng. BE chặn (vừa có phòng dùng) → hiện đúng câu BE trả
   const handleDelete = async () => {
     setSubmitting(true);
     try {
       await roomTypeApi.remove(deleting._id);
       toast.success('Xóa loại phòng thành công');
-      setDeleting(null);
       loadRoomTypes();
     } catch (error) {
-      toast.error(error.message); // vd: "Không thể xóa loại phòng đang được dùng bởi 3 phòng"
-      setDeleting(null);
+      if (error.status === 400) setBlockedReason(error.message);
+      else toast.error(error.message);
     } finally {
+      setDeleting(null);
       setSubmitting(false);
     }
   };
 
-  const search = keyword.trim().toLowerCase();
-  const shown = (roomTypes ?? []).filter(
-    (type) => !search || type.name.toLowerCase().includes(search),
-  );
+  // lọc ở FE: tên chứa từ khóa, đang dùng / chưa dùng (chọn cả hai = không lọc)
+  const keyword = query.trim().toLowerCase();
+  const usage = filters.usage.length === 1 ? filters.usage[0] : '';
+  const shown = roomTypes.filter((type) => {
+    if (keyword && !type.name.toLowerCase().includes(keyword)) return false;
+    if (usage === 'used') return type.roomCount > 0;
+    if (usage === 'unused') return !type.roomCount;
+    return true;
+  });
+  const isFiltering = Boolean(keyword || filters.usage.length);
 
   const columns = [
-    { key: 'name', title: 'Tên loại phòng', className: 'fw-semibold' },
     {
-      key: 'capacity',
-      title: 'Sức chứa',
-      render: (row) => `Tối đa ${row.capacity} người`,
+      key: 'name',
+      title: 'Tên loại phòng',
+      render: (row) => (
+        <span className="flex items-center gap-2 fw-semibold">
+          <CapacityAvatar capacity={row.capacity} />
+          {row.name}
+        </span>
+      ),
     },
+    { key: 'capacity', title: 'Sức chứa', render: (row) => `Tối đa ${row.capacity} người` },
     {
       key: 'roomCount',
       title: 'Số phòng đang dùng',
-      align: 'center',
+      align: 'end',
       render: (row) => `${row.roomCount ?? 0} phòng`,
     },
     {
@@ -88,86 +145,107 @@ const RoomTypeListPage = () => {
     },
   ];
 
-  const renderBody = () => {
-    if (roomTypes === null) {
+  const renderContent = () => {
+    if (loading) {
       return (
         <Card>
-          <SkeletonRows rows={3} columns={4} />
+          <Card.Body>
+            <SkeletonRows rows={3} columns={3} />
+          </Card.Body>
         </Card>
       );
     }
     if (loadError) {
       return (
-        <Card>
-          <ErrorState
-            message="Không tải được danh sách loại phòng."
-            detail={loadError}
-            onRetry={handleRetry}
-          />
-        </Card>
-      );
-    }
-    if (roomTypes.length === 0) {
-      return (
-        <Card>
-          <EmptyState message="Chưa có loại phòng nào. Bấm Thêm loại phòng để bắt đầu.">
-            <Button variant="secondary" onClick={() => setEditing({})}>
-              Thêm loại phòng
-            </Button>
-          </EmptyState>
-        </Card>
+        <ErrorState
+          message="Không tải được danh sách loại phòng"
+          detail={loadError}
+          onRetry={handleRetry}
+        />
       );
     }
     if (shown.length === 0) {
       return (
         <Card>
-          <EmptyState message={`Không có loại phòng nào tên "${keyword.trim()}".`}>
-            <Button variant="secondary" onClick={() => setKeyword('')}>
-              Xóa tìm kiếm
-            </Button>
-          </EmptyState>
+          <Card.Body>
+            {isFiltering ? (
+              <EmptyState message="Không có loại phòng nào phù hợp. Thử đổi từ khóa hoặc bỏ bớt bộ lọc.">
+                <Button
+                  variant="secondary"
+                  className="flex items-center gap-1"
+                  onClick={handleResetFilters}
+                >
+                  <BiReset />
+                  Xóa bộ lọc
+                </Button>
+              </EmptyState>
+            ) : (
+              <EmptyState message="Chưa có loại phòng nào. Bấm Thêm loại phòng để bắt đầu.">
+                <Button variant="secondary" onClick={() => setEditing({})}>
+                  Thêm loại phòng
+                </Button>
+              </EmptyState>
+            )}
+          </Card.Body>
         </Card>
       );
     }
-    return <DataTable columns={columns} data={shown} onRowClick={(row) => setEditing(row)} />;
+
+    if (view === 'table') {
+      return <DataTable columns={columns} data={shown} onRowClick={(row) => setEditing(row)} />;
+    }
+
+    return (
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+        {shown.map((type) => (
+          <ItemCard
+            key={type._id}
+            onClick={() => setEditing(type)}
+            title={
+              <span className="flex items-center gap-3">
+                <CapacityAvatar capacity={type.capacity} />
+                {type.name}
+              </span>
+            }
+            subtitle={`Tối đa ${type.capacity} người · ${usageText(type.roomCount)}`}
+          />
+        ))}
+      </div>
+    );
   };
 
   return (
     <>
-      <PageHeader
-        title="Loại phòng"
-        subtitle={
-          roomTypes && !loadError
-            ? `${roomTypes.length} loại · dùng để phân loại và quy định sức chứa phòng`
-            : undefined
-        }
-        actions={
-          <Button variant="primary" onClick={() => setEditing({})}>
-            Thêm loại phòng
-          </Button>
-        }
-      />
+      {/* không dùng overflow-hidden: bảng Bộ lọc xổ ra ngoài thẻ sẽ bị cắt */}
+      <Card className="mb-3">
+        <ControlBar
+          actions={
+            <Button
+              variant="primary"
+              className="flex items-center gap-1"
+              onClick={() => setEditing({})}
+            >
+              <BiPlus />
+              Thêm loại phòng
+            </Button>
+          }
+          searchValue={query}
+          onSearchChange={setQuery}
+          searchPlaceholder="Tìm theo tên loại phòng..."
+          filterGroups={FILTER_GROUPS}
+          selectedFilters={filters}
+          onFilterChange={(next) => setFilters({ usage: next.usage ?? [] })}
+          count={loading || loadError ? null : `${shown.length} loại phòng`}
+          view={view}
+          onViewChange={setView}
+        />
+      </Card>
 
-      <div className="flex flex-wrap items-center gap-2 mb-3">
-        <InputGroup className="w-full md:w-80">
-          <InputGroup.Text className="text-secondary">
-            <BiSearch size={16} aria-hidden="true" />
-          </InputGroup.Text>
-          <Form.Control
-            name="keyword"
-            type="search"
-            placeholder="Tìm tên loại phòng"
-            value={keyword}
-            onChange={(event) => setKeyword(event.target.value)}
-            aria-label="Tìm tên loại phòng"
-          />
-        </InputGroup>
-        {roomTypes && !loadError && (
-          <span className="ms-auto text-secondary tabular-nums">{shown.length} loại</span>
-        )}
-      </div>
+      <p className="small text-secondary mb-3">
+        Loại phòng dùng chung cho mọi tòa nhà. Sức chứa của phòng lấy theo loại phòng.
+      </p>
 
-      {renderBody()}
+      {renderContent()}
 
       {editing && (
         <RoomTypeFormModal
@@ -177,23 +255,38 @@ const RoomTypeListPage = () => {
             setEditing(null);
             loadRoomTypes();
           }}
-          onDelete={() => {
-            setDeleting(editing);
-            setEditing(null);
-          }}
+          onDelete={() => handleAskDelete(editing)}
         />
       )}
 
       <ConfirmModal
         show={Boolean(deleting)}
-        title="Xóa loại phòng"
-        message={`Bạn chắc chắn muốn xóa loại phòng "${deleting?.name}"?`}
+        title={`Xóa loại phòng "${deleting?.name}"?`}
+        message="Loại phòng sẽ bị ẩn khỏi danh sách. Tên này có thể dùng lại cho loại phòng mới."
         confirmText="Xóa"
         variant="danger"
         loading={submitting}
         onConfirm={handleDelete}
         onCancel={() => setDeleting(null)}
       />
+
+      {/* bị chặn: còn phòng dùng loại này → hiện lý do trong khung đỏ */}
+      <Modal show={Boolean(blockedReason)} onHide={() => setBlockedReason('')} centered>
+        <Modal.Header closeButton>
+          <Modal.Title className="h5">Không thể xóa loại phòng</Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="flex flex-col gap-2">
+          <BlockedBox message={blockedReason} />
+          <div className="small text-secondary">
+            Đổi các phòng đó sang loại khác rồi mới xóa được loại phòng này.
+          </div>
+        </Modal.Body>
+        <Modal.Footer className="justify-content-start">
+          <Button variant="secondary" onClick={() => setBlockedReason('')}>
+            Đóng
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </>
   );
 };

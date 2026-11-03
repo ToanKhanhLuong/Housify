@@ -57,7 +57,7 @@ const ServiceFormModal = ({ service, onHide, onSaved, onDelete }) => {
             <Form onSubmit={handleSubmit} noValidate>
                 <Modal.Header closeButton={!submitting}>
                     <Modal.Title className="h5">
-                        {isEdit ? 'Sửa dịch vụ' : 'Thêm dịch vụ'}
+                        {isEdit ? `Dịch vụ: ${service.name}` : 'Thêm dịch vụ'}
                     </Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
@@ -67,6 +67,7 @@ const ServiceFormModal = ({ service, onHide, onSaved, onDelete }) => {
                         value={form.name}
                         onChange={handleChange}
                         error={errors.name}
+                        placeholder="VD: Máy giặt"
                         required
                     />
                     <Input
@@ -109,7 +110,7 @@ const ServiceFormModal = ({ service, onHide, onSaved, onDelete }) => {
                             onClick={onDelete}
                             disabled={submitting}
                         >
-                            Xóa
+                            Xóa dịch vụ
                         </Button>
                     )}
                 </Modal.Footer>

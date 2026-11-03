@@ -100,7 +100,7 @@ const ImageUpload = ({
                 <small className="text-secondary">Ảnh JPG, PNG, tối đa 5MB</small>
             </div>
             {/* ô chọn file thật bị ẩn, bấm nút ở trên để mở */}
-            <input ref={inputRef} type="file" accept="image/*" hidden onChange={handleSelect} />
+            <Form.Control ref={inputRef} type="file" accept="image/*" hidden onChange={handleSelect} />
             {error && <div className="invalid-feedback d-block">{error}</div>}
         </Form.Group>
     );

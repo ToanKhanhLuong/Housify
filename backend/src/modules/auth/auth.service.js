@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { env } from '../../config/env.js';
-import { ROLE, USER_STATUS, TOKEN_STATUS, CONTRACT_STATUS } from '../../constants/enums.js';
+import { ROLE, USER_STATUS, TOKEN_STATUS, CONTRACT_STATUS, OCCUPANT_STATUS } from '../../constants/enums.js';
 import { MSG } from '../../constants/messages.js';
 import { AppError } from '../../utils/AppError.js';
 import { sendMail } from '../../config/mail.js';
@@ -13,8 +13,45 @@ import User from '../../models/User.js';
 import Manager from '../../models/Manager.js';
 import Occupant from '../../models/Occupant.js';
 import Building from '../../models/Building.js';
-import OtpToken from '../../models/OtpToken.js';
 import Contract from '../../models/Contract.js';
+import Room from '../../models/Room.js';
+import OtpToken from '../../models/OtpToken.js';
+
+// Tòa Customer đang ở: người ở STAYED → hợp đồng ACTIVE → phòng → tòa (cùng chuỗi kiểm tra với GET /buildings/:id/rules)
+// Trả { _id, name, address, images, manager: { name, phone } | null } hoặc null khi chưa có phòng đang thuê
+// Dùng cho trang Nội quy của Customer (UC-23): FE cần mã tòa để gọi nội quy và thông tin tòa để hiển thị
+const findCustomerBuilding = async (userId) => {
+    const occupants = await Occupant.find({ userId, status: OCCUPANT_STATUS.STAYED }).select('contractId').lean();
+    if (occupants.length === 0) return null;
+
+    const contract = await Contract.findOne({
+        _id: { $in: occupants.map((occupant) => occupant.contractId) },
+        status: CONTRACT_STATUS.ACTIVE,
+    })
+        .select('roomId')
+        .lean();
+    if (!contract) return null;
+
+    const room = await Room.findById(contract.roomId).select('buildingId').lean();
+    if (!room) return null;
+
+    const building = await Building.findOne({ _id: room.buildingId, isDeleted: false })
+        .select('name address images managerId')
+        .lean();
+    if (!building) return null;
+
+    const manager = building.managerId
+        ? await Manager.findOne({ userId: building.managerId }).select('name phone').lean()
+        : null;
+
+    return {
+        _id: building._id,
+        name: building.name,
+        address: building.address,
+        images: building.images ?? [],
+        manager: manager ? { name: manager.name, phone: manager.phone } : null,
+    };
+};
 
 export const getMe = async (userId) => {
     const user = await User.findById(userId);
@@ -46,6 +83,7 @@ export const getMe = async (userId) => {
         userData.name = occupant?.name || 'Khách hàng';
         userData.phone = occupant?.phone || '';
         userData.cccd = occupant?.cccd || '';
+        userData.building = await findCustomerBuilding(user._id);
     }
 
     return userData;

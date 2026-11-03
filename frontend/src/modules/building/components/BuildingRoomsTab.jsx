@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react';
 import { Button, Card } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
-import { BiLayer, BiPlus } from 'react-icons/bi';
+import { BiLayer, BiListUl, BiPlus } from 'react-icons/bi';
 import ControlBar from '../../../components/ControlBar';
 import DataTable from '../../../components/DataTable';
 import EmptyState from '../../../components/EmptyState';
@@ -31,8 +31,8 @@ const TILE_CLASS = {
 };
 
 const VIEW_OPTIONS = [
-  { id: 'floors', label: 'Theo tầng' },
-  { id: 'table', label: 'Bảng' },
+  { id: 'floors', icon: BiLayer, title: 'Theo tầng' },
+  { id: 'table', icon: BiListUl, title: 'Dạng bảng' },
 ];
 
 const EMPTY_FILTERS = {
@@ -58,21 +58,27 @@ const Legend = ({ count }) => (
   </div>
 );
 
-// ô một phòng ở dạng "Theo tầng": mã, trạng thái, loại · diện tích, số người, giá
+// ô một phòng ở dạng "Theo tầng" (gọn, 3 dòng): mã + trạng thái, loại · diện tích, số người + giá
 const RoomTile = ({ room }) => (
-  <Link to={`/rooms/${room._id}`} className={`hf-tile no-underline ${TILE_CLASS[room.status] ?? ''}`}>
+  <Link
+    to={`/rooms/${room._id}`}
+    className={`hf-tile w-38 p-2 gap-1 small no-underline ${TILE_CLASS[room.status] ?? ''}`}
+  >
     <span className="flex items-center justify-between gap-1">
-      <span className="fs-6 fw-bold">{room.roomNumber}</span>
+      <span className="fw-bold">{room.roomNumber}</span>
       <StatusBadge map={ROOM_STATUS_LABEL} value={room.status} />
     </span>
-    <span className="small">
+    <span className="truncate">
       {room.roomType?.name ?? '—'} · {room.area} m²
     </span>
-    <span className="small text-secondary">
-      {room.occupantCount ?? 0}/{room.roomType?.capacity ?? '—'} người
-    </span>
-    <span className="fw-semibold">
-      <MoneyText value={room.rentPrice} />
+    {/* số người và giá chung một dòng cho ô gọn */}
+    <span className="flex items-center justify-between gap-1">
+      <span className="text-secondary">
+        {room.occupantCount ?? 0}/{room.roomType?.capacity ?? '—'} người
+      </span>
+      <span className="fw-semibold">
+        <MoneyText value={room.rentPrice} />
+      </span>
     </span>
   </Link>
 );

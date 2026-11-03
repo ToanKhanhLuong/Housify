@@ -16,14 +16,14 @@ const ActionDropdown = ({
             <Dropdown.Toggle
                 variant="secondary"
                 size={size}
-                className="flex items-center gap-1.5"
+                className="flex items-center gap-1.5 after:hidden"
                 id="action-dropdown-toggle"
             >
                 <span>{title}</span>
                 <BiChevronDown size={16} />
             </Dropdown.Toggle>
 
-            <Dropdown.Menu className="shadow-lg border-[#e1e3e6] min-w-[180px] py-1 text-sm">
+            <Dropdown.Menu className="shadow-lg min-w-[180px] py-1 text-sm">
                 {items.length > 0
                     ? items.map((item, idx) => {
                           if (item.divider) {
@@ -38,7 +38,7 @@ const ActionDropdown = ({
                                   disabled={item.disabled}
                                   className={`flex items-center gap-2 py-2 px-3 ${
                                       isDanger
-                                          ? 'text-[#a3241b] hover:bg-red-50 hover:text-[#a3241b]'
+                                          ? 'text-danger hover:bg-red-50'
                                           : 'text-gray-700'
                                   }`}
                               >
