@@ -34,15 +34,16 @@ const STAT_BADGES = [
 
 // dòng thông tin: icon đơn sắc + nhãn nhạt, giá trị đậm (giống trang chi tiết Manager)
 // inline-flex để dấu * đỏ của FieldRow vẫn đứng ngay sau nhãn
+// dấu * đặt trong cùng khối nhãn, không xuống dòng (nhãn dài như "Manager phụ trách" trước đây đẩy * xuống dòng dưới)
 const InfoRow = ({ icon: Icon, label, required = false, children }) => (
   <FieldRow
     label={
-      <span className="inline-flex items-center gap-2 fw-normal text-secondary">
-        <Icon />
+      <span className="inline-flex items-center gap-2 fw-normal text-secondary whitespace-nowrap">
+        <Icon className="shrink-0" />
         {label}
+        {required && <span className="text-danger -ms-1">*</span>}
       </span>
     }
-    required={required}
   >
     <span className="fw-medium text-body-emphasis">{children ?? '—'}</span>
   </FieldRow>
