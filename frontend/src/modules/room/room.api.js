@@ -19,6 +19,13 @@ const roomApi = {
 
   // Danh mục loại phòng để chọn khi tạo / sửa phòng và lọc
   listRoomTypes: () => api.get('/room-types'),
+
+  // UC-19 (chỉ Manager): hợp đồng Nháp / Đang hiệu lực của phòng (GET /contracts?roomId=&status=)
+  contracts: (roomId) =>
+    api.get('/contracts', { params: { roomId, status: 'DRAFT,ACTIVE', limit: 5 } }),
+
+  // UC-19 (chỉ Manager): cư dân đang ở của phòng (GET /occupants?roomId=, mặc định STAYED)
+  occupants: (roomId) => api.get('/occupants', { params: { roomId, limit: 50 } }),
 };
 
 export default roomApi;

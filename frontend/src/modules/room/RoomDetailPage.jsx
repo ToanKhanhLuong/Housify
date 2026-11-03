@@ -1,6 +1,7 @@
 // UC-19: chi tiết phòng theo mockup docs/mock/RoomDetail.dc.html, cùng kiểu "tờ giấy" với chi tiết tòa nhà
 // Admin: "Chỉnh sửa" (UC-17), "Chuyển sang bảo trì" / "Chuyển về trống" (UC-17, chỉ Trống ↔ Bảo trì), "Xóa phòng" (UC-18)
 // Manager chỉ xem (BR-052). Sức chứa lấy từ roomType.capacity, số người đang ở từ occupantCount
+// Manager: thêm hợp đồng đang hiệu lực + cư dân đang ở của phòng (RoomTenancySection)
 // Nút quay lại, breadcrumbs và xóa phòng đều đưa về chi tiết tòa của phòng (Manager: /my-building)
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Button, Card, Image, Modal, Placeholder } from 'react-bootstrap';
@@ -40,6 +41,7 @@ import { formatDate } from '../../utils/format';
 import roomApi from './room.api';
 import RoomFormModal from './components/RoomFormModal';
 import RoomFloorMap from './components/RoomFloorMap';
+import RoomTenancySection from './components/RoomTenancySection';
 
 const STEPS = [ROOM_STATUS.AVAILABLE, ROOM_STATUS.OCCUPIED, ROOM_STATUS.MAINTENANCE];
 
@@ -331,6 +333,10 @@ const RoomDetailPage = () => {
             </InfoRow>
           </div>
         </div>
+
+        {/* UC-19: hợp đồng đang hiệu lực + cư dân đang ở – chỉ Manager (Admin không gọi được API
+            hợp đồng / cư dân). key = id phòng: sang phòng cùng tầng thì tải lại từ đầu */}
+        {!isAdmin && <RoomTenancySection key={room._id} room={room} />}
 
         {/* ảnh phòng: hàng ảnh nhỏ, bấm mở ảnh gốc (giống chi tiết tòa) */}
         <div className="flex flex-col gap-2">
