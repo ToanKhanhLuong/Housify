@@ -48,6 +48,10 @@ const occupantSchema = new Schema(
         cccdBackImage: {
             type: String
         },
+        relationship: {
+            type: String,
+            trim: true
+        }, // quan hệ với người đại diện (UC-30, UC-32)
         status: {
             type: String,
             enum: values(OCCUPANT_STATUS),  // [STAYED, LEFT]
