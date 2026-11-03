@@ -21,6 +21,9 @@ const occupantApi = {
   // UC-30 (Customer): thành viên hợp đồng ACTIVE của mình → { contractId, room{ roomNumber, floorNumber, status, capacity }, items[] }
   myRoomMembers: () => api.get('/me/room-members'),
 
+  // (Customer) hợp đồng đang ở – tóm tắt giá thuê, thời hạn ở trang Phòng của tôi (GET /contracts/:id)
+  contract: (id) => api.get(`/contracts/${id}`),
+
   // phòng của tòa Manager phụ trách – để tìm cư dân theo mã phòng (GET /buildings/:id/rooms)
   rooms: (buildingId) => api.get(`/buildings/${buildingId}/rooms`),
 

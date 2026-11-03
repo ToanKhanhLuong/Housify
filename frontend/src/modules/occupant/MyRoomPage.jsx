@@ -1,40 +1,45 @@
-// UC-30, 31 (Customer, /my-room): "Thành viên phòng" – phòng đang thuê, số người so với sức chứa, danh sách thành viên
-// của hợp đồng đang hiệu lực (GET /me/room-members). Bấm một người → xem hồ sơ + ảnh CCCD; người ở cùng sửa được
-// Thêm / bớt người ở cùng do Manager làm (UC-32, 33) → hiện SĐT Manager để liên hệ
+// UC-30, 31 (Customer, /my-room): "Thành viên phòng". Bố cục 2 cột:
+// - Trái: ảnh bìa (ảnh phòng → ảnh tòa → icon giường) + phòng (tòa, địa chỉ, tầng, loại phòng, sức chứa dạng chấm), ô thành viên (avatar, vai trò, SĐT, ngày vào)
+//   và ô "Chỗ trống" nét đứt theo sức chứa. Bấm một người → hồ sơ + ảnh CCCD; người ở cùng sửa được (UC-31)
+// - Phải: tóm tắt hợp đồng (giá, thời hạn, còn bao nhiêu ngày), quản lý tòa (gọi điện), lối tắt
+// Dữ liệu: GET /me/room-members, rồi GET /contracts/:id (lỗi thì chỉ ẩn phần tóm tắt hợp đồng). Thêm / bớt người do Manager làm
 import { useCallback, useEffect, useState } from 'react';
-import { Card } from 'react-bootstrap';
-import DataTable from '../../components/DataTable';
+import { Card, Image } from 'react-bootstrap';
+import { BiBed, BiBuildings, BiGroup, BiMap } from 'react-icons/bi';
 import EmptyState from '../../components/EmptyState';
 import ErrorState from '../../components/ErrorState';
-import FieldRow from '../../components/FieldRow';
 import SkeletonRows from '../../components/SkeletonRows';
 import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
 import { OCCUPANT_STATUS } from '../../constants/enums';
-import { OCCUPANT_STATUS_LABEL, ROOM_STATUS_LABEL } from '../../constants/statusLabels';
-import { formatDate } from '../../utils/format';
+import { ROOM_STATUS_LABEL } from '../../constants/statusLabels';
 import occupantApi from './occupant.api';
+import { groupByRoom } from './occupantFormat';
+import CapacityDots from './components/CapacityDots';
 import EditOccupantModal from './components/EditOccupantModal';
 import MemberModal from './components/MemberModal';
+import MemberTile, { EmptySlotTile } from './components/MemberTile';
+import MyRoomSidebar from './components/MyRoomSidebar';
 
-const columns = [
-  { key: 'name', title: 'Họ tên', className: 'fw-semibold' },
-  { key: 'roleLabel', title: 'Vai trò' },
-  { key: 'relationship', title: 'Quan hệ', render: (row) => (row.isRepresentative ? '—' : row.relationship || '—') },
-  { key: 'cccd', title: 'CCCD' },
-  { key: 'phone', title: 'Số điện thoại' },
-  { key: 'joinDate', title: 'Ngày vào ở', render: (row) => formatDate(row.joinDate) },
-  {
-    key: 'status',
-    title: 'Trạng thái',
-    render: (row) => <StatusBadge map={OCCUPANT_STATUS_LABEL} value={row.status} />,
-  },
-];
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// còn bao nhiêu ngày + % thời hạn đã qua – tính lúc tải dữ liệu, không tính trong render
+const termOf = (contract) => {
+  const start = new Date(contract.startDate).getTime();
+  const end = new Date(contract.endDate).getTime();
+  const now = Date.now();
+  if (!start || !end || end <= start) return null;
+  return {
+    daysLeft: Math.max(Math.ceil((end - now) / DAY_MS), 0),
+    percent: Math.min(Math.max(((now - start) / (end - start)) * 100, 0), 100),
+  };
+};
 
 const MyRoomPage = () => {
   const { user } = useAuth();
   // loading → ok | empty | error
   const [state, setState] = useState({ status: 'loading', data: null, error: '' });
+  const [contractInfo, setContractInfo] = useState({ contract: null, term: null });
   const [selected, setSelected] = useState(null); // thành viên đang xem
   const [editing, setEditing] = useState(null); // thành viên đang sửa
 
@@ -45,6 +50,14 @@ const MyRoomPage = () => {
         .then((response) => {
           const data = response.data;
           setState({ status: data?.room ? 'ok' : 'empty', data, error: '' });
+          if (!data?.contractId) return;
+          // tóm tắt hợp đồng chỉ là phần thêm: lỗi thì bỏ qua, trang vẫn hiện thành viên
+          occupantApi
+            .contract(data.contractId)
+            .then((detail) =>
+              setContractInfo({ contract: detail.data, term: termOf(detail.data) }),
+            )
+            .catch(() => setContractInfo({ contract: null, term: null }));
         })
         .catch((error) => setState({ status: 'error', data: null, error: error.message })),
     [],
@@ -84,58 +97,78 @@ const MyRoomPage = () => {
   }
 
   const { room, items } = state.data;
-  // gắn phòng vào từng người để popup hiện "Phòng 101" (API trả phòng một lần ở ngoài)
-  const members = items.map((member) => ({ ...member, room }));
+  const building = user.building;
+  const { contract, term } = contractInfo;
+  // gắn phòng vào từng người để popup hiện "Phòng 101"; xếp đại diện trước, người đã chuyển đi cuối
+  const members = groupByRoom(items.map((member) => ({ ...member, room })))[0]?.members ?? [];
   const stayedCount = members.filter((member) => member.status === OCCUPANT_STATUS.STAYED).length;
-  const manager = user.building?.manager;
+  const emptySlots = Math.max((room.capacity ?? 0) - stayedCount, 0);
+  const roomTypeName = contract?.room?.roomType?.name;
+  // ảnh bìa: ảnh phòng (khi API trả images) → ảnh tòa → icon giường
+  const cover = room.images?.[0] ?? building?.images?.[0];
 
   return (
     <>
-      <Card className="hf-paper">
-        <div className="flex flex-col gap-1">
-          <span className="small text-secondary">
-            Thành viên phòng{user.building?.name ? ` · ${user.building.name}` : ''}
-          </span>
-          <span className="flex flex-wrap items-center gap-2">
-            <h1 className="h3 fw-bold mb-0">Phòng {room.roomNumber}</h1>
-            <StatusBadge map={ROOM_STATUS_LABEL} value={room.status} />
-          </span>
-        </div>
+      <div className="grid xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4 w-full">
+        <div className="flex flex-col gap-4">
+          {/* phòng: ảnh bìa + thông tin phòng */}
+          <Card className="overflow-hidden">
+            {cover ? (
+              <Image src={cover} alt={`Phòng ${room.roomNumber}`} className="h-64 w-full object-cover" />
+            ) : (
+              <div className="hf-cover h-56 rounded-none">
+                <BiBed size={88} />
+              </div>
+            )}
+            <Card.Body className="flex flex-wrap items-start justify-between gap-4 p-4">
+              <div className="flex flex-col gap-2">
+                <span className="flex flex-wrap items-center gap-3">
+                  <h1 className="display-6 fw-bold mb-0">Phòng {room.roomNumber}</h1>
+                  <StatusBadge map={ROOM_STATUS_LABEL} value={room.status} />
+                </span>
+                <span className="flex items-center gap-2 fs-6 text-secondary">
+                  <BiBuildings />
+                  {building?.name ? `${building.name} · ` : ''}Tầng {room.floorNumber}
+                  {roomTypeName ? ` · ${roomTypeName}` : ''}
+                </span>
+                {building?.address && (
+                  <span className="flex items-center gap-2 text-secondary">
+                    <BiMap />
+                    {building.address}
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-col items-end gap-1">
+                <CapacityDots count={stayedCount} capacity={room.capacity} size="lg" />
+                <span className="text-secondary">người đang ở / sức chứa</span>
+              </div>
+            </Card.Body>
+          </Card>
 
-        <div className="grid lg:grid-cols-2 column-gap-5">
-          <div>
-            <FieldRow label="Tầng">{room.floorNumber}</FieldRow>
-            <FieldRow label="Số người đang ở">
-              <span className="fw-semibold">{stayedCount}</span> / {room.capacity ?? '—'} người
-              (sức chứa tối đa)
-            </FieldRow>
-          </div>
-          <div>
-            <FieldRow label="Thêm / bớt người">
-              <span className="text-secondary">
-                Liên hệ quản lý tòa
-                {manager?.name ? ` ${manager.name}` : ''}
-                {manager?.phone ? ` – ${manager.phone}` : ''}
+          {/* thành viên */}
+          <Card>
+            <Card.Body className="flex flex-col gap-4 p-4">
+              <h2 className="h5 fw-bold mb-0 flex items-center gap-2">
+                <BiGroup className="text-secondary" />
+                Thành viên phòng <span className="fw-normal text-secondary">({members.length})</span>
+              </h2>
+              <div className="grid sm:grid-cols-2 2xl:grid-cols-3 gap-4">
+                {members.map((member) => (
+                  <MemberTile key={member._id} member={member} onClick={() => setSelected(member)} />
+                ))}
+                {Array.from({ length: emptySlots }, (_, index) => (
+                  <EmptySlotTile key={`slot-${index}`} />
+                ))}
+              </div>
+              <span className="small text-secondary">
+                Bấm vào một người để xem hồ sơ và ảnh CCCD. Thông tin của bạn sửa ở trang Hồ sơ.
               </span>
-            </FieldRow>
-          </div>
+            </Card.Body>
+          </Card>
         </div>
 
-        <section className="flex flex-col gap-2">
-          <h2 className="h6 fw-bold mb-0">
-            Thành viên <span className="fw-normal text-secondary">({members.length})</span>
-          </h2>
-          <DataTable
-            columns={columns}
-            data={members}
-            emptyMessage="Chưa có thành viên nào."
-            onRowClick={setSelected}
-          />
-          <span className="small text-secondary">
-            Bấm vào một người để xem hồ sơ và ảnh CCCD. Thông tin của bạn sửa ở trang Hồ sơ.
-          </span>
-        </section>
-      </Card>
+        <MyRoomSidebar contract={contract} term={term} manager={building?.manager} />
+      </div>
 
       {selected && (
         <MemberModal

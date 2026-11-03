@@ -3,7 +3,7 @@
 // Người đại diện không rời phòng theo luồng này – phải chấm dứt hợp đồng
 import { useCallback, useEffect, useState } from 'react';
 import { Button, Card, Placeholder } from 'react-bootstrap';
-import { BiEditAlt, BiLogOut } from 'react-icons/bi';
+import { BiDoorOpen, BiEditAlt, BiEnvelope, BiFile, BiLogOut, BiPhone } from 'react-icons/bi';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import EmptyState from '../../components/EmptyState';
 import ErrorState from '../../components/ErrorState';
@@ -12,11 +12,16 @@ import PageHeader from '../../components/PageHeader';
 import SkeletonRows from '../../components/SkeletonRows';
 import StatusBadge from '../../components/StatusBadge';
 import { CONTRACT_STATUS, OCCUPANT_STATUS } from '../../constants/enums';
-import { CONTRACT_STATUS_LABEL, CONTRACT_TYPE_LABEL } from '../../constants/statusLabels';
+import {
+  CONTRACT_STATUS_LABEL,
+  CONTRACT_TYPE_LABEL,
+  OCCUPANT_STATUS_LABEL,
+} from '../../constants/statusLabels';
 import { formatDate } from '../../utils/format';
 import occupantApi from './occupant.api';
 import EditOccupantModal from './components/EditOccupantModal';
 import LeaveOccupantModal from './components/LeaveOccupantModal';
+import OccupantAvatar from './components/OccupantAvatar';
 import OccupantInfo from './components/OccupantInfo';
 
 const OccupantDetailPage = () => {
@@ -126,23 +131,49 @@ const OccupantDetailPage = () => {
       />
 
       <Card className="hf-paper">
-        <div className="flex flex-col gap-1">
-          <span className="small text-secondary">
-            {occupant.roleLabel} · Phòng {room?.roomNumber ?? '—'}
-          </span>
-          <h1 className="h3 fw-bold mb-0">{occupant.name}</h1>
-          {occupant.isRepresentative && occupant.status === OCCUPANT_STATUS.STAYED && (
-            <span className="small text-secondary">
-              Người đại diện có tài khoản đăng nhập bằng số CCCD. Muốn cho người đại diện rời phòng
-              thì chấm dứt hợp đồng.
+        {/* đầu hồ sơ: avatar, tên, vai trò, trạng thái, liên hệ nhanh */}
+        <div className="flex flex-wrap items-center gap-3">
+          <OccupantAvatar name={occupant.name} isRepresentative={occupant.isRepresentative} size="lg" />
+          <div className="flex flex-col gap-1 min-w-0">
+            <span className="flex flex-wrap items-center gap-2">
+              <h1 className="h3 fw-bold mb-0">{occupant.name}</h1>
+              <span className={`hf-badge ${occupant.isRepresentative ? 'hf-b-plum' : 'hf-b-gray'}`}>
+                {occupant.roleLabel}
+              </span>
+              <StatusBadge map={OCCUPANT_STATUS_LABEL} value={occupant.status} />
             </span>
-          )}
+            <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-secondary">
+              <span className="flex items-center gap-1">
+                <BiDoorOpen />
+                Phòng {room?.roomNumber ?? '—'} · Tầng {room?.floorNumber ?? '—'}
+              </span>
+              <span className="flex items-center gap-1">
+                <BiPhone />
+                {occupant.phone}
+              </span>
+              {occupant.email && (
+                <span className="flex items-center gap-1">
+                  <BiEnvelope />
+                  {occupant.email}
+                </span>
+              )}
+            </span>
+          </div>
         </div>
+        {occupant.isRepresentative && occupant.status === OCCUPANT_STATUS.STAYED && (
+          <div className="small text-secondary">
+            Người đại diện có tài khoản đăng nhập bằng số CCCD. Muốn cho người đại diện rời phòng thì
+            chấm dứt hợp đồng.
+          </div>
+        )}
 
         <OccupantInfo occupant={occupant} />
 
         <section className="flex flex-col gap-1">
-          <h2 className="h6 fw-bold mb-1">Phòng và hợp đồng</h2>
+          <h2 className="h6 fw-bold mb-1 flex items-center gap-2">
+            <BiFile className="text-secondary" />
+            Phòng và hợp đồng
+          </h2>
           <div className="grid lg:grid-cols-2 column-gap-5">
             <div>
               <FieldRow label="Phòng">
