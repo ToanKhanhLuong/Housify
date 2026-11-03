@@ -35,7 +35,8 @@ const occupantColumns = [
   },
 ];
 
-const ContractPaper = ({ contract }) => {
+// onOccupantClick: chỉ Manager truyền (bấm cư dân → trang chi tiết cư dân); Customer không truyền → bảng chỉ xem
+const ContractPaper = ({ contract, onOccupantClick }) => {
   const { room, representative } = contract;
   const isDraft = contract.status === CONTRACT_STATUS.DRAFT;
   const months = monthsOf(contract.startDate, contract.endDate);
@@ -138,6 +139,7 @@ const ContractPaper = ({ contract }) => {
         <DataTable
           columns={occupantColumns}
           data={contract.occupants ?? []}
+          onRowClick={onOccupantClick}
           emptyMessage={
             isDraft
               ? 'Chưa có cư dân – người đại diện được thêm khi khách kích hoạt.'
