@@ -37,7 +37,7 @@ const invoiceApi = {
   rooms: (buildingId) => api.get(`/buildings/${buildingId}/rooms`),
 
   // UC-36 bước 3: giao dịch SePay của hóa đơn đã trả (GET /payments ?from=&to= theo ngày trả, YYYY-MM-DD)
-  // API chưa lọc được theo invoiceId → FE lấy theo khoảng ngày rồi lọc đúng hóa đơn
+  // API không lọc theo hóa đơn → lấy theo khoảng ngày rồi lọc đúng hóa đơn
   payments: (params) => api.get('/payments', { params }),
 };
 
