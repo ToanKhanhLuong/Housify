@@ -159,14 +159,104 @@ Chỉ Admin (Manager, Customer gọi → 403). Id sai định dạng → 404 nh�
 
 | Method    | Path                              | Role         | Ghi chú                                                                                                                                                                     |
 | --------- | --------------------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| POST      | `/contracts`                    | M            | Tạo hợp đồng nháp (UC-24). Body: `{ roomId, startDate, durationMonths, representativeCccd, representativeEmail, contractType, notes?, coOccupants: [{ name, cccd, phone, dateOfBirth, address?, relationship? }] }`. Trả 201 `{ _id, status: 'DRAFT', ..., rawToken, warning? }`. Lỗi: 400 "Phòng không còn trống để tạo hợp đồng"; 400 "Khách hàng này hiện đang thuê phòng khác"; 400 "Tài khoản khách hàng này đã bị khóa do vi phạm, không thể tạo hợp đồng mới"; 400 "Số người vượt quá sức chứa tối đa của phòng"; 403 "Bạn không quản lý tòa nhà này"; 404 "Không tìm thấy phòng"; 409 "Số điện thoại ... đã tồn tại trong hệ thống"; 422 sai định dạng hoặc trùng CCCD/SĐT |
-| GET       | `/contracts`                    | M C          | `?status=&roomId=`                                                                                                                                                         |
-| GET / PUT | `/contracts/:id`                | M (GET: M C) | Sau ACTIVE khóa giá, cọc, CCCD đại diện, ngày bắt đầu (BR-067)                                                                                                     |
-| POST      | `/contracts/:id/resend-invite`  | M            | Gửi lại lời mời (UC-24 A2). Vô hiệu link cũ, sinh link mới 24h, gửi mail. Trả 200 `{ rawToken, warning? }`. Lỗi: 400 "Chỉ có thể gửi lại lời mời cho hợp đồng ở trạng thái nháp"; 403 "Bạn không quản lý tòa nhà của hợp đồng này"; 404 "Không tìm thấy hợp đồng" |
-| POST      | `/contracts/:id/renew`          | M            | `{ months }`                                                                                                                                                               |
-| POST      | `/contracts/:id/cancel`         | M            | `{ reason? }` – lý do tùy chọn, chỉ DRAFT                                                                                                                             |
+| POST      | `/contracts`                    | M            | Tạo hợp đồng nháp (UC-24). Body: `{ roomId, startDate, durationMonths, representativeCccd, representativeEmail, contractType, notes?, coOccupants: [{ name, cccd, phone, dateOfBirth, address?, relationship? }] }`. Trả 201 `{ _id, status: 'DRAFT', ..., rawToken, warning? }`. Lỗi: 400 "Phòng không còn trống để tạo hợp đồng"; 400 "Khách hàng này hiện đang thuê phòng khác"; 400 "Tài khoản khách hàng này đã bị khóa do vi phạm, không thể tạo hợp đồng mới"; 400 "Số người vượt quá sức chứa tối đa của phòng"; 403 "Bạn không có quyền thực hiện thao tác này"; 404 "Không tìm thấy phòng"; 409 "Số điện thoại ... đã tồn tại trong hệ thống"; 422 sai định dạng hoặc trùng CCCD/SĐT |
+| GET       | `/contracts`                    | M C          | Xem danh sách hợp đồng (UC-25). Query: `?status=DRAFT,ACTIVE&roomId=...&page=1&limit=10`. Trả 200 `{ items: [{ _id, roomId, room: { _id, roomNumber, floorNumber, status }, contractType, representative: { _id?, name?, cccd, email, phone? }, occupantCount, startDate, endDate, rentPrice, deposit, status, notes, createdAt }], total, page, limit, totalPages }`. Lỗi: 403 "Bạn không có quyền thực hiện thao tác này"; 404 "Không tìm thấy phòng"; 422 "Giá trị lọc không hợp lệ" |
+| GET       | `/contracts/:id`                | M C          | Xem chi tiết hợp đồng (UC-25). Trả 200 `{ _id, contractType, startDate, endDate, rentPrice, deposit, status, activatedAt?, notes?, room: { _id, roomNumber, floorNumber, rentPrice, deposit, status, roomType: { _id, name, capacity }, building: { _id, name, address } }, representative: { _id?, userId?, name?, cccd, email, phone?, dateOfBirth?, address? }, occupants: [{ _id, isRepresentative, name, cccd, phone, dateOfBirth, address?, relationship?, status, joinDate, exitDate? }] }`. Lỗi: 403 "Bạn không có quyền thực hiện thao tác này" (Manager ngoài tòa); 403 "Bạn không có quyền xem hợp đồng này" (Customer mở HĐ không phải của mình); 404 "Không tìm thấy hợp đồng" |
+| PUT       | `/contracts/:id`                | M            | Sửa hợp đồng (UC-26). Khi DRAFT: Body `{ representativeCccd?, representativeEmail?, startDate?, durationMonths?, notes? }` (đổi CCCD/email sẽ làm link mời cũ hết hiệu lực, trả kèm `inviteInvalidated: true`). Khi ACTIVE: chỉ Body `{ notes }`. Trả 200 `{ _id, ..., inviteInvalidated? }`. Lỗi: 400 "Hợp đồng đang hiệu lực chỉ được sửa ghi chú"; 400 "Không thể chỉnh sửa hợp đồng đã kết thúc hoặc đã hủy"; 400 "Không được phép chỉnh sửa các trường bị khóa của hợp đồng"; 403 "Bạn không có quyền thực hiện thao tác này"; 404 "Không tìm thấy hợp đồng"; 422 dữ liệu không hợp lệ |
+| POST      | `/contracts/:id/resend-invite`  | M            | Gửi lại lời mời (UC-24 A2). Vô hiệu link cũ, sinh link mới 24h, gửi mail. Trả 200 `{ rawToken, warning? }`. Lỗi: 400 "Chỉ có thể gửi lại lời mời cho hợp đồng ở trạng thái nháp"; 403 "Bạn không có quyền thực hiện thao tác này"; 404 "Không tìm thấy hợp đồng" |
+| POST      | `/contracts/:id/renew`          | M            | Gia hạn hợp đồng (UC-27). Body: `{ months?: 12, notes? }` (months nguyên > 0, mặc định 12; chỉ dời `endDate`, báo chuông `CONTRACT_RENEWED` + gửi mail). Trả 200 `{ _id, endDate, ..., warning? }`. Lỗi: 400 "Chỉ gia hạn được hợp đồng đang hiệu lực"; 403 "Bạn không có quyền thực hiện thao tác này"; 404 "Không tìm thấy hợp đồng"; 422 "Số tháng gia hạn phải là số nguyên lớn hơn 0" |
+| POST      | `/contracts/:id/cancel`         | M            | Hủy hợp đồng nháp (UC-46). Body: `{ reason? }` (chỉ DRAFT; 1 transaction: HĐ → CANCELLED, link mời → EXPIRED, người ở cùng → LEFT, phòng giữ AVAILABLE, gửi mail). Trả 200 `{ _id, status: 'CANCELLED', ..., warning? }`. Lỗi: 400 "Chỉ hủy được hợp đồng nháp. Hợp đồng đang hiệu lực phải chấm dứt qua đơn chấm dứt"; 403 "Bạn không có quyền thực hiện thao tác này"; 404 "Không tìm thấy hợp đồng" |
 | GET       | `/contracts/:id/refund-preview` | M            | Tiền cọc + hóa đơn chưa thanh toán                                                                                                                                    |
 | POST      | `/contracts/:id/refund-deposit` | M            |                                                                                                                                                                              |
+
+### Chi tiết mẫu Request / Response (UC-25, UC-26, UC-27, UC-46)
+
+#### `GET /api/contracts?status=DRAFT,ACTIVE&roomId=...&page=1&limit=10` — UC-25 (Role: M, C)
+- **Response 200:**
+```json
+{
+  "success": true,
+  "message": "Lấy danh sách hợp đồng thành công",
+  "data": {
+    "items": [
+      {
+        "_id": "66f1...",
+        "roomId": "66f0...",
+        "contractType": "GROUP",
+        "startDate": "2026-09-01T00:00:00.000Z",
+        "endDate": "2027-08-31T23:59:59.999Z",
+        "rentPrice": 3500000,
+        "deposit": 3500000,
+        "status": "ACTIVE",
+        "notes": "Thanh toán trước ngày 05 hàng tháng",
+        "room": { "_id": "66f0...", "roomNumber": "501", "floorNumber": 5, "status": "OCCUPIED" },
+        "representative": { "_id": "66f2...", "name": "Nguyễn Văn A", "cccd": "001202012345", "email": "nguyenvana@gmail.com", "phone": "0912345678" },
+        "occupantCount": 3
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 1
+  }
+}
+```
+
+#### `GET /api/contracts/:id` — UC-25 (Role: M, C)
+- **Response 200:**
+```json
+{
+  "success": true,
+  "message": "Lấy chi tiết hợp đồng thành công",
+  "data": {
+    "_id": "66f1...",
+    "contractType": "GROUP",
+    "startDate": "2026-09-01T00:00:00.000Z",
+    "endDate": "2027-08-31T23:59:59.999Z",
+    "rentPrice": 3500000,
+    "deposit": 3500000,
+    "status": "ACTIVE",
+    "notes": "Thanh toán trước ngày 05 hàng tháng",
+    "room": {
+      "_id": "66f0...",
+      "roomNumber": "501",
+      "floorNumber": 5,
+      "rentPrice": 3500000,
+      "deposit": 3500000,
+      "status": "OCCUPIED",
+      "roomType": { "_id": "66e...", "name": "Phòng gia đình", "capacity": 4 },
+      "building": { "_id": "66d...", "name": "Tòa Sunrise", "address": "128 Triều Khúc, Hà Nội" }
+    },
+    "representative": {
+      "_id": "66f2...",
+      "userId": "66f3...",
+      "name": "Nguyễn Văn A",
+      "cccd": "001202012345",
+      "email": "nguyenvana@gmail.com",
+      "phone": "0912345678",
+      "dateOfBirth": "2002-05-10T00:00:00.000Z",
+      "address": "Hà Nội"
+    },
+    "occupants": [
+      { "_id": "66f2...", "isRepresentative": true, "name": "Nguyễn Văn A", "cccd": "001202012345", "phone": "0912345678", "status": "STAYED", "joinDate": "2026-09-01T00:00:00.000Z" }
+    ]
+  }
+}
+```
+*(Lưu ý: Nếu hợp đồng là `DRAFT`, `representative` chỉ có `{ cccd, email }`).*
+
+#### `PUT /api/contracts/:id` — UC-26 (Role: M)
+- **Request (khi DRAFT):** `{ "representativeCccd": "001202099999", "representativeEmail": "moi@gmail.com", "startDate": "2026-10-01", "durationMonths": 12, "notes": "Ghi chú mới" }`
+- **Request (khi ACTIVE):** `{ "notes": "Bổ sung điều khoản vệ sinh chung" }`
+- **Response 200:** `{ "success": true, "message": "Cập nhật hợp đồng thành công", "data": { "_id": "...", "status": "DRAFT", "inviteInvalidated": true, ... } }`
+
+#### `POST /api/contracts/:id/renew` — UC-27 (Role: M)
+- **Request:** `{ "months": 12, "notes": "Gia hạn năm thứ 2" }`
+- **Response 200:** `{ "success": true, "message": "Gia hạn hợp đồng thành công", "data": { "_id": "...", "endDate": "2028-08-31T23:59:59.999Z", "warning": "..." } }`
+
+#### `POST /api/contracts/:id/cancel` — UC-46 (Role: M)
+- **Request:** `{ "reason": "Khách đổi ý không thuê nữa" }`
+- **Response 200:** `{ "success": true, "message": "Đã hủy hợp đồng nháp", "data": { "_id": "...", "status": "CANCELLED", "warning": "..." } }`
 
 ## Chấm dứt – `termination` (UC-28, 29)
 
