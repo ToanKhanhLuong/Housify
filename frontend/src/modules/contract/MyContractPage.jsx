@@ -9,6 +9,7 @@ import { CONTRACT_STATUS } from '../../constants/enums';
 import contractApi from './contract.api';
 import ContractPaper from './components/ContractPaper';
 import ContractDocumentTab from './components/ContractDocumentTab';
+import ContractTerminations from './components/ContractTerminations';
 
 const MyContractPage = () => {
   // loading → ok | empty | error
@@ -65,6 +66,8 @@ const MyContractPage = () => {
       <div className="small text-secondary print:hidden">
         Cần thêm người ở cùng hoặc sửa thông tin hợp đồng, vui lòng liên hệ Manager của tòa.
       </div>
+      {/* UC-28: đơn chấm dứt của hợp đồng – đơn hai bên đang chờ thì nổi bật nút "Xem và xác nhận" */}
+      <ContractTerminations contractId={state.contract._id} isCustomer />
       <Tabs defaultActiveKey="info" className="mb-3 print:hidden" mountOnEnter>
         <Tab eventKey="info" title="Thông tin">
           <ContractPaper contract={state.contract} />

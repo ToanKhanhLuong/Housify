@@ -21,6 +21,16 @@ import ContractDocumentTab from './components/ContractDocumentTab';
 import EditContractModal from './components/EditContractModal';
 import InviteLinkAlert from './components/InviteLinkAlert';
 import RenewContractModal from './components/RenewContractModal';
+// UC-28, 29, 45 (đã làm chỗ chừa ở đầu file): Đang hiệu lực → nút Chấm dứt (mở /terminations/new?contractId=, ẩn khi đã có
+// đơn chờ / đã xác nhận); khung "Đơn chấm dứt" (các đơn của hợp đồng); Đã kết thúc → khung "Hoàn cọc"
+// import riêng dòng để không đụng các dòng import ở trên (nhánh khác cũng sửa)
+import { BiBlock } from 'react-icons/bi';
+import { TERMINATION_STATUS } from '../../constants/enums';
+import ContractTerminations from './components/ContractTerminations';
+import RefundDepositSection from './components/RefundDepositSection';
+
+// đơn còn đang xử lý (chờ / đã xác nhận chưa tới ngày hiệu lực) thì không tạo đơn mới
+const OPEN_TERMINATION = [TERMINATION_STATUS.PENDING, TERMINATION_STATUS.CONFIRMED];
 
 // Đã hủy nằm ngoài luồng chính, StatusSteps tự hiện ở cuối
 const STEPS = [CONTRACT_STATUS.DRAFT, CONTRACT_STATUS.ACTIVE, CONTRACT_STATUS.ENDED];
@@ -35,6 +45,12 @@ const ContractDetailPage = () => {
   const [busy, setBusy] = useState(''); // 'resend' | 'cancel'
   // lời mời vừa tạo (từ trang tạo) hoặc vừa gửi lại: { rawToken, warning }
   const [invite, setInvite] = useState(location.state?.invite ?? null);
+  const [hasOpenTermination, setHasOpenTermination] = useState(false);
+  // ContractTerminations báo danh sách đơn về để ẩn / hiện nút Chấm dứt
+  const handleTerminationsLoaded = useCallback(
+    (items) => setHasOpenTermination(items.some((item) => OPEN_TERMINATION.includes(item.status))),
+    [],
+  );
 
   const contract = state.contract;
 
@@ -184,7 +200,17 @@ const ContractDetailPage = () => {
           Hủy hợp đồng
         </Button>
       )}
-      {/* chỗ cho An: isActive → nút "Chấm dứt" (UC-28, 29); ENDED → nút "Hoàn cọc" (UC-45) */}
+      {isActive && !hasOpenTermination && (
+        <Button
+          as={Link}
+          to={`/terminations/new?contractId=${contract._id}`}
+          variant="secondary"
+          className="flex items-center gap-2 no-underline"
+        >
+          <BiBlock />
+          Chấm dứt
+        </Button>
+      )}
     </>
   );
 
@@ -211,6 +237,14 @@ const ContractDetailPage = () => {
             warning={invite.warning}
             onClose={() => setInvite(null)}
           />
+        </div>
+      )}
+
+      {/* UC-28, 29: các đơn chấm dứt của hợp đồng; UC-45: hoàn cọc khi Đã kết thúc */}
+      {!isDraft && (
+        <div className="flex flex-col gap-3 mb-3">
+          <ContractTerminations contractId={contract._id} onLoaded={handleTerminationsLoaded} />
+          {contract.status === CONTRACT_STATUS.ENDED && <RefundDepositSection contractId={contract._id} />}
         </div>
       )}
 

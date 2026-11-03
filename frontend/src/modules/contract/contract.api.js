@@ -30,6 +30,16 @@ const contractApi = {
 
   // phòng của tòa Manager phụ trách (GET /buildings/:id/rooms) – chọn phòng Trống khi tạo, tìm theo mã phòng
   rooms: (buildingId, params) => api.get(`/buildings/${buildingId}/rooms`, { params }),
+
+  // UC-28, 29: các đơn chấm dứt của hợp đồng (GET /terminations?contractId=) – hiện ở chi tiết hợp đồng
+  terminations: (contractId) => api.get('/terminations', { params: { contractId, limit: 10 } }),
+
+  // UC-45 (Manager): xem trước hoàn cọc – chỉ HĐ Đã kết thúc do hết hạn, chưa hoàn. Không đủ điều kiện → 400 kèm lý do
+  // → { deposit, canRefund, hasPendingInvoices, pendingInvoiceCount, pendingInvoiceTotal, pendingInvoices[], warning }
+  refundPreview: (id) => api.get(`/contracts/${id}/refund-preview`),
+
+  // UC-45 (Manager): xác nhận đã hoàn cọc (tiền mặt, 1 lần) → { depositRefundedAt, …, warning? }
+  refundDeposit: (id) => api.post(`/contracts/${id}/refund-deposit`),
 };
 
 export default contractApi;
