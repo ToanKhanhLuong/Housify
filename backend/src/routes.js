@@ -18,9 +18,9 @@ import uploadRoutes from "./modules/upload/upload.routes.js"; // Toàn  | Cloudi
 // import contractRoutes from './modules/contract/contract.routes.js';         // An    | UC-24..27, 46 (UC-45 thêm ở iter 3)
 // import occupantRoutes from './modules/occupant/occupant.routes.js';         // An    | UC-30..33
 import invoiceRoutes from "./modules/invoice/invoice.routes.js"; // Toàn  | UC-34..37
-// import paymentRoutes from './modules/payment/payment.routes.js';            // Toàn  | UC-38, 39, 42 (webhook SePay)
+import paymentRoutes from "./modules/payment/payment.routes.js"; // Toàn  | UC-38, 39, 42 (webhook SePay)
 // import announcementRoutes from './modules/announcement/announcement.routes.js'; // Toàn | UC-40
-// import devRoutes from './modules/dev/dev.routes.js';                        // Toàn  | giả lập webhook, bật bằng ENABLE_DEV_ROUTES
+import devRoutes from "./modules/dev/dev.routes.js"; // Toàn  | giả lập webhook, bật bằng ENABLE_DEV_ROUTES
 // import incidentRoutes from './modules/incident/incident.routes.js';         // Hiếu  | UC-43, 44
 
 // --- Iteration 3 ---
@@ -45,9 +45,9 @@ router.use(uploadRoutes);
 // router.use(contractRoutes);
 // router.use(occupantRoutes);
 router.use(invoiceRoutes);
-// router.use(paymentRoutes);
+router.use(paymentRoutes);
 // router.use(announcementRoutes);
-// router.use(devRoutes);
+router.use(devRoutes);
 // router.use(incidentRoutes);
 
 // --- Iteration 3 ---
