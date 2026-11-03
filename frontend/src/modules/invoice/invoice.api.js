@@ -35,6 +35,10 @@ const invoiceApi = {
 
   // phòng của tòa Manager phụ trách – để tìm hóa đơn theo mã phòng (GET /buildings/:id/rooms)
   rooms: (buildingId) => api.get(`/buildings/${buildingId}/rooms`),
+
+  // UC-36 bước 3: giao dịch SePay của hóa đơn đã trả (GET /payments ?from=&to= theo ngày trả, YYYY-MM-DD)
+  // API không lọc theo hóa đơn → lấy theo khoảng ngày rồi lọc đúng hóa đơn
+  payments: (params) => api.get('/payments', { params }),
 };
 
 export default invoiceApi;
