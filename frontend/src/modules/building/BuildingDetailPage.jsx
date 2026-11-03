@@ -34,7 +34,7 @@ const STAT_BADGES = [
 
 // dòng thông tin: icon đơn sắc + nhãn nhạt, giá trị đậm (giống trang chi tiết Manager)
 // inline-flex để dấu * đỏ của FieldRow vẫn đứng ngay sau nhãn
-// dấu * đặt trong cùng khối nhãn, không xuống dòng (nhãn dài như "Manager phụ trách" trước đây đẩy * xuống dòng dưới)
+// dấu * đặt trong cùng khối nhãn, không xuống dòng: nhãn dài như "Manager phụ trách" vẫn giữ * ngay sau chữ
 const InfoRow = ({ icon: Icon, label, required = false, children }) => (
   <FieldRow
     label={
