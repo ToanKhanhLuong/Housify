@@ -1,10 +1,11 @@
 // UC-25: chi tiết hợp đồng (Manager), khuôn 9.2 trong frontend/AGENTS.md: nút theo trạng thái bên trái, StatusSteps bên phải
 // Nháp → Gửi lại lời mời (UC-24 A2), Chỉnh sửa (UC-26), Hủy hợp đồng (UC-46)
-// Đang hiệu lực → Gia hạn (UC-27), Sửa ghi chú (UC-26), Lập hóa đơn (UC-34, mở /invoices/new?contractId=)
+// Đang hiệu lực → Gia hạn (UC-27), Sửa ghi chú (UC-26), Thêm người ở cùng (UC-32, mở trang Cư dân), Lập hóa đơn (UC-34)
+// Bấm một cư dân trong bảng → chi tiết cư dân (/occupants/:id)
 // Chừa chỗ cho An: Chấm dứt (UC-28, 29) khi Đang hiệu lực, Hoàn cọc (UC-45) khi Đã kết thúc
 import { useCallback, useEffect, useState } from 'react';
 import { Button, Card, Placeholder, Spinner, Tab, Tabs } from 'react-bootstrap';
-import { BiCalendarPlus, BiEditAlt, BiReceipt, BiSend, BiXCircle } from 'react-icons/bi';
+import { BiCalendarPlus, BiEditAlt, BiReceipt, BiSend, BiUserPlus, BiXCircle } from 'react-icons/bi';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import EmptyState from '../../components/EmptyState';
@@ -164,6 +165,24 @@ const ContractDetailPage = () => {
         </Button>
       )}
       {isActive && (
+        // UC-32: popup thêm nằm ở module occupant → mở trang Cư dân với phòng chọn sẵn, thêm xong quay lại đây
+        <Button
+          variant="secondary"
+          className="flex items-center gap-2"
+          onClick={() =>
+            navigate('/occupants', {
+              state: {
+                addTo: { _id: contract._id, roomNumber: contract.room?.roomNumber ?? '' },
+                returnTo: `/contracts/${contract._id}`,
+              },
+            })
+          }
+        >
+          <BiUserPlus />
+          Thêm người ở cùng
+        </Button>
+      )}
+      {isActive && (
         <Button
           as={Link}
           to={`/invoices/new?contractId=${contract._id}`}
@@ -217,7 +236,10 @@ const ContractDetailPage = () => {
       {/* Thông tin: bảng như trang chi tiết; Văn bản hợp đồng: tờ A4 như lúc gửi khách (In / Lưu PDF) */}
       <Tabs defaultActiveKey="info" className="mb-3 print:hidden" mountOnEnter>
         <Tab eventKey="info" title="Thông tin">
-          <ContractPaper contract={contract} />
+          <ContractPaper
+            contract={contract}
+            onOccupantClick={(occupant) => navigate(`/occupants/${occupant._id}`)}
+          />
         </Tab>
         <Tab eventKey="document" title="Văn bản hợp đồng">
           <ContractDocumentTab contract={contract} />
