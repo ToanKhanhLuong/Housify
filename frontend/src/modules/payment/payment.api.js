@@ -1,5 +1,5 @@
 // API của module payment (UC-39): mỗi hàm gọi 1 endpoint trong docs/api.md, trả về { success, data, message }
-// Danh sách có phân trang: data = { items, total, page, limit } (BE chưa trả totalPages, Pager tự tính từ total)
+// Danh sách có phân trang: data = { items, total, page, limit } – Pager tính số trang từ total
 import api from '../../api/axios';
 
 const paymentApi = {

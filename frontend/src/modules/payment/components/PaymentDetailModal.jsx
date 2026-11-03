@@ -12,7 +12,7 @@ import OnTimeBadge from './OnTimeBadge';
 const PaymentDetailModal = ({ payment, invoiceBasePath, onHide }) => {
   const navigate = useNavigate();
   const { invoice } = payment;
-  // BE chưa so số tiền chuyển với tổng hóa đơn → FE nhắc để Manager / khách tự kiểm tra
+  // số tiền chuyển khác tổng hóa đơn → nhắc Manager / khách kiểm tra lại
   const amountMismatch = invoice && payment.amount !== invoice.totalAmount;
 
   return (
