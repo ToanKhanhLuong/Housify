@@ -14,8 +14,9 @@ import { BiCheck, BiChevronDown, BiFilterAlt, BiGridAlt, BiListUl, BiSearch, BiX
  * @param {string} searchPlaceholder - Placeholder cho ô tìm kiếm
  * @param {Array} filterGroups - Danh sách nhóm bộ lọc:
  *   [{ id: 'status', label: 'Trạng thái', type: 'checkbox'|'radio', options: [{ value, label }] },
- *    { id: 'price', label: 'Giá thuê (đ)', type: 'range', minField: 'minPrice', maxField: 'maxPrice' }]
- * @param {Object} selectedFilters - Object bộ lọc hiện tại: { status: ['AVAILABLE'], minPrice: 1000000 }
+ *    { id: 'price', label: 'Giá thuê (đ)', type: 'range', minField: 'minPrice', maxField: 'maxPrice' },
+ *    { id: 'month', label: 'Kỳ', type: 'month', max: '2026-11' }]   // 1 ô chọn tháng/năm, giá trị 'YYYY-MM'; max tùy chọn
+ * @param {Object} selectedFilters - Object bộ lọc hiện tại: { status: ['AVAILABLE'], minPrice: 1000000, month: '2026-11' }
  * @param {Function} onFilterChange - Callback khi bộ lọc thay đổi: (newFilters) => void
  * @param {Array} groupByOptions - Danh sách tùy chọn nhóm theo: [{ value: 'floor', label: 'Tầng' }]
  * @param {string} selectedGroupBy - Giá trị nhóm theo hiện tại
@@ -115,6 +116,15 @@ const ControlBar = ({
         });
     };
 
+    // Xử lý chọn tháng (month): ô trống = bỏ lọc
+    const handleSelectMonth = (groupId, value) => {
+        if (!onFilterChange) return;
+        onFilterChange({
+            ...selectedFilters,
+            [groupId]: value || undefined,
+        });
+    };
+
     // Xóa một filter cụ thể (từ facet tag)
     const handleRemoveFacet = (facet) => {
         if (facet.type === 'filter-item') {
@@ -171,6 +181,19 @@ const ControlBar = ({
                 facets.push({
                     id: `${group.id}:${val}`,
                     label: `${group.label}: ${opt?.label || val}`,
+                    type: 'filter-single',
+                    groupId: group.id,
+                    value: val,
+                });
+            }
+        } else if (group.type === 'month') {
+            // 'YYYY-MM' → thẻ "Kỳ: 11/2026"; bỏ thẻ dùng chung cách của radio (filter-single)
+            const val = selectedFilters[group.id];
+            if (val) {
+                const [year, month] = val.split('-');
+                facets.push({
+                    id: `${group.id}:${val}`,
+                    label: `${group.label}: ${month}/${year}`,
                     type: 'filter-single',
                     groupId: group.id,
                     value: val,
@@ -330,6 +353,20 @@ const ControlBar = ({
                                                         </Button>
                                                     );
                                                 })}
+                                            </div>
+                                        )}
+
+                                        {group.type === 'month' && (
+                                            // 1 ô chọn tháng/năm của trình duyệt: gọn, chọn được tháng bất kỳ, không dài thêm theo thời gian
+                                            <div className="px-2 py-1">
+                                                <Form.Control
+                                                    type="month"
+                                                    size="sm"
+                                                    value={selectedFilters[group.id] || ''}
+                                                    max={group.max}
+                                                    onChange={(e) => handleSelectMonth(group.id, e.target.value)}
+                                                    aria-label={group.label}
+                                                />
                                             </div>
                                         )}
 
