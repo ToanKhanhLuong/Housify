@@ -1,6 +1,8 @@
-// UC-30: cư dân trong tòa (Manager, /occupants). Đầu trang là dải số liệu (người đang ở, phòng có người, chỗ trống…)
-// Mặc định xem "Theo phòng": mỗi phòng một thẻ (sức chứa dạng chấm, thành viên có avatar, nút Thêm người khi còn chỗ)
-// Đổi sang "Bảng" để xem từng người, có phân trang. Lọc Đang ở / Đã chuyển đi (mặc định Đang ở như BE), tìm theo mã phòng
+// UC-30: cư dân trong tòa (Manager, /occupants), gom theo phòng
+// "Theo phòng": mỗi phòng một thẻ (sức chứa dạng chấm, thành viên có avatar, nút Thêm người khi còn chỗ)
+// "Bảng": mỗi dòng là người đại diện, sổ xuống xem người ở cùng
+// Cả 2 chế độ chia trang theo phòng (12 phòng / trang) để không tách người cùng phòng; vượt 1 trang mới hiện phân trang
+// Lọc Đang ở / Đã chuyển đi (mặc định Đang ở như BE), tìm theo mã phòng
 // UC-32: "Thêm người ở cùng". Từ chi tiết hợp đồng mở sang với location.state.addTo = { _id, roomNumber } → popup mở sẵn
 // đúng phòng, thêm xong quay lại hợp đồng (location.state.returnTo)
 import { useEffect, useMemo, useState } from 'react';
@@ -8,34 +10,30 @@ import { Button, Card } from 'react-bootstrap';
 import { BiGridAlt, BiListUl, BiReset, BiUserPlus } from 'react-icons/bi';
 import { useLocation, useNavigate } from 'react-router-dom';
 import ControlBar from '../../components/ControlBar';
-import DataTable from '../../components/DataTable';
 import EmptyState from '../../components/EmptyState';
 import ErrorState from '../../components/ErrorState';
 import Pager from '../../components/Pager';
 import SkeletonRows from '../../components/SkeletonRows';
-import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
 import { OCCUPANT_STATUS } from '../../constants/enums';
 import { OCCUPANT_STATUS_LABEL } from '../../constants/statusLabels';
-import { formatDate } from '../../utils/format';
 import occupantApi from './occupant.api';
 import { groupByRoom } from './occupantFormat';
 import AddOccupantModal from './components/AddOccupantModal';
-import OccupancyStats from './components/OccupancyStats';
-import OccupantAvatar from './components/OccupantAvatar';
+import RepresentativeTable from './components/RepresentativeTable';
 import RoomGroupCard from './components/RoomGroupCard';
 
-const PAGE_LIMIT = 12; // chế độ Bảng
-const ALL_LIMIT = 50; // chế độ Theo phòng: tải hết (BE cho tối đa 50 mỗi lần) để gom đủ người của mỗi phòng
+const PAGE_ROOMS = 12; // số phòng mỗi trang, chung cho Theo phòng (4 hàng × 3 thẻ) và Bảng
+const ALL_LIMIT = 50; // tải hết (BE cho tối đa 50 mỗi lần) để gom đủ người của mỗi phòng
 const DEFAULT_FILTERS = { status: [OCCUPANT_STATUS.STAYED] }; // giống mặc định của BE
 const ALL_STATUS = Object.values(OCCUPANT_STATUS).join(',');
 const VIEW_OPTIONS = [
   { id: 'rooms', icon: BiGridAlt, title: 'Theo phòng' },
   { id: 'table', icon: BiListUl, title: 'Bảng' },
 ];
-const EMPTY_DATA = { items: [], total: 0, page: 1, limit: PAGE_LIMIT };
+const EMPTY_DATA = { items: [], total: 0 };
 
-// Theo phòng: gọi lần lượt từng trang 50 người tới hết
+// gọi lần lượt từng trang 50 người tới hết
 const fetchAll = async (params) => {
   const first = await occupantApi.list({ ...params, page: 1, limit: ALL_LIMIT });
   const items = [...(first.data?.items ?? [])];
@@ -44,7 +42,7 @@ const fetchAll = async (params) => {
     const next = await occupantApi.list({ ...params, page, limit: ALL_LIMIT });
     items.push(...(next.data?.items ?? []));
   }
-  return { items, total: first.data?.total ?? items.length, page: 1, limit: ALL_LIMIT };
+  return { items, total: first.data?.total ?? items.length };
 };
 
 const OccupantListPage = () => {
@@ -61,7 +59,8 @@ const OccupantListPage = () => {
   const [page, setPage] = useState(1);
   const [view, setView] = useState('rooms');
   const [reloadKey, setReloadKey] = useState(0);
-  const [rooms, setRooms] = useState([]); // phòng của tòa: đổi mã phòng → roomId, sức chứa, dải số liệu
+  const [rooms, setRooms] = useState([]); // phòng của tòa: đổi mã phòng → roomId, sức chứa
+  const [expanded, setExpanded] = useState(() => new Set()); // chế độ Bảng: phòng đang sổ người ở cùng
   // popup thêm: true = tự chọn phòng; { _id, roomNumber } = phòng chọn sẵn
   const [adding, setAdding] = useState(() => location.state?.addTo ?? null);
   const returnTo = location.state?.returnTo ?? null;
@@ -109,12 +108,8 @@ const OccupantListPage = () => {
     let ignore = false;
     const params = { status: statusParam };
     if (roomId) params.roomId = roomId;
-    const request =
-      view === 'rooms'
-        ? fetchAll(params)
-        : occupantApi.list({ ...params, page, limit: PAGE_LIMIT }).then((response) => response.data);
 
-    request
+    fetchAll(params)
       .then((result) => {
         if (ignore) return;
         setData(result ?? EMPTY_DATA);
@@ -129,7 +124,7 @@ const OccupantListPage = () => {
     return () => {
       ignore = true;
     };
-  }, [view, page, statusParam, roomId, noMatch, reloadKey]);
+  }, [statusParam, roomId, noMatch, reloadKey]);
 
   const handleSearchChange = (value) => {
     setQuery(value);
@@ -144,12 +139,14 @@ const OccupantListPage = () => {
   const handleViewChange = (next) => {
     setView(next);
     setPage(1);
-    setRefreshing(true);
   };
-  const handlePageChange = (next) => {
-    setPage(next);
-    setRefreshing(true);
-  };
+  const toggleRoom = (key) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   const handleResetFilters = () => {
     setQuery('');
     setFilters(DEFAULT_FILTERS);
@@ -181,34 +178,12 @@ const OccupantListPage = () => {
   const isFiltering = Boolean(keyword || !isDefaultFilter);
   const items = noMatch ? [] : data.items;
   const total = noMatch ? 0 : data.total;
-  const groups = view === 'rooms' ? groupByRoom(items, roomsById) : [];
-
-  const columns = [
-    {
-      key: 'name',
-      title: 'Họ tên',
-      render: (row) => (
-        <span className="flex items-center gap-2">
-          <OccupantAvatar name={row.name} isRepresentative={row.isRepresentative} />
-          <span className="fw-semibold">{row.name}</span>
-          {row.isRepresentative && <span className="hf-badge hf-b-plum">Đại diện</span>}
-        </span>
-      ),
-    },
-    {
-      key: 'room',
-      title: 'Phòng',
-      render: (row) => (row.room ? `${row.room.roomNumber} · Tầng ${row.room.floorNumber}` : '—'),
-    },
-    { key: 'cccd', title: 'CCCD' },
-    { key: 'phone', title: 'Số điện thoại' },
-    { key: 'joinDate', title: 'Ngày vào ở', render: (row) => formatDate(row.joinDate) },
-    {
-      key: 'status',
-      title: 'Trạng thái',
-      render: (row) => <StatusBadge map={OCCUPANT_STATUS_LABEL} value={row.status} />,
-    },
-  ];
+  const groups = groupByRoom(items, roomsById);
+  // chia trang theo phòng (cả 2 chế độ xem)
+  const pageGroups = groups.slice((page - 1) * PAGE_ROOMS, page * PAGE_ROOMS);
+  const allOpen = pageGroups.length > 0 && pageGroups.every((group) => expanded.has(group.room._id ?? 'none'));
+  const toggleAll = () =>
+    setExpanded(allOpen ? new Set() : new Set(pageGroups.map((group) => group.room._id ?? 'none')));
 
   const renderContent = () => {
     if (loading) {
@@ -255,12 +230,24 @@ const OccupantListPage = () => {
     }
 
     if (view === 'table') {
-      return <DataTable columns={columns} data={items} onRowClick={openMember} />;
+      return (
+        <div className="flex flex-col gap-2">
+          <Button variant="secondary" size="sm" className="hf-btn-ghost self-end" onClick={toggleAll}>
+            {allOpen ? 'Thu gọn tất cả' : 'Mở tất cả người ở cùng'}
+          </Button>
+          <RepresentativeTable
+            groups={pageGroups}
+            expanded={expanded}
+            onToggle={toggleRoom}
+            onOpen={openMember}
+          />
+        </div>
+      );
     }
 
     return (
       <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
-        {groups.map((group) => (
+        {pageGroups.map((group) => (
           <RoomGroupCard
             key={group.room._id ?? 'none'}
             group={group}
@@ -274,8 +261,6 @@ const OccupantListPage = () => {
 
   return (
     <>
-      {rooms.length > 0 && <OccupancyStats rooms={rooms} />}
-
       {/* không dùng overflow-hidden: bảng Bộ lọc xổ ra ngoài thẻ sẽ bị cắt */}
       <Card className="mb-3">
         <ControlBar
@@ -295,13 +280,7 @@ const OccupantListPage = () => {
           filterGroups={filterGroups}
           selectedFilters={filters}
           onFilterChange={handleFilterChange}
-          count={
-            loading || loadError
-              ? null
-              : view === 'rooms'
-                ? `${total} cư dân · ${groups.length} phòng`
-                : `${total} cư dân`
-          }
+          count={loading || loadError ? null : `${total} cư dân · ${groups.length} phòng`}
           view={view}
           onViewChange={handleViewChange}
           viewOptions={VIEW_OPTIONS}
@@ -315,9 +294,10 @@ const OccupantListPage = () => {
         {renderContent()}
       </div>
 
-      {view === 'table' && !loading && !loadError && total > 0 && (
+      {/* chỉ hiện khi vượt 1 trang */}
+      {!loading && !loadError && groups.length > PAGE_ROOMS && (
         <div className="flex justify-end mt-3">
-          <Pager page={data.page} limit={data.limit} total={total} onChange={handlePageChange} />
+          <Pager page={page} limit={PAGE_ROOMS} total={groups.length} onChange={setPage} />
         </div>
       )}
 
