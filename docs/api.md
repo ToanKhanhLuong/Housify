@@ -191,15 +191,17 @@ Chỉ Admin (Manager, Customer gọi → 403). Id sai định dạng → 404 nh�
 
 ## Hóa đơn – `invoice` (UC-34..37)
 
-| Method    | Path                     | Role         | Ghi chú                                                                                                                                                                                            |
-| --------- | ------------------------ | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET       | `/invoices/prefill`    | M            | `?contractId=&month=` → `items[]` gợi ý: tiền phòng, điện nước kèm chỉ số cũ, phí cố định                                                                                      |
-| POST      | `/invoices`            | M            | `{ contractId, month, items[] }` – `items[]` lấy từ prefill, điền thêm `newReading`, sửa `quantity` phí cố định, thêm dòng EXTRA `{ type: 'EXTRA', description, unitPrice }` |
-| POST      | `/invoices/bulk`       | M            | `{ contractIds[], month }` – tạo DRAFT hàng loạt, chỉ số điện nước nhập sau (UC-34 A1)                                                                                                 |
-| GET       | `/invoices`            | M C          | `?status=&month=&roomId=`                                                                                                                                                                         |
-| GET / PUT | `/invoices/:id`        | M (GET: M C) | PUT chỉ khi DRAFT, body như POST                                                                                                                                                                  |
-| POST      | `/invoices/:id/send`   | M            | Sinh QR, đặt `dueDate` = lúc gửi + 7 ngày                                                                                                                                                    |
-| POST      | `/invoices/:id/cancel` | M            | `{ reason }`                                                                                                                                                                                      |
+| Method | Path                                | Role    | Ghi chú                                                                                                                                                                                            |
+| ------ | ----------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/invoices/prefill`                 | M       | `?contractId=&month=` → `items[]` gợi ý: tiền phòng, điện nước kèm chỉ số cũ, phí cố định (UC-34)                                                                                                |
+| POST   | `/invoices/bulk`                    | M       | `{ contractIds[], month }` – tạo DRAFT hàng loạt, chỉ số điện nước nhập sau (UC-34 A1)                                                                                                             |
+| POST   | `/invoices`                         | M       | `{ contractId, month, items[] }` – `items[]` lấy từ prefill, điền thêm `newReading`, sửa `quantity` phí cố định, thêm dòng EXTRA `{ type: 'EXTRA', description, unitPrice }` (UC-34)             |
+| GET    | `/invoices`                         | M C     | `?status=&month=&roomId=&buildingId=&page=&limit=` (Manager xem tòa mình, Customer xem phòng mình, ẩn DRAFT) (UC-36)                                                                              |
+| GET    | `/invoices/:id`                     | M C     | Chi tiết hóa đơn (Manager xem tòa mình, Customer xem phòng mình, chặn DRAFT) (UC-36)                                                                                                               |
+| PUT    | `/invoices/:id`                     | M       | Chỉ khi DRAFT, body như POST (cập nhật chỉ số, phụ phí) (UC-34)                                                                                                                                     |
+| POST   | `/invoices/:id/send`                | M       | Sinh QR, chuyển PENDING, đặt `dueDate` = lúc gửi + 7 ngày, gửi chuông + email kèm QR (UC-35)                                                                                                        |
+| POST   | `/invoices/:id/resend-notification` | M       | Gửi lại chuông và email kèm VietQR khi hóa đơn đang PENDING (UC-35)                                                                                                                                |
+| POST   | `/invoices/:id/cancel`              | M       | `{ reason }` – bắt buộc lý do, chỉ khi DRAFT hoặc PENDING, chặn khi PAID (UC-37)                                                                                                                    |
 
 ## Thanh toán – `payment` (UC-38, 39, 42)
 

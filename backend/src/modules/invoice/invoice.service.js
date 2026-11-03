@@ -92,7 +92,7 @@ export const getPrefill = async (query, user) => {
 
   // 2. Quyền Manager: chỉ lập cho phòng thuộc tòa nhà mình quản lý
   const room = contract.roomId;
-  if (user.roleId === ROLE.MANAGER) {
+  if ((user.role ?? user.roleId) === ROLE.MANAGER) {
     const managerBuilding = await getManagerBuilding(user._id);
     if (room.buildingId.toString() !== managerBuilding._id.toString()) {
       throw new AppError(
@@ -232,7 +232,7 @@ export const createInvoice = async (data, user) => {
 
   // 2. Quyền Manager
   const room = contract.roomId;
-  if (user.roleId === ROLE.MANAGER) {
+  if ((user.role ?? user.roleId) === ROLE.MANAGER) {
     const managerBuilding = await getManagerBuilding(user._id);
     if (room.buildingId.toString() !== managerBuilding._id.toString()) {
       throw new AppError("Bạn không có quyền lập hóa đơn cho phòng này", 403);
@@ -328,7 +328,7 @@ export const createBulkInvoices = async (data, user) => {
   const { contractIds, month } = data;
 
   const managerBuilding =
-    user.roleId === ROLE.MANAGER ? await getManagerBuilding(user._id) : null;
+    (user.role ?? user.roleId) === ROLE.MANAGER ? await getManagerBuilding(user._id) : null;
   const allServices = await Service.find({ isDeleted: false });
   const checkDate = new Date();
 
@@ -471,7 +471,7 @@ export const updateInvoice = async (id, data, user) => {
   }
 
   // Kiểm tra quyền Manager
-  if (user.roleId === ROLE.MANAGER) {
+  if ((user.role ?? user.roleId) === ROLE.MANAGER) {
     const managerBuilding = await getManagerBuilding(user._id);
     const room = invoice.contractId?.roomId;
     if (room && room.buildingId.toString() !== managerBuilding._id.toString()) {
@@ -566,7 +566,7 @@ export const sendInvoice = async (id, user) => {
   }
 
   // 3. Quyền Manager
-  if (user.roleId === ROLE.MANAGER) {
+  if ((user.role ?? user.roleId) === ROLE.MANAGER) {
     const managerBuilding = await getManagerBuilding(user._id);
     const room = contract.roomId;
     if (room && room.buildingId.toString() !== managerBuilding._id.toString()) {
@@ -736,7 +736,7 @@ export const getInvoices = async (query, user) => {
   }
 
   // Phân quyền dữ liệu theo vai trò
-  if (user.roleId === ROLE.CUSTOMER) {
+  if ((user.role ?? user.roleId) === ROLE.CUSTOMER) {
     // Customer: chỉ xem hóa đơn của hợp đồng mình thuê, KHÔNG xem DRAFT
     const repOccupant = await Occupant.findOne({
       userId: user._id,
@@ -747,7 +747,7 @@ export const getInvoices = async (query, user) => {
     }
     filter.contractId = repOccupant.contractId;
     filter.status = filter.status || { $ne: INVOICE_STATUS.DRAFT };
-  } else if (user.roleId === ROLE.MANAGER) {
+  } else if ((user.role ?? user.roleId) === ROLE.MANAGER) {
     // Manager: chỉ xem các phòng trong tòa mình phụ trách
     const managerBuilding = await getManagerBuilding(user._id);
     const roomsInBuilding = await Room.find({
@@ -814,7 +814,7 @@ export const getInvoiceById = async (id, user) => {
   }
 
   // Customer không được xem hóa đơn Nháp, và chỉ xem hóa đơn của mình
-  if (user.roleId === ROLE.CUSTOMER) {
+  if ((user.role ?? user.roleId) === ROLE.CUSTOMER) {
     if (invoice.status === INVOICE_STATUS.DRAFT) {
       throw new AppError("Bạn không có quyền xem hóa đơn nháp", 403);
     }
@@ -831,7 +831,7 @@ export const getInvoiceById = async (id, user) => {
   }
 
   // Manager chỉ xem hóa đơn thuộc tòa mình
-  if (user.roleId === ROLE.MANAGER) {
+  if ((user.role ?? user.roleId) === ROLE.MANAGER) {
     const managerBuilding = await getManagerBuilding(user._id);
     const roomBuildingId =
       invoice.contractId?.roomId?.buildingId?._id ||
@@ -875,7 +875,7 @@ export const cancelInvoice = async (id, data, user) => {
   }
 
   // Quyền Manager
-  if (user.roleId === ROLE.MANAGER) {
+  if ((user.role ?? user.roleId) === ROLE.MANAGER) {
     const managerBuilding = await getManagerBuilding(user._id);
     const room = invoice.contractId?.roomId;
     if (room && room.buildingId.toString() !== managerBuilding._id.toString()) {
