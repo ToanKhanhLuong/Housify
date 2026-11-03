@@ -1,5 +1,6 @@
 // UC-25: danh sách hợp đồng (Manager) – hợp đồng tòa mình, mới nhất trước, có phân trang (api.md)
 // Khuôn danh sách như Hóa đơn: ControlBar (nút Tạo hợp đồng, tìm mã phòng, lọc trạng thái), đổi Thẻ / Bảng, Pager
+// Cột Thời hạn có thanh tiến độ, nhãn còn X ngày (vàng khi sắp hết hạn)
 // API không có ?q nên mã phòng gõ vào ô tìm được đổi sang roomId
 import { useEffect, useState } from 'react';
 import { Button, Card } from 'react-bootstrap';
@@ -9,7 +10,6 @@ import ControlBar from '../../components/ControlBar';
 import DataTable from '../../components/DataTable';
 import EmptyState from '../../components/EmptyState';
 import ErrorState from '../../components/ErrorState';
-import ItemCard from '../../components/ItemCard';
 import MoneyText from '../../components/MoneyText';
 import Pager from '../../components/Pager';
 import SkeletonRows from '../../components/SkeletonRows';
@@ -17,9 +17,8 @@ import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
 import { CONTRACT_STATUS } from '../../constants/enums';
 import { CONTRACT_STATUS_LABEL, CONTRACT_TYPE_LABEL } from '../../constants/statusLabels';
-import { formatDate } from '../../utils/format';
 import contractApi from './contract.api';
-import { representativeLabel } from './contractFormat';
+import { ContractCard, Representative, Term } from './components/ContractListParts';
 
 const LIMIT = 12;
 const FILTER_GROUPS = [
@@ -47,6 +46,8 @@ const ContractListPage = () => {
   const [view, setView] = useState('table');
   const [reloadKey, setReloadKey] = useState(0);
   const [rooms, setRooms] = useState([]);
+  // mốc thời gian để tính "còn X ngày" – lấy 1 lần khi mở trang (render phải thuần)
+  const [now] = useState(() => Date.now());
 
   // phòng của tòa để đổi mã phòng gõ vào → roomId
   const buildingId = user.building?._id;
@@ -122,32 +123,31 @@ const ContractListPage = () => {
     {
       key: 'room',
       title: 'Phòng',
-      className: 'fw-semibold',
-      render: (row) => row.room?.roomNumber ?? '—',
-    },
-    {
-      key: 'type',
-      title: 'Loại',
-      render: (row) => CONTRACT_TYPE_LABEL[row.contractType]?.label ?? '—',
+      render: (row) => (
+        <span className="flex flex-col">
+          <span className="fs-6 fw-bold">{row.room?.roomNumber ?? '—'}</span>
+          <span className="small text-secondary">
+            {CONTRACT_TYPE_LABEL[row.contractType]?.label ?? '—'} · {row.occupantCount ?? 0} người
+          </span>
+        </span>
+      ),
     },
     {
       key: 'representative',
       title: 'Người đại diện',
-      render: (row) => representativeLabel(row.representative),
+      render: (row) => <Representative contract={row} />,
     },
-    {
-      key: 'occupantCount',
-      title: 'Số người',
-      align: 'end',
-      render: (row) => row.occupantCount ?? 0,
-    },
-    { key: 'startDate', title: 'Bắt đầu', render: (row) => formatDate(row.startDate) },
-    { key: 'endDate', title: 'Kết thúc', render: (row) => formatDate(row.endDate) },
+    { key: 'term', title: 'Thời hạn', render: (row) => <Term contract={row} now={now} /> },
     {
       key: 'rentPrice',
       title: 'Giá thuê',
       align: 'end',
-      render: (row) => <MoneyText value={row.rentPrice} />,
+      render: (row) => (
+        <span className="flex flex-col items-end">
+          <MoneyText value={row.rentPrice} className="fw-semibold" />
+          <span className="small text-secondary">/ tháng</span>
+        </span>
+      ),
     },
     {
       key: 'status',
@@ -218,28 +218,7 @@ const ContractListPage = () => {
     return (
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
         {items.map((contract) => (
-          <ItemCard
-            key={contract._id}
-            to={`/contracts/${contract._id}`}
-            className="no-underline"
-            title={`Phòng ${contract.room?.roomNumber ?? '—'}`}
-            badge={<StatusBadge map={CONTRACT_STATUS_LABEL} value={contract.status} />}
-            subtitle={`${CONTRACT_TYPE_LABEL[contract.contractType]?.label ?? ''} · ${representativeLabel(contract.representative)}`}
-            stats={
-              <span className="fs-6 fw-bold text-body">
-                <MoneyText value={contract.rentPrice} />
-                <span className="small fw-normal text-secondary"> / tháng</span>
-              </span>
-            }
-            footer={
-              <>
-                <span>
-                  {formatDate(contract.startDate)} → {formatDate(contract.endDate)}
-                </span>
-                <span>{contract.occupantCount ?? 0} người</span>
-              </>
-            }
-          />
+          <ContractCard key={contract._id} contract={contract} now={now} />
         ))}
       </div>
     );
