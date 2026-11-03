@@ -13,6 +13,7 @@ import User from '../../models/User.js';
 import Manager from '../../models/Manager.js';
 import Occupant from '../../models/Occupant.js';
 import Building from '../../models/Building.js';
+import Contract from '../../models/Contract.js';
 import Room from '../../models/Room.js';
 import OtpToken from '../../models/OtpToken.js';
 

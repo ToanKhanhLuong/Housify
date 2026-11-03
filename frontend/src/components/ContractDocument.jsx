@@ -73,7 +73,7 @@ const ContractDocument = ({ contract, party = {}, confirmation = null }) => {
   const { building, room, manager } = contract;
   const isGroup = contract.contractType === CONTRACT_TYPE.GROUP;
   const months = monthsBetween(contract.startDate, contract.endDate);
-  // người ở cùng = người Manager đã nhập sẵn + người đại diện vừa nhập (bỏ dòng chưa có tên) [NHÁNH THỬ]
+  // người ở cùng = người Manager đã nhập sẵn + người đại diện vừa nhập (bỏ dòng chưa có tên) [chờ An duyệt]
   const coOccupants = [
     ...(contract.coOccupants ?? []),
     ...(party.coOccupants ?? []).filter((person) => person.name.trim()),

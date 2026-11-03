@@ -1,4 +1,4 @@
-// [NHÁNH THỬ test_activatecustomer] UC-06: người đại diện tự nhập người ở cùng khi kích hoạt hợp đồng nhóm (thay cho Manager nhập ở UC-24)
+// [chờ An duyệt] UC-06: người đại diện tự nhập người ở cùng khi kích hoạt hợp đồng nhóm (thay cho Manager nhập ở UC-24)
 // value = [{ id, name, cccd, phone, dateOfBirth, address }]; người Manager đã nhập sẵn (contract.coOccupants) chỉ hiện để xem
 // Tổng số người, tính cả người đại diện, không vượt sức chứa loại phòng. Lỗi từng ô theo khóa BE trả: coOccupants.0.cccd …
 import { Alert, Badge, Button, Card, Col, Row } from 'react-bootstrap';
