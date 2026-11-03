@@ -37,7 +37,7 @@ const Header = ({ onToggleMenu, title }) => {
     };
 
     return (
-        <header className="flex items-center gap-3 h-14 px-4 bg-white border-bottom">
+        <header className="flex items-center gap-3 h-14 px-4 bg-white border-bottom print:hidden">
             <Button
                 variant="secondary"
                 size="sm"

@@ -52,7 +52,7 @@ const MainLayout = ({ children }) => {
             />
             <div className="flex-1 flex flex-col min-w-0">
                 <Header onToggleMenu={() => setShowMenu(true)} />
-                <main className="flex-1 p-4 bg-body-tertiary">
+                <main className="flex-1 p-4 bg-body-tertiary print:p-0 print:bg-white">
                     {blocked ? (
                         <Alert variant="warning">Bạn chưa được cấp quyền quản lý tòa nhà</Alert>
                     ) : (

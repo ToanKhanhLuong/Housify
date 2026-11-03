@@ -27,7 +27,7 @@ const Sidebar = ({ show, onHide, collapsed, onToggleCollapse }) => {
             show={show}
             onHide={onHide}
             responsive="lg"
-            className={`w-64 shrink-0 border-end bg-white lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto min-[992px]:transition-[width] min-[992px]:duration-200 ${collapsed ? 'min-[992px]:w-16' : ''}`}
+            className={`print:hidden w-64 shrink-0 border-end bg-white lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto min-[992px]:transition-[width] min-[992px]:duration-200 ${collapsed ? 'min-[992px]:w-16' : ''}`}
         >
             <Offcanvas.Header closeButton className="border-bottom">
                 <Brand />
