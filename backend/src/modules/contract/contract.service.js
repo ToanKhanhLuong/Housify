@@ -22,7 +22,7 @@ import { withTransaction } from '../../helpers/withTransaction.js';
 import { notify } from '../../helpers/notify.js';
 import { audit } from '../../helpers/audit.js';
 import { generateActivationToken, ACTIVATION_TOKEN_TTL_MS } from '../../helpers/activationToken.js';
-import { startOfVietnamDay } from '../../helpers/date.js';
+import { startOfVietnamDay, endOfVietnamDay } from '../../helpers/date.js';
 import Contract from '../../models/Contract.js';
 import Room from '../../models/Room.js';
 import RoomType from '../../models/RoomType.js';
@@ -59,8 +59,8 @@ export const calculateEndDate = (startDate, durationMonths) => {
     const end = new Date(start);
     end.setMonth(end.getMonth() + Number(durationMonths));
     end.setDate(end.getDate() - 1);
-    end.setHours(23, 59, 59, 999);
-    return end;
+    return endOfVietnamDay(end);
+
 };
 
 /**
@@ -850,9 +850,9 @@ export const renewContract = async ({ managerId, contractId, data = {} }) => {
 
     const oldEndDate = new Date(contract.endDate);
     // Chu kỳ mới bắt đầu ngay ngày kế tiếp của ngày kết thúc cũ
-    const nextCycleStart = new Date(oldEndDate);
-    nextCycleStart.setDate(nextCycleStart.getDate() + 1);
-    nextCycleStart.setHours(0, 0, 0, 0);
+    const nextCycleStart = new Date(startOfVietnamDay(oldEndDate).getTime() + 24 * 60 * 60 * 1000);
+
+
 
     const newEndDate = calculateEndDate(nextCycleStart, months);
 
