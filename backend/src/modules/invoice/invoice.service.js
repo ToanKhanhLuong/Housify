@@ -1,9 +1,10 @@
-// Service xử lý nghiệp vụ cho module invoice (UC-34, UC-35, UC-36, UC-37)
+// Service xử lý nghiệp vụ cho module invoice
 import Invoice from "../../models/Invoice.js";
 import Contract from "../../models/Contract.js";
 import Room from "../../models/Room.js";
 import Building from "../../models/Building.js";
 import Service from "../../models/Service.js";
+import ServicePrice from "../../models/ServicePrice.js";
 import Occupant from "../../models/Occupant.js";
 import { getCurrentPrice } from "../../helpers/getCurrentPrice.js";
 import { notify } from "../../helpers/notify.js";
@@ -18,6 +19,20 @@ import {
 } from "../../constants/enums.js";
 import AppError from "../../utils/AppError.js";
 
+const DUE_DAYS = 7;
+const NOTICE_FAILED_MESSAGE =
+  "Gửi thông báo thất bại — Customer chưa nhận được";
+const CONCURRENT_CHANGE_MESSAGE =
+  "Hóa đơn vừa được thay đổi bởi thao tác khác, vui lòng tải lại trang";
+
+// Lấy _id dù trường đã populate hay chưa
+const toId = (value) => (value?._id ?? value)?.toString();
+
+const formatMoney = (amount) => Number(amount || 0).toLocaleString("vi-VN");
+
+const formatDate = (date) =>
+  new Date(date).toLocaleDateString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
+
 const generateInvoiceCode = async (month) => {
   const [yearStr, monthStr] = month.split("-");
   const yymm = `${yearStr.slice(2)}${monthStr}`;
@@ -29,14 +44,12 @@ const generateInvoiceCode = async (month) => {
       randomPart += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     const code = `HD${yymm}${randomPart}`;
-    const exists = await Invoice.findOne({ invoiceCode: code });
+    const exists = await Invoice.exists({ invoiceCode: code });
     if (!exists) return code;
   }
 };
 
-/**
- * Helper: Lấy tòa nhà mà Manager đang phụ trách
- */
+// Tòa nhà mà Manager đang phụ trách
 const getManagerBuilding = async (userId) => {
   const building = await Building.findOne({
     managerId: userId,
@@ -48,37 +61,21 @@ const getManagerBuilding = async (userId) => {
   return building;
 };
 
-/**
- * Helper: Tính toán trạng thái Quá hạn động (isOverdue) khi trả về client (BR-101)
- * Không lưu trường này trong MongoDB
- */
-const formatInvoiceData = (invoiceDoc) => {
-  const obj = invoiceDoc.toObject ? invoiceDoc.toObject() : { ...invoiceDoc };
-  const now = new Date();
-
-  // Quá hạn khi: trạng thái PENDING và ngày hiện tại đã vượt quá dueDate
-  if (obj.status === INVOICE_STATUS.PENDING && obj.dueDate) {
-    obj.isOverdue = now > new Date(obj.dueDate);
-  } else {
-    obj.isOverdue = false;
+// Manager chỉ được thao tác trên tòa mình phụ trách. Role khác bỏ qua.
+const assertManagerOfBuilding = async (user, buildingId, message) => {
+  if (user.role !== ROLE.MANAGER) return;
+  const managerBuilding = await getManagerBuilding(user._id);
+  if (!buildingId || toId(buildingId) !== managerBuilding._id.toString()) {
+    throw new AppError(message, 403);
   }
-
-  // Đã thanh toán: kiểm tra xem có nộp muộn không
-  if (obj.status === INVOICE_STATUS.PAID && obj.paidAt && obj.dueDate) {
-    obj.isPaidLate = new Date(obj.paidAt) > new Date(obj.dueDate);
-  }
-
-  return obj;
 };
 
-/**
- * UC-34: Lấy dữ liệu gợi ý trước khi lập hóa đơn (Prefill)
- * GET /api/invoices/prefill?contractId=&month=
- */
-export const getPrefill = async (query, user) => {
-  const { contractId, month } = query;
+// Danh sách hợp đồng mà Customer là người đại diện (có thể nhiều hợp đồng qua các lần thuê)
+const getCustomerContractIds = (userId) =>
+  Occupant.distinct("contractId", { userId, isRepresentative: true });
 
-  // 1. Kiểm tra hợp đồng
+// Hợp đồng ACTIVE thuộc tòa Manager phụ trách – dùng cho prefill và tạo hóa đơn
+const getActiveContractForManager = async (contractId, user) => {
   const contract = await Contract.findById(contractId).populate("roomId");
   if (!contract) {
     throw new AppError("Không tìm thấy hợp đồng", 404);
@@ -89,79 +86,111 @@ export const getPrefill = async (query, user) => {
       400,
     );
   }
+  await assertManagerOfBuilding(
+    user,
+    contract.roomId?.buildingId,
+    "Bạn không có quyền lập hóa đơn cho phòng thuộc tòa nhà khác",
+  );
+  return contract;
+};
 
-  // 2. Quyền Manager: chỉ lập cho phòng thuộc tòa nhà mình quản lý
-  const room = contract.roomId;
-  if ((user.role ?? user.roleId) === ROLE.MANAGER) {
-    const managerBuilding = await getManagerBuilding(user._id);
-    if (room.buildingId.toString() !== managerBuilding._id.toString()) {
-      throw new AppError(
-        "Bạn không có quyền lập hóa đơn cho phòng thuộc tòa nhà khác",
-        403,
-      );
-    }
+// Hóa đơn (kèm hợp đồng, phòng) thuộc tòa Manager phụ trách
+const getInvoiceForManager = async (id, user, forbiddenMessage) => {
+  const invoice = await Invoice.findById(id).populate({
+    path: "contractId",
+    populate: { path: "roomId" },
+  });
+  if (!invoice) {
+    throw new AppError("Không tìm thấy hóa đơn", 404);
   }
+  await assertManagerOfBuilding(
+    user,
+    invoice.contractId?.roomId?.buildingId,
+    forbiddenMessage,
+  );
+  return invoice;
+};
 
-  const warnings = [];
-
-  // 3. Kiểm tra xem đã có hóa đơn DRAFT hoặc PENDING trong cùng tháng chưa
-  const existingInvoice = await Invoice.findOne({
+// Hóa đơn DRAFT/PENDING cùng kỳ của hợp đồng (nếu có)
+const findOpenInvoiceInMonth = (contractId, month) =>
+  Invoice.findOne({
     contractId,
     month,
     status: { $in: [INVOICE_STATUS.DRAFT, INVOICE_STATUS.PENDING] },
   });
 
-  let hasExistingInvoice = false;
-  if (existingInvoice) {
-    hasExistingInvoice = true;
-    const statusText =
-      existingInvoice.status === INVOICE_STATUS.DRAFT
-        ? "Nháp"
-        : "Chờ thanh toán";
-    warnings.push(
-      `Phòng này đã có hóa đơn [${statusText}] trong tháng ${month}. Bạn có thể chỉnh sửa hóa đơn cũ hoặc chọn tiếp tục tạo thêm.`,
-    );
+const statusLabel = (status) =>
+  status === INVOICE_STATUS.DRAFT ? "Nháp" : "Chờ thanh toán";
+
+/**
+ * Quá hạn / nộp muộn là giá trị tính ra khi trả về, không lưu DB (UC-36)
+ */
+const formatInvoiceData = (invoiceDoc) => {
+  const obj = invoiceDoc.toObject ? invoiceDoc.toObject() : { ...invoiceDoc };
+
+  obj.isOverdue =
+    obj.status === INVOICE_STATUS.PENDING && obj.dueDate
+      ? new Date() > new Date(obj.dueDate)
+      : false;
+
+  if (obj.status === INVOICE_STATUS.PAID && obj.paidAt && obj.dueDate) {
+    obj.isPaidLate = new Date(obj.paidAt) > new Date(obj.dueDate);
   }
 
-  // 4. Tìm hóa đơn kỳ trước để lấy chỉ số điện/nước cũ
+  return obj;
+};
+
+// Dịch vụ mà tòa đã đặt giá (UC-22) – chỉ những dịch vụ này lên hóa đơn
+const getBuildingServices = async (buildingId) => {
+  const serviceIds = await ServicePrice.distinct("serviceId", { buildingId });
+  return Service.find({ _id: { $in: serviceIds }, isDeleted: false }).sort({
+    name: 1,
+  });
+};
+
+// Đơn giá đang hiệu lực tại ngày lập (BR-057). Chưa có thì cảnh báo, dùng giá 0 (UC-34 E03)
+const getUnitPriceOrWarn = async (service, buildingId, warnings) => {
+  const priceDoc = await getCurrentPrice(service._id, buildingId, new Date());
+  if (!priceDoc) {
+    warnings.push(`Chưa có đơn giá [${service.name}] cho tòa nhà này`);
+    return 0;
+  }
+  return priceDoc.unitPrice;
+};
+
+// Dòng tiền phòng: luôn do server tạo, giá theo hợp đồng
+const buildRentItem = (contract, month) => ({
+  type: INVOICE_ITEM_TYPE.RENT,
+  description: `Tiền thuê phòng tháng ${month}`,
+  quantity: 1,
+  unitPrice: contract.rentPrice,
+  amount: contract.rentPrice,
+});
+
+const sumAmount = (items) =>
+  items.reduce((total, item) => total + item.amount, 0);
+
+/**
+ * Dòng gợi ý cho prefill và tạo hàng loạt: tiền phòng, phí cố định, điện nước kèm chỉ số cũ.
+ * fillNewReading = true (tạo hàng loạt): chỉ số mới tạm bằng chỉ số cũ, Manager nhập sau.
+ */
+const buildSuggestedItems = async ({ contract, month, fillNewReading }) => {
+  const buildingId = contract.roomId.buildingId;
+  const items = [buildRentItem(contract, month)];
+  const warnings = [];
+
   const previousInvoice = await Invoice.findOne({
-    contractId,
+    contractId: contract._id,
     month: { $lt: month },
     status: { $ne: INVOICE_STATUS.CANCELLED },
-  }).sort({ month: -1 });
+  }).sort({ month: -1, createdAt: -1 });
 
-  // 5. Chuẩn bị danh sách các dòng tiền gợi ý (items)
-  const items = [];
+  const services = await getBuildingServices(buildingId);
 
-  // 5.1. Dòng tiền phòng (RENT): lấy từ giá thuê chốt trên hợp đồng
-  items.push({
-    type: INVOICE_ITEM_TYPE.RENT,
-    description: `Tiền thuê phòng tháng ${month}`,
-    quantity: 1,
-    unitPrice: contract.rentPrice,
-    amount: contract.rentPrice,
-  });
-
-  // 5.2. Lấy danh sách dịch vụ của tòa nhà
-  const allServices = await Service.find({ isDeleted: false });
-  const checkDate = new Date();
-
-  for (const service of allServices) {
-    const priceDoc = await getCurrentPrice(
-      service._id,
-      room.buildingId,
-      checkDate,
-    );
-    const unitPrice = priceDoc ? priceDoc.unitPrice : 0;
-
-    if (!priceDoc) {
-      warnings.push(
-        `Chưa có đơn giá cho dịch vụ [${service.name}] tại tòa nhà này. Giá tạm tính là 0đ.`,
-      );
-    }
+  for (const service of services) {
+    const unitPrice = await getUnitPriceOrWarn(service, buildingId, warnings);
 
     if (service.isFixed) {
-      // Phí cố định: gửi xe, rác, wifi...
       items.push({
         serviceId: service._id,
         type: INVOICE_ITEM_TYPE.FIXED,
@@ -170,41 +199,281 @@ export const getPrefill = async (query, user) => {
         unitPrice,
         amount: unitPrice,
       });
-    } else {
-      // Phí theo chỉ số: điện, nước
-      let oldReading = 0;
-      if (previousInvoice && Array.isArray(previousInvoice.items)) {
-        const prevItem = previousInvoice.items.find(
-          (it) =>
-            it.serviceId && it.serviceId.toString() === service._id.toString(),
-        );
-        if (prevItem && prevItem.newReading !== undefined) {
-          oldReading = prevItem.newReading;
-        }
-      }
+      continue;
+    }
 
+    const previousItem = previousInvoice?.items.find(
+      (item) => toId(item.serviceId) === service._id.toString(),
+    );
+    const oldReading = previousItem?.newReading ?? 0;
+
+    items.push({
+      serviceId: service._id,
+      type: INVOICE_ITEM_TYPE.METERED,
+      description: service.name,
+      oldReading,
+      newReading: fillNewReading ? oldReading : null,
+      quantity: 0,
+      unitPrice,
+      amount: 0,
+    });
+  }
+
+  return { items, warnings, totalAmount: sumAmount(items) };
+};
+
+const itemError = (index, field, message) =>
+  new AppError(message, 422, [{ field: `items.${index}.${field}`, message }]);
+
+/**
+ * Tính lại toàn bộ dòng tiền từ dữ liệu Manager gửi lên (BR-095).
+ * - RENT: bỏ dòng client gửi, server tự thêm đúng một dòng theo hợp đồng.
+ * - METERED / FIXED: đơn giá và tên do server lấy. Khi sửa nháp, giữ đơn giá đã chụp lúc lập (BR-058).
+ * - EXTRA: Manager tự nhập tên và số tiền.
+ */
+const buildInvoiceItems = async ({
+  inputItems,
+  contract,
+  month,
+  snapshotItems = [],
+}) => {
+  const buildingId = contract.roomId.buildingId;
+  const items = [buildRentItem(contract, month)];
+  const warnings = [];
+  const usedServiceIds = new Set();
+
+  for (const [index, item] of inputItems.entries()) {
+    if (item.type === INVOICE_ITEM_TYPE.RENT) continue;
+
+    if (item.type === INVOICE_ITEM_TYPE.EXTRA) {
+      const quantity = Number(item.quantity ?? 1);
+      const unitPrice = Number(item.unitPrice ?? 0);
       items.push({
-        serviceId: service._id,
-        type: INVOICE_ITEM_TYPE.METERED,
-        description: service.name,
-        oldReading,
-        newReading: null, // Để Manager nhập chỉ số mới ở giao diện
-        quantity: 0,
+        type: INVOICE_ITEM_TYPE.EXTRA,
+        description: item.description,
+        quantity,
         unitPrice,
-        amount: 0,
+        amount: quantity * unitPrice,
+      });
+      continue;
+    }
+
+    // METERED / FIXED phải gắn với một dịch vụ
+    if (!item.serviceId) {
+      throw itemError(
+        index,
+        "serviceId",
+        `Dòng [${item.description}] thiếu dịch vụ`,
+      );
+    }
+    const serviceId = item.serviceId.toString();
+    if (usedServiceIds.has(serviceId)) {
+      throw itemError(
+        index,
+        "serviceId",
+        `Dịch vụ [${item.description}] bị lặp trên hóa đơn`,
+      );
+    }
+    usedServiceIds.add(serviceId);
+
+    let description;
+    let unitPrice;
+    const snapshot = snapshotItems.find(
+      (snapshotItem) => toId(snapshotItem.serviceId) === serviceId,
+    );
+
+    if (snapshot) {
+      if (snapshot.type !== item.type) {
+        throw itemError(
+          index,
+          "type",
+          `Loại dòng của [${snapshot.description}] không hợp lệ`,
+        );
+      }
+      description = snapshot.description;
+      unitPrice = snapshot.unitPrice;
+    } else {
+      const service = await Service.findOne({
+        _id: serviceId,
+        isDeleted: false,
+      });
+      const pricedInBuilding =
+        service && (await ServicePrice.exists({ serviceId, buildingId }));
+      if (!pricedInBuilding) {
+        throw itemError(
+          index,
+          "serviceId",
+          `Dịch vụ [${item.description}] không áp dụng cho tòa nhà này`,
+        );
+      }
+      const expectedType = service.isFixed
+        ? INVOICE_ITEM_TYPE.FIXED
+        : INVOICE_ITEM_TYPE.METERED;
+      if (item.type !== expectedType) {
+        throw itemError(
+          index,
+          "type",
+          `Loại dòng của [${service.name}] không hợp lệ`,
+        );
+      }
+      description = service.name;
+      unitPrice = await getUnitPriceOrWarn(service, buildingId, warnings);
+    }
+
+    if (item.type === INVOICE_ITEM_TYPE.FIXED) {
+      const quantity = Number(item.quantity ?? 1);
+      items.push({
+        serviceId,
+        type: INVOICE_ITEM_TYPE.FIXED,
+        description,
+        quantity,
+        unitPrice,
+        amount: quantity * unitPrice,
+      });
+      continue;
+    }
+
+    // METERED: tiền = (chỉ số mới − chỉ số cũ) × đơn giá
+    if (item.oldReading == null) {
+      throw itemError(
+        index,
+        "oldReading",
+        `Vui lòng nhập chỉ số cũ của [${description}]`,
+      );
+    }
+    if (item.newReading == null) {
+      throw itemError(
+        index,
+        "newReading",
+        `Vui lòng nhập chỉ số mới của [${description}]`,
+      );
+    }
+    const oldReading = Number(item.oldReading);
+    const newReading = Number(item.newReading);
+    if (newReading < oldReading) {
+      throw itemError(
+        index,
+        "newReading",
+        "Chỉ số mới phải lớn hơn hoặc bằng chỉ số cũ",
+      );
+    }
+    const quantity = newReading - oldReading;
+    items.push({
+      serviceId,
+      type: INVOICE_ITEM_TYPE.METERED,
+      description,
+      oldReading,
+      newReading,
+      quantity,
+      unitPrice,
+      amount: quantity * unitPrice,
+    });
+  }
+
+  return { items, warnings, totalAmount: sumAmount(items) };
+};
+
+const buildInvoiceMail = (invoice, isReminder) => {
+  const prefix = isReminder ? "[Nhắc lại] " : "";
+  return `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <h2>${prefix}Thông báo hóa đơn tiền phòng tháng ${invoice.month}</h2>
+        <p>Xin chào quý khách,</p>
+        <p>Hệ thống Housify xin gửi thông tin hóa đơn tiền phòng như sau:</p>
+        <ul>
+          <li><b>Mã hóa đơn:</b> ${invoice.invoiceCode}</li>
+          <li><b>Kỳ thanh toán:</b> Tháng ${invoice.month}</li>
+          <li><b>Tổng số tiền:</b> <span style="color: #e53e3e; font-size: 16px; font-weight: bold;">${formatMoney(invoice.totalAmount)} VNĐ</span></li>
+          <li><b>Hạn thanh toán:</b> ${formatDate(invoice.dueDate)}</li>
+        </ul>
+        <p>Quý khách vui lòng quét mã VietQR bên dưới để thanh toán:</p>
+        <div style="margin: 20px 0;">
+          <img src="${invoice.qrContent}" alt="Mã VietQR thanh toán" style="max-width: 320px; border: 1px solid #ddd; border-radius: 8px;" />
+        </div>
+        <p><i>Lưu ý: Giữ nguyên nội dung chuyển khoản để hệ thống tự động gạch nợ.</i></p>
+      </div>
+    `;
+};
+
+/**
+ * Báo chuông + gửi mail kèm QR cho người đại diện.
+ * Không ném lỗi: thất bại thì trả câu cảnh báo để Manager gửi lại (UC-35).
+ */
+const deliverInvoiceNotice = async ({
+  invoice,
+  contract,
+  user,
+  isReminder,
+}) => {
+  const prefix = isReminder ? "[Nhắc lại] " : "";
+  let delivered = true;
+
+  try {
+    const representative = await Occupant.findOne({
+      contractId: contract._id,
+      isRepresentative: true,
+    });
+    if (!representative?.userId) {
+      delivered = false;
+    } else {
+      await notify({
+        userIds: [representative.userId],
+        type: NOTIFICATION_TYPE.INVOICE_SENT,
+        title: `${prefix}Hóa đơn tiền phòng tháng ${invoice.month}`,
+        message: `Hóa đơn ${invoice.invoiceCode} cần được thanh toán. Tổng tiền: ${formatMoney(invoice.totalAmount)} đ. Hạn thanh toán: ${formatDate(invoice.dueDate)}.`,
+        refId: invoice._id,
+        createdBy: user._id,
       });
     }
+  } catch (error) {
+    console.error("Gửi thông báo hóa đơn lỗi:", error.message);
+    delivered = false;
+  }
+
+  if (!contract.representativeEmail) {
+    delivered = false;
+  } else {
+    const mailSent = await sendMail(
+      contract.representativeEmail,
+      `[Housify] ${prefix}Hóa đơn ${invoice.invoiceCode} tháng ${invoice.month}`,
+      buildInvoiceMail(invoice, isReminder),
+    );
+    if (!mailSent) delivered = false;
+  }
+
+  return delivered ? null : NOTICE_FAILED_MESSAGE;
+};
+
+/**
+ * UC-34: Dữ liệu gợi ý trước khi lập hóa đơn
+ * GET /api/invoices/prefill?contractId=&month=
+ */
+export const getPrefill = async (query, user) => {
+  const { contractId, month } = query;
+  const contract = await getActiveContractForManager(contractId, user);
+
+  const { items, warnings } = await buildSuggestedItems({
+    contract,
+    month,
+    fillNewReading: false,
+  });
+
+  const existingInvoice = await findOpenInvoiceInMonth(contractId, month);
+  if (existingInvoice) {
+    warnings.unshift(
+      `Phòng này đã có hóa đơn [${statusLabel(existingInvoice.status)}] trong tháng ${month}. Bạn có thể chỉnh sửa hóa đơn cũ hoặc chọn tiếp tục tạo thêm.`,
+    );
   }
 
   return {
     contract: {
       _id: contract._id,
-      roomNumber: room.roomNumber,
+      roomNumber: contract.roomId.roomNumber,
       rentPrice: contract.rentPrice,
       representativeEmail: contract.representativeEmail,
     },
     month,
-    hasExistingInvoice,
+    hasExistingInvoice: Boolean(existingInvoice),
     existingInvoiceId: existingInvoice ? existingInvoice._id : null,
     items,
     warnings,
@@ -212,145 +481,62 @@ export const getPrefill = async (query, user) => {
 };
 
 /**
- * UC-34: Tạo hóa đơn đơn lẻ (Lưu nháp)
+ * UC-34: Tạo hóa đơn đơn lẻ (lưu nháp)
  * POST /api/invoices
  */
 export const createInvoice = async (data, user) => {
   const { contractId, month, items, confirmDuplicate } = data;
+  const contract = await getActiveContractForManager(contractId, user);
 
-  // 1. Kiểm tra hợp đồng
-  const contract = await Contract.findById(contractId).populate("roomId");
-  if (!contract) {
-    throw new AppError("Không tìm thấy hợp đồng", 404);
-  }
-  if (contract.status !== CONTRACT_STATUS.ACTIVE) {
-    throw new AppError(
-      "Chỉ có thể lập hóa đơn cho hợp đồng đang có hiệu lực (ACTIVE)",
-      400,
-    );
-  }
-
-  // 2. Quyền Manager
-  const room = contract.roomId;
-  if ((user.role ?? user.roleId) === ROLE.MANAGER) {
-    const managerBuilding = await getManagerBuilding(user._id);
-    if (room.buildingId.toString() !== managerBuilding._id.toString()) {
-      throw new AppError("Bạn không có quyền lập hóa đơn cho phòng này", 403);
-    }
-  }
-
-  // 3. Cảnh báo trùng kỳ hóa đơn (HTTP 409)
-  const existing = await Invoice.findOne({
-    contractId,
-    month,
-    status: { $in: [INVOICE_STATUS.DRAFT, INVOICE_STATUS.PENDING] },
-  });
-
+  // Đã có hóa đơn DRAFT/PENDING cùng kỳ → hỏi Manager có tạo thêm không
+  const existing = await findOpenInvoiceInMonth(contractId, month);
   if (existing && !confirmDuplicate) {
-    const statusText =
-      existing.status === INVOICE_STATUS.DRAFT ? "Nháp" : "Chờ thanh toán";
     throw new AppError(
-      `Phòng này đã có hóa đơn [${statusText}] trong tháng ${month}. Bạn có chắc chắn muốn tạo thêm hóa đơn mới không?`,
+      `Phòng này đã có hóa đơn [${statusLabel(existing.status)}] trong tháng ${month}. Bạn có chắc chắn muốn tạo thêm hóa đơn mới không?`,
       409,
     );
   }
 
-  // 4. Server tự tính toán từng dòng tiền và tổng số tiền (BR-095)
-  let totalAmount = 0;
-  const processedItems = [];
+  const built = await buildInvoiceItems({ inputItems: items, contract, month });
 
-  for (const item of items) {
-    let quantity = Number(item.quantity) || 0;
-    let unitPrice = Number(item.unitPrice) || 0;
-    let oldReading =
-      item.oldReading !== undefined ? Number(item.oldReading) : undefined;
-    let newReading =
-      item.newReading !== undefined ? Number(item.newReading) : undefined;
-
-    if (item.type === INVOICE_ITEM_TYPE.METERED) {
-      if (oldReading === undefined || newReading === undefined) {
-        throw new AppError(
-          `Dịch vụ ${item.description} yêu cầu nhập cả chỉ số cũ và chỉ số mới`,
-          422,
-        );
-      }
-      if (newReading < oldReading) {
-        throw new AppError(
-          `Chỉ số mới của [${item.description}] phải lớn hơn hoặc bằng chỉ số cũ (${newReading} < ${oldReading})`,
-          422,
-        );
-      }
-      quantity = newReading - oldReading;
-    }
-
-    if (item.type === INVOICE_ITEM_TYPE.RENT) {
-      unitPrice = contract.rentPrice; // Chốt tiền phòng theo hợp đồng
-      quantity = 1;
-    }
-
-    const amount = quantity * unitPrice;
-    totalAmount += amount;
-
-    processedItems.push({
-      serviceId: item.serviceId || undefined,
-      type: item.type,
-      description: item.description,
-      oldReading,
-      newReading,
-      quantity,
-      unitPrice,
-      amount,
-    });
-  }
-
-  // 5. Sinh mã hóa đơn duy nhất
-  const invoiceCode = await generateInvoiceCode(month);
-
-  // 6. Lưu hóa đơn ở trạng thái DRAFT
   const invoice = await Invoice.create({
-    invoiceCode,
+    invoiceCode: await generateInvoiceCode(month),
     contractId,
     month,
-    items: processedItems,
-    totalAmount,
+    items: built.items,
+    totalAmount: built.totalAmount,
     status: INVOICE_STATUS.DRAFT,
     createdBy: user._id,
   });
 
-  return invoice;
+  return { ...formatInvoiceData(invoice), warnings: built.warnings };
 };
 
 /**
- * UC-34: Tạo hóa đơn hàng loạt cho nhiều phòng
+ * UC-34: Tạo hóa đơn nháp hàng loạt, chỉ số điện nước nhập sau
  * POST /api/invoices/bulk
  */
 export const createBulkInvoices = async (data, user) => {
   const { contractIds, month } = data;
+  const managerBuilding = await getManagerBuilding(user._id);
 
-  const managerBuilding =
-    (user.role ?? user.roleId) === ROLE.MANAGER ? await getManagerBuilding(user._id) : null;
-  const allServices = await Service.find({ isDeleted: false });
-  const checkDate = new Date();
-
-  const createdInvoices = [];
+  const invoices = [];
   const errors = [];
+  const warnings = [];
 
-  for (const contractId of contractIds) {
+  for (const contractId of [...new Set(contractIds)]) {
     try {
       const contract = await Contract.findById(contractId).populate("roomId");
       if (!contract || contract.status !== CONTRACT_STATUS.ACTIVE) {
         errors.push({
           contractId,
-          message: "Hợp đồng không tồn tại hoặc không ACTIVE",
+          message: "Hợp đồng không tồn tại hoặc không còn hiệu lực",
         });
         continue;
       }
 
       const room = contract.roomId;
-      if (
-        managerBuilding &&
-        room.buildingId.toString() !== managerBuilding._id.toString()
-      ) {
+      if (toId(room?.buildingId) !== managerBuilding._id.toString()) {
         errors.push({
           contractId,
           message: "Phòng không thuộc tòa nhà bạn phụ trách",
@@ -358,94 +544,43 @@ export const createBulkInvoices = async (data, user) => {
         continue;
       }
 
-      // Lấy chỉ số điện nước cũ từ hóa đơn kỳ trước
-      const prevInvoice = await Invoice.findOne({
-        contractId,
-        month: { $lt: month },
-        status: { $ne: INVOICE_STATUS.CANCELLED },
-      }).sort({ month: -1 });
-
-      const items = [];
-      let totalAmount = 0;
-
-      // 1. Tiền phòng
-      items.push({
-        type: INVOICE_ITEM_TYPE.RENT,
-        description: `Tiền thuê phòng tháng ${month}`,
-        quantity: 1,
-        unitPrice: contract.rentPrice,
-        amount: contract.rentPrice,
-      });
-      totalAmount += contract.rentPrice;
-
-      // 2. Phí dịch vụ tòa
-      for (const service of allServices) {
-        const priceDoc = await getCurrentPrice(
-          service._id,
-          room.buildingId,
-          checkDate,
-        );
-        const unitPrice = priceDoc ? priceDoc.unitPrice : 0;
-
-        if (service.isFixed) {
-          items.push({
-            serviceId: service._id,
-            type: INVOICE_ITEM_TYPE.FIXED,
-            description: service.name,
-            quantity: 1,
-            unitPrice,
-            amount: unitPrice,
-          });
-          totalAmount += unitPrice;
-        } else {
-          // Điện nước: tạm thời gán chỉ số mới = chỉ số cũ, số lượng = 0 để nhập sau
-          let oldReading = 0;
-          if (prevInvoice && Array.isArray(prevInvoice.items)) {
-            const prevItem = prevInvoice.items.find(
-              (it) =>
-                it.serviceId &&
-                it.serviceId.toString() === service._id.toString(),
-            );
-            if (prevItem && prevItem.newReading !== undefined) {
-              oldReading = prevItem.newReading;
-            }
-          }
-
-          items.push({
-            serviceId: service._id,
-            type: INVOICE_ITEM_TYPE.METERED,
-            description: service.name,
-            oldReading,
-            newReading: oldReading,
-            quantity: 0,
-            unitPrice,
-            amount: 0,
-          });
-        }
+      // Không tạo trùng kỳ khi lập hàng loạt – Manager tạo thêm từng phòng nếu thật sự cần
+      const existing = await findOpenInvoiceInMonth(contractId, month);
+      if (existing) {
+        errors.push({
+          contractId,
+          roomNumber: room.roomNumber,
+          message: `Phòng ${room.roomNumber} đã có hóa đơn [${statusLabel(existing.status)}] trong tháng ${month}, bỏ qua`,
+        });
+        continue;
       }
 
-      const invoiceCode = await generateInvoiceCode(month);
+      const built = await buildSuggestedItems({
+        contract,
+        month,
+        fillNewReading: true,
+      });
+
       const invoice = await Invoice.create({
-        invoiceCode,
+        invoiceCode: await generateInvoiceCode(month),
         contractId,
         month,
-        items,
-        totalAmount,
+        items: built.items,
+        totalAmount: built.totalAmount,
         status: INVOICE_STATUS.DRAFT,
         createdBy: user._id,
       });
 
-      createdInvoices.push(invoice);
-    } catch (err) {
-      errors.push({ contractId, message: err.message });
+      invoices.push(formatInvoiceData(invoice));
+      for (const message of built.warnings) {
+        warnings.push({ contractId, roomNumber: room.roomNumber, message });
+      }
+    } catch (error) {
+      errors.push({ contractId, message: error.message });
     }
   }
 
-  return {
-    totalCreated: createdInvoices.length,
-    invoices: createdInvoices,
-    errors,
-  };
+  return { totalCreated: invoices.length, invoices, errors, warnings };
 };
 
 /**
@@ -453,16 +588,12 @@ export const createBulkInvoices = async (data, user) => {
  * PUT /api/invoices/:id
  */
 export const updateInvoice = async (id, data, user) => {
-  const invoice = await Invoice.findById(id).populate({
-    path: "contractId",
-    populate: { path: "roomId" },
-  });
+  const invoice = await getInvoiceForManager(
+    id,
+    user,
+    "Bạn không có quyền sửa hóa đơn này",
+  );
 
-  if (!invoice) {
-    throw new AppError("Không tìm thấy hóa đơn", 404);
-  }
-
-  // Chỉ cho phép sửa khi còn DRAFT
   if (invoice.status !== INVOICE_STATUS.DRAFT) {
     throw new AppError(
       "Chỉ có thể chỉnh sửa hóa đơn khi đang ở trạng thái Nháp (DRAFT)",
@@ -470,85 +601,37 @@ export const updateInvoice = async (id, data, user) => {
     );
   }
 
-  // Kiểm tra quyền Manager
-  if ((user.role ?? user.roleId) === ROLE.MANAGER) {
-    const managerBuilding = await getManagerBuilding(user._id);
-    const room = invoice.contractId?.roomId;
-    if (room && room.buildingId.toString() !== managerBuilding._id.toString()) {
-      throw new AppError("Bạn không có quyền sửa hóa đơn này", 403);
-    }
+  const built = await buildInvoiceItems({
+    inputItems: data.items,
+    contract: invoice.contractId,
+    month: invoice.month,
+    snapshotItems: invoice.items,
+  });
+
+  // Chỉ ghi khi hóa đơn vẫn còn nháp (tránh sửa đè lúc vừa được gửi)
+  const updated = await Invoice.findOneAndUpdate(
+    { _id: invoice._id, status: INVOICE_STATUS.DRAFT },
+    { $set: { items: built.items, totalAmount: built.totalAmount } },
+    { new: true, runValidators: true },
+  );
+  if (!updated) {
+    throw new AppError(CONCURRENT_CHANGE_MESSAGE, 409);
   }
 
-  const { items } = data;
-  let totalAmount = 0;
-  const processedItems = [];
-
-  for (const item of items) {
-    let quantity = Number(item.quantity) || 0;
-    let unitPrice = Number(item.unitPrice) || 0;
-    let oldReading =
-      item.oldReading !== undefined ? Number(item.oldReading) : undefined;
-    let newReading =
-      item.newReading !== undefined ? Number(item.newReading) : undefined;
-
-    if (item.type === INVOICE_ITEM_TYPE.METERED) {
-      if (oldReading === undefined || newReading === undefined) {
-        throw new AppError(
-          `Dịch vụ ${item.description} yêu cầu nhập cả chỉ số cũ và mới`,
-          422,
-        );
-      }
-      if (newReading < oldReading) {
-        throw new AppError(
-          `Chỉ số mới của [${item.description}] phải lớn hơn hoặc bằng chỉ số cũ`,
-          422,
-        );
-      }
-      quantity = newReading - oldReading;
-    }
-
-    if (item.type === INVOICE_ITEM_TYPE.RENT) {
-      unitPrice = invoice.contractId.rentPrice;
-      quantity = 1;
-    }
-
-    const amount = quantity * unitPrice;
-    totalAmount += amount;
-
-    processedItems.push({
-      serviceId: item.serviceId || undefined,
-      type: item.type,
-      description: item.description,
-      oldReading,
-      newReading,
-      quantity,
-      unitPrice,
-      amount,
-    });
-  }
-
-  invoice.items = processedItems;
-  invoice.totalAmount = totalAmount;
-  await invoice.save();
-
-  return invoice;
+  return { ...formatInvoiceData(updated), warnings: built.warnings };
 };
 
 /**
- * UC-35: Gửi hóa đơn (Chuyển sang PENDING, sinh VietQR, gửi mail & chuông)
+ * UC-35: Gửi hóa đơn – sinh VietQR, chuyển PENDING, báo chuông + mail
  * POST /api/invoices/:id/send
  */
 export const sendInvoice = async (id, user) => {
-  const invoice = await Invoice.findById(id).populate({
-    path: "contractId",
-    populate: { path: "roomId" },
-  });
+  const invoice = await getInvoiceForManager(
+    id,
+    user,
+    "Bạn không có quyền gửi hóa đơn của tòa nhà khác",
+  );
 
-  if (!invoice) {
-    throw new AppError("Không tìm thấy hóa đơn", 404);
-  }
-
-  // 1. Chỉ gửi hóa đơn DRAFT
   if (invoice.status !== INVOICE_STATUS.DRAFT) {
     throw new AppError(
       "Chỉ có thể gửi hóa đơn đang ở trạng thái Nháp (DRAFT)",
@@ -556,111 +639,68 @@ export const sendInvoice = async (id, user) => {
     );
   }
 
-  // 2. Hợp đồng phải đang ACTIVE
   const contract = invoice.contractId;
-  if (!contract || contract.status !== CONTRACT_STATUS.ACTIVE) {
+  if (contract?.status !== CONTRACT_STATUS.ACTIVE) {
     throw new AppError(
       "Hợp đồng của hóa đơn này không còn hiệu lực (phải ACTIVE)",
       400,
     );
   }
 
-  // 3. Quyền Manager
-  if ((user.role ?? user.roleId) === ROLE.MANAGER) {
-    const managerBuilding = await getManagerBuilding(user._id);
-    const room = contract.roomId;
-    if (room && room.buildingId.toString() !== managerBuilding._id.toString()) {
-      throw new AppError(
-        "Bạn không có quyền gửi hóa đơn của tòa nhà khác",
-        403,
-      );
-    }
+  // QR phải đúng số tài khoản Admin – thiếu cấu hình thì không cho gửi
+  if (!env.BANK_ID || !env.BANK_ACCOUNT_NO) {
+    throw new AppError(
+      "Chưa cấu hình tài khoản ngân hàng nhận tiền, vui lòng liên hệ Admin",
+      500,
+    );
+  }
+  const qrContent = `https://img.vietqr.io/image/${env.BANK_ID}-${env.BANK_ACCOUNT_NO}-compact2.png?amount=${invoice.totalAmount}&addInfo=${encodeURIComponent(invoice.invoiceCode)}&accountName=${encodeURIComponent(env.BANK_ACCOUNT_NAME)}`;
+
+  const sentAt = new Date();
+  const dueDate = new Date(sentAt.getTime() + DUE_DAYS * 24 * 60 * 60 * 1000);
+
+  // Chỉ chuyển khi hóa đơn chưa bị sửa / gửi bởi thao tác khác (số tiền trên QR luôn khớp)
+  const sentInvoice = await Invoice.findOneAndUpdate(
+    {
+      _id: invoice._id,
+      status: INVOICE_STATUS.DRAFT,
+      updatedAt: invoice.updatedAt,
+    },
+    {
+      $set: {
+        status: INVOICE_STATUS.PENDING,
+        qrContent,
+        sentAt,
+        dueDate,
+      },
+    },
+    { new: true },
+  );
+  if (!sentInvoice) {
+    throw new AppError(CONCURRENT_CHANGE_MESSAGE, 409);
   }
 
-  // 4. Sinh mã QR VietQR chuẩn quicklink
-  const bankId = env.BANK_ID || "970422"; // Mặc định MBBank
-  const accountNo = env.BANK_ACCOUNT_NO || "";
-  const accountName = env.BANK_ACCOUNT_NAME || "";
-  const qrUrl = `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.png?amount=${invoice.totalAmount}&addInfo=${invoice.invoiceCode}&accountName=${encodeURIComponent(accountName)}`;
-
-  // 5. Cập nhật trạng thái PENDING và hạn nộp (+7 ngày)
-  const now = new Date();
-  const dueDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-
-  invoice.status = INVOICE_STATUS.PENDING;
-  invoice.qrContent = qrUrl;
-  invoice.sentAt = now;
-  invoice.dueDate = dueDate;
-  await invoice.save();
-
-  let warning = null;
-
-  // 6. Báo chuông in-app cho người đại diện
-  const representative = await Occupant.findOne({
-    contractId: contract._id,
-    isRepresentative: true,
+  // Lỗi thông báo / mail không làm hỏng việc gửi: hóa đơn vẫn PENDING, trả cảnh báo
+  const warning = await deliverInvoiceNotice({
+    invoice: sentInvoice,
+    contract,
+    user,
+    isReminder: false,
   });
 
-  if (representative && representative.userId) {
-    await notify({
-      userIds: [representative.userId],
-      type: NOTIFICATION_TYPE.INVOICE_SENT,
-      title: `Hóa đơn tiền phòng tháng ${invoice.month}`,
-      message: `Hóa đơn ${invoice.invoiceCode} đã được gửi. Tổng tiền: ${invoice.totalAmount.toLocaleString("vi-VN")} đ. Hạn thanh toán đến ngày ${dueDate.toLocaleDateString("vi-VN")}.`,
-      refId: invoice._id,
-      createdBy: user._id,
-    });
-  }
-
-  // 7. Gửi email kèm QR cho khách thuê (Lỗi mail vẫn tiếp tục PENDING)
-  const recipientEmail = contract.representativeEmail;
-  if (recipientEmail) {
-    const emailHtml = `
-      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-        <h2>Thông báo hóa đơn tiền phòng tháng ${invoice.month}</h2>
-        <p>Xin chào quý khách,</p>
-        <p>Hệ thống Housify xin gửi thông báo hóa đơn tiền phòng chi tiết như sau:</p>
-        <ul>
-          <li><b>Mã hóa đơn:</b> ${invoice.invoiceCode}</li>
-          <li><b>Kỳ thanh toán:</b> Tháng ${invoice.month}</li>
-          <li><b>Tổng số tiền:</b> <span style="color: #e53e3e; font-size: 16px; font-weight: bold;">${invoice.totalAmount.toLocaleString("vi-VN")} VNĐ</span></li>
-          <li><b>Hạn chót thanh toán:</b> ${dueDate.toLocaleDateString("vi-VN")}</li>
-        </ul>
-        <p>Quý khách vui lòng quét mã VietQR bên dưới để thanh toán nhanh:</p>
-        <div style="margin: 20px 0;">
-          <img src="${qrUrl}" alt="Mã VietQR thanh toán" style="max-width: 320px; border: 1px solid #ddd; border-radius: 8px;" />
-        </div>
-        <p><i>Lưu ý: Giữ nguyên nội dung chuyển khoản để hệ thống tự động gạch nợ.</i></p>
-      </div>
-    `;
-
-    const mailSent = await sendMail(
-      recipientEmail,
-      `[Housify] Hóa đơn ${invoice.invoiceCode} tháng ${invoice.month}`,
-      emailHtml,
-    );
-    if (!mailSent) {
-      warning =
-        "Gửi hóa đơn thành công nhưng gửi email thông báo thất bại. Bạn có thể gửi lại thông báo sau.";
-    }
-  }
-
-  return { invoice: formatInvoiceData(invoice), warning };
+  return { invoice: formatInvoiceData(sentInvoice), warning };
 };
 
 /**
- * UC-35: Gửi lại thông báo & email cho hóa đơn PENDING (Nút gửi lại thông báo)
+ * UC-35: Gửi lại chuông + mail cho hóa đơn PENDING
  * POST /api/invoices/:id/resend-notification
  */
 export const resendNotification = async (id, user) => {
-  const invoice = await Invoice.findById(id).populate({
-    path: "contractId",
-    populate: { path: "roomId" },
-  });
-
-  if (!invoice) {
-    throw new AppError("Không tìm thấy hóa đơn", 404);
-  }
+  const invoice = await getInvoiceForManager(
+    id,
+    user,
+    "Bạn không có quyền gửi thông báo cho hóa đơn của tòa nhà khác",
+  );
 
   if (invoice.status !== INVOICE_STATUS.PENDING) {
     throw new AppError(
@@ -669,111 +709,67 @@ export const resendNotification = async (id, user) => {
     );
   }
 
-  const contract = invoice.contractId;
-  const representative = await Occupant.findOne({
-    contractId: contract._id,
-    isRepresentative: true,
+  const warning = await deliverInvoiceNotice({
+    invoice,
+    contract: invoice.contractId,
+    user,
+    isReminder: true,
   });
-
-  // 1. Gửi lại chuông in-app
-  if (representative?.userId) {
-    await notify({
-      userIds: [representative.userId],
-      type: NOTIFICATION_TYPE.INVOICE_SENT,
-      title: `[Nhắc lại] Hóa đơn tiền phòng tháng ${invoice.month}`,
-      message: `Hóa đơn ${invoice.invoiceCode} cần được thanh toán. Tổng tiền: ${invoice.totalAmount.toLocaleString("vi-VN")} đ. Hạn thanh toán: ${new Date(invoice.dueDate).toLocaleDateString("vi-VN")}.`,
-      refId: invoice._id,
-      createdBy: user._id,
-    });
-  }
-
-  // 2. Gửi lại email kèm QR
-  let warning = null;
-  const recipientEmail = contract?.representativeEmail;
-  if (recipientEmail) {
-    const emailHtml = `
-      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-        <h2>[Nhắc lại] Thông báo hóa đơn tiền phòng tháng ${invoice.month}</h2>
-        <p>Xin chào quý khách,</p>
-        <p>Hệ thống xin gửi lại thông tin hóa đơn tiền phòng của quý khách:</p>
-        <ul>
-          <li><b>Mã hóa đơn:</b> ${invoice.invoiceCode}</li>
-          <li><b>Tổng tiền:</b> <span style="color: #e53e3e; font-size: 16px; font-weight: bold;">${invoice.totalAmount.toLocaleString("vi-VN")} VNĐ</span></li>
-          <li><b>Hạn thanh toán:</b> ${new Date(invoice.dueDate).toLocaleDateString("vi-VN")}</li>
-        </ul>
-        <p>Quét mã VietQR bên dưới để thanh toán:</p>
-        <div style="margin: 20px 0;">
-          <img src="${invoice.qrContent}" alt="VietQR" style="max-width: 320px; border: 1px solid #ddd; border-radius: 8px;" />
-        </div>
-      </div>
-    `;
-
-    const mailSent = await sendMail(
-      recipientEmail,
-      `[Housify - Gửi lại] Hóa đơn ${invoice.invoiceCode}`,
-      emailHtml,
-    );
-    if (!mailSent) {
-      warning = "Gửi lại thông báo thất bại: Không thể kết nối dịch vụ email.";
-    }
-  }
 
   return { invoice: formatInvoiceData(invoice), warning };
 };
 
 /**
- * UC-36: Lấy danh sách hóa đơn
+ * UC-36: Danh sách hóa đơn
  * GET /api/invoices
  */
 export const getInvoices = async (query, user) => {
-  const { status, month, roomId, buildingId, page = 1, limit = 10 } = query;
+  const { status, month, roomId, buildingId } = query;
+  const page = Number(query.page) || 1;
+  const limit = Number(query.limit) || 10;
   const filter = {};
 
   if (month) filter.month = month;
   if (status) {
-    const statusList = status.split(",").map((s) => s.trim());
-    filter.status = { $in: statusList };
+    filter.status = { $in: status.split(",").map((item) => item.trim()) };
   }
 
-  // Phân quyền dữ liệu theo vai trò
-  if ((user.role ?? user.roleId) === ROLE.CUSTOMER) {
-    // Customer: chỉ xem hóa đơn của hợp đồng mình thuê, KHÔNG xem DRAFT
-    const repOccupant = await Occupant.findOne({
-      userId: user._id,
-      isRepresentative: true,
-    });
-    if (!repOccupant) {
-      return { items: [], total: 0, page: Number(page), limit: Number(limit) };
-    }
-    filter.contractId = repOccupant.contractId;
-    filter.status = filter.status || { $ne: INVOICE_STATUS.DRAFT };
-  } else if ((user.role ?? user.roleId) === ROLE.MANAGER) {
-    // Manager: chỉ xem các phòng trong tòa mình phụ trách
+  if (user.role === ROLE.CUSTOMER) {
+    // Customer: hóa đơn các hợp đồng mình đại diện, chỉ những hóa đơn đã từng gửi
+    // (ẩn DRAFT và hóa đơn bị hủy khi còn nháp)
+    filter.contractId = { $in: await getCustomerContractIds(user._id) };
+    filter.sentAt = { $ne: null };
+  } else if (user.role === ROLE.MANAGER) {
+    // Manager: chỉ các phòng trong tòa mình phụ trách
     const managerBuilding = await getManagerBuilding(user._id);
-    const roomsInBuilding = await Room.find({
-      buildingId: managerBuilding._id,
-    }).select("_id");
-    const roomIds = roomsInBuilding.map((r) => r._id);
-
-    const contracts = await Contract.find({ roomId: { $in: roomIds } }).select(
-      "_id",
-    );
-    const contractIds = contracts.map((c) => c._id);
-    filter.contractId = { $in: contractIds };
-
+    let roomFilter;
     if (roomId) {
-      const roomContracts = await Contract.find({ roomId }).select("_id");
-      filter.contractId = { $in: roomContracts.map((c) => c._id) };
+      const room = await Room.exists({
+        _id: roomId,
+        buildingId: managerBuilding._id,
+      });
+      if (!room) {
+        throw new AppError(
+          "Bạn không có quyền xem hóa đơn của phòng thuộc tòa nhà khác",
+          403,
+        );
+      }
+      roomFilter = roomId;
+    } else {
+      roomFilter = {
+        $in: await Room.distinct("_id", { buildingId: managerBuilding._id }),
+      };
     }
+    filter.contractId = {
+      $in: await Contract.distinct("_id", { roomId: roomFilter }),
+    };
   } else if (buildingId) {
-    const rooms = await Room.find({ buildingId }).select("_id");
-    const contracts = await Contract.find({
-      roomId: { $in: rooms.map((r) => r._id) },
-    }).select("_id");
-    filter.contractId = { $in: contracts.map((c) => c._id) };
+    const roomIds = await Room.distinct("_id", { buildingId });
+    filter.contractId = {
+      $in: await Contract.distinct("_id", { roomId: { $in: roomIds } }),
+    };
   }
 
-  const skip = (Number(page) - 1) * Number(limit);
   const [invoices, total] = await Promise.all([
     Invoice.find(filter)
       .populate({
@@ -784,23 +780,22 @@ export const getInvoices = async (query, user) => {
         },
       })
       .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(Number(limit)),
+      .skip((page - 1) * limit)
+      .limit(limit),
     Invoice.countDocuments(filter),
   ]);
 
-  const formattedItems = invoices.map(formatInvoiceData);
-
   return {
-    items: formattedItems,
+    items: invoices.map(formatInvoiceData),
     total,
-    page: Number(page),
-    limit: Number(limit),
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
   };
 };
 
 /**
- * UC-36: Lấy chi tiết một hóa đơn
+ * UC-36: Chi tiết một hóa đơn
  * GET /api/invoices/:id
  */
 export const getInvoiceById = async (id, user) => {
@@ -813,99 +808,78 @@ export const getInvoiceById = async (id, user) => {
     throw new AppError("Không tìm thấy hóa đơn", 404);
   }
 
-  // Customer không được xem hóa đơn Nháp, và chỉ xem hóa đơn của mình
-  if ((user.role ?? user.roleId) === ROLE.CUSTOMER) {
-    if (invoice.status === INVOICE_STATUS.DRAFT) {
-      throw new AppError("Bạn không có quyền xem hóa đơn nháp", 403);
-    }
-    const repOccupant = await Occupant.findOne({
-      userId: user._id,
-      isRepresentative: true,
-    });
-    if (
-      !repOccupant ||
-      invoice.contractId._id.toString() !== repOccupant.contractId.toString()
-    ) {
+  if (user.role === ROLE.CUSTOMER) {
+    const contractIds = await getCustomerContractIds(user._id);
+    const isOwner = contractIds.some(
+      (contractId) => contractId.toString() === toId(invoice.contractId),
+    );
+    if (!isOwner) {
       throw new AppError("Bạn không có quyền xem hóa đơn của phòng khác", 403);
+    }
+    // Chưa từng gửi (nháp, hoặc bị hủy khi còn nháp) thì Customer không thấy
+    if (!invoice.sentAt) {
+      throw new AppError("Bạn không có quyền xem hóa đơn nháp", 403);
     }
   }
 
-  // Manager chỉ xem hóa đơn thuộc tòa mình
-  if ((user.role ?? user.roleId) === ROLE.MANAGER) {
-    const managerBuilding = await getManagerBuilding(user._id);
-    const roomBuildingId =
-      invoice.contractId?.roomId?.buildingId?._id ||
-      invoice.contractId?.roomId?.buildingId;
-    if (
-      roomBuildingId &&
-      roomBuildingId.toString() !== managerBuilding._id.toString()
-    ) {
-      throw new AppError(
-        "Bạn không có quyền xem hóa đơn của tòa nhà khác",
-        403,
-      );
-    }
-  }
+  await assertManagerOfBuilding(
+    user,
+    invoice.contractId?.roomId?.buildingId,
+    "Bạn không có quyền xem hóa đơn của tòa nhà khác",
+  );
 
   return formatInvoiceData(invoice);
 };
 
 /**
- * UC-37: Hủy hóa đơn
+ * UC-37: Hủy hóa đơn DRAFT/PENDING, lý do bắt buộc
  * POST /api/invoices/:id/cancel
  */
 export const cancelInvoice = async (id, data, user) => {
   const { reason } = data;
-  const invoice = await Invoice.findById(id).populate({
-    path: "contractId",
-    populate: { path: "roomId" },
-  });
+  const invoice = await getInvoiceForManager(
+    id,
+    user,
+    "Bạn không có quyền hủy hóa đơn này",
+  );
 
-  if (!invoice) {
-    throw new AppError("Không tìm thấy hóa đơn", 404);
-  }
-
-  // Tuyệt đối không được hủy hóa đơn đã thanh toán (BR-103)
+  // Không bao giờ hủy hóa đơn đã thanh toán (BR-103)
   if (invoice.status === INVOICE_STATUS.PAID) {
     throw new AppError("Không thể hủy hóa đơn đã thanh toán", 400);
   }
-
   if (invoice.status === INVOICE_STATUS.CANCELLED) {
     throw new AppError("Hóa đơn này đã bị hủy trước đó", 400);
   }
 
-  // Quyền Manager
-  if ((user.role ?? user.roleId) === ROLE.MANAGER) {
-    const managerBuilding = await getManagerBuilding(user._id);
-    const room = invoice.contractId?.roomId;
-    if (room && room.buildingId.toString() !== managerBuilding._id.toString()) {
-      throw new AppError("Bạn không có quyền hủy hóa đơn này", 403);
-    }
+  // Chỉ hủy khi trạng thái chưa đổi – tránh ghi đè PAID nếu webhook SePay về cùng lúc
+  const previousStatus = invoice.status;
+  const cancelled = await Invoice.findOneAndUpdate(
+    { _id: invoice._id, status: previousStatus },
+    { $set: { status: INVOICE_STATUS.CANCELLED, cancelReason: reason } },
+    { new: true },
+  );
+  if (!cancelled) {
+    throw new AppError(CONCURRENT_CHANGE_MESSAGE, 409);
   }
 
-  const previousStatus = invoice.status;
-  invoice.status = INVOICE_STATUS.CANCELLED;
-  invoice.cancelReason = reason;
-  await invoice.save();
-
-  // Nếu hóa đơn đang PENDING, gửi chuông báo cho khách biết đã hủy
+  // Đang PENDING thì báo cho khách biết hóa đơn đã hủy
   if (previousStatus === INVOICE_STATUS.PENDING) {
     const representative = await Occupant.findOne({
-      contractId: invoice.contractId._id,
+      contractId: toId(invoice.contractId),
       isRepresentative: true,
     });
 
-    if (representative && representative.userId) {
+    if (representative?.userId) {
       await notify({
         userIds: [representative.userId],
         type: NOTIFICATION_TYPE.INVOICE_CANCELLED,
-        title: `Hóa đơn ${invoice.invoiceCode} đã bị hủy`,
-        message: `Hóa đơn tháng ${invoice.month} đã được hủy bởi Quản lý. Lý do: ${reason}`,
-        refId: invoice._id,
+        title: `Hóa đơn ${cancelled.invoiceCode} đã bị hủy`,
+        message: `Hóa đơn ${cancelled.invoiceCode} đã được hủy bởi Manager. Lý do: ${reason}`,
+        refId: cancelled._id,
         createdBy: user._id,
       });
     }
   }
 
-  return formatInvoiceData(invoice);
+  return formatInvoiceData(cancelled);
 };

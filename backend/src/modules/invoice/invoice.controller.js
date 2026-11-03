@@ -58,8 +58,9 @@ export const sendInvoice = asyncHandler(async (request, response) => {
     request.params.id,
     request.user,
   );
-  const message = warning || "Gửi hóa đơn thành công";
-  return ok(response, invoice, message);
+  // Gửi chuông / mail lỗi: hóa đơn vẫn PENDING, data.warning để FE hiện cảnh báo + nút gửi lại
+  const message = warning || "Đã gửi hóa đơn thành công";
+  return ok(response, { ...invoice, warning }, message);
 });
 
 // 8. Gửi lại thông báo cho hóa đơn PENDING (UC-35)
@@ -69,7 +70,7 @@ export const resendNotification = asyncHandler(async (request, response) => {
     request.user,
   );
   const message = warning || "Gửi lại thông báo thành công";
-  return ok(response, invoice, message);
+  return ok(response, { ...invoice, warning }, message);
 });
 
 // 9. Hủy hóa đơn (UC-37)
