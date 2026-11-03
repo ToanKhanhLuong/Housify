@@ -22,9 +22,8 @@ import ContractDocumentTab from './components/ContractDocumentTab';
 import EditContractModal from './components/EditContractModal';
 import InviteLinkAlert from './components/InviteLinkAlert';
 import RenewContractModal from './components/RenewContractModal';
-// UC-28, 29, 45 (đã làm chỗ chừa ở đầu file): Đang hiệu lực → nút Chấm dứt (mở /terminations/new?contractId=, ẩn khi đã có
+// UC-28, 29, 45: Đang hiệu lực → nút Chấm dứt (mở /terminations/new?contractId=, ẩn khi đã có
 // đơn chờ / đã xác nhận); khung "Đơn chấm dứt" (các đơn của hợp đồng); Đã kết thúc → khung "Hoàn cọc"
-// import riêng dòng để không đụng các dòng import ở trên (nhánh khác cũng sửa)
 import { BiBlock } from 'react-icons/bi';
 import { TERMINATION_STATUS } from '../../constants/enums';
 import ContractTerminations from './components/ContractTerminations';

@@ -16,7 +16,7 @@ import contractApi from '../contract.api';
 const monthLabel = (month) => (month ? month.split('-').reverse().join('/') : '—');
 
 const RefundDepositSection = ({ contractId }) => {
-  // loading → ok (đủ điều kiện) | blocked (BE trả lý do) | done (vừa hoàn) | error | unavailable (BE chưa có API → ẩn)
+  // loading → ok (đủ điều kiện) | blocked (BE trả lý do) | done (vừa hoàn) | error | unavailable (máy chủ không có API → ẩn)
   const [state, setState] = useState({ status: 'loading', preview: null, message: '' });
   const [showConfirm, setShowConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -27,7 +27,7 @@ const RefundDepositSection = ({ contractId }) => {
         .refundPreview(contractId)
         .then((response) => setState({ status: 'ok', preview: response.data, message: '' }))
         .catch((error) => {
-          // 404 "Không tìm thấy đường dẫn …": route hoàn cọc chưa bật ở BE (chờ gộp) → ẩn khung
+          // 404 "Không tìm thấy đường dẫn …": máy chủ không có API hoàn cọc → ẩn khung
           const missingRoute = error.status === 404 && Boolean(error.message?.includes('đường dẫn'));
           const status = missingRoute ? 'unavailable' : error.status === 400 ? 'blocked' : 'error';
           setState({ status, preview: null, message: error.message });
