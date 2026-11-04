@@ -1,7 +1,7 @@
 // UC-06: khách mở link mời trong email → xem hợp đồng → điền thông tin → xem lại và xác nhận điện tử → hoàn tất
 // Hợp đồng luôn hiện dạng trang văn bản (ContractDocument), phần nhập nằm ở form riêng; xác nhận xong in được / lưu PDF
 // Link hết hạn, đã dùng hoặc hợp đồng đã hủy → màn hình báo lỗi với đúng câu BE trả
-// [chờ An duyệt] hợp đồng nhóm: người đại diện tự nhập người ở cùng ở bước 2 (CoOccupantsInput)
+// Hợp đồng nhóm: người đại diện tự nhập người ở cùng ở bước 2 (CoOccupantsInput)
 import { useEffect, useState } from 'react';
 import { Alert, Button, Card, Col, Form, Row, Spinner } from 'react-bootstrap';
 import { BiArrowBack, BiCheckShield, BiPrinter, BiRightArrowAlt } from 'react-icons/bi';
@@ -34,7 +34,7 @@ const EMPTY_FORM = {
   cccdBackImage: '',
   password: '',
   confirmPassword: '',
-  coOccupants: [], // [chờ An duyệt] [{ id, name, cccd, phone, dateOfBirth, address }]
+  coOccupants: [], // [{ id, name, cccd, phone, dateOfBirth, address }]
 };
 
 // lỗi về chính link (hết hạn, đã dùng, đã hủy, không tồn tại) → chuyển sang màn hình link hỏng
