@@ -7,6 +7,7 @@ import Building from "../../models/Building.js";
 import Occupant from "../../models/Occupant.js";
 import User from "../../models/User.js";
 import { withTransaction } from "../../helpers/withTransaction.js";
+import { endOfVietnamDay, startOfVietnamDay } from "../../helpers/date.js";
 import { notify } from "../../helpers/notify.js";
 import { sendMail } from "../../config/mail.js";
 import {
@@ -33,6 +34,19 @@ const calculateOverdueLabel = (paidAt, dueDate) => {
 };
 
 /**
+ * Helper: Đọc thời gian giao dịch SePay. SePay gửi "YYYY-MM-DD HH:mm:ss" theo giờ Việt Nam, không kèm múi giờ,
+ * nên phải gắn +07:00 để máy chủ chạy giờ UTC không đọc lệch 7 tiếng. Chuỗi có múi giờ thì đọc nguyên
+ */
+const parseSepayDate = (value) => {
+  if (!value) return new Date();
+  const text = String(value).trim();
+  const parsed = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(text)
+    ? new Date(`${text.replace(" ", "T")}+07:00`)
+    : new Date(text);
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+};
+
+/**
  * UC-38 & UC-42: Xử lý Webhook SePay báo tiền về
  * SePay gọi vào endpoint: POST /api/webhooks/sepay
  */
@@ -41,9 +55,7 @@ export const processSepayWebhook = async (payload) => {
   const transferContent = payload.content || "";
   const amount = Number(payload.transferAmount) || 0;
   const bankName = payload.gateway || "Ngân hàng";
-  const paidAt = payload.transactionDate
-    ? new Date(payload.transactionDate)
-    : new Date();
+  const paidAt = parseSepayDate(payload.transactionDate);
 
   console.log(
     `[SePay Webhook] Nhận giao dịch ${sepayTxnId}: ${amount} đ, nội dung: "${transferContent}"`,
@@ -98,11 +110,8 @@ export const processSepayWebhook = async (payload) => {
     };
   }
 
-  // 4. Nếu hóa đơn đã PAID hoặc CANCELLED -> Chỉ ghi log theo quy tắc nghiệp vụ
-  if (
-    invoice.status === INVOICE_STATUS.PAID ||
-    invoice.status === INVOICE_STATUS.CANCELLED
-  ) {
+  // 4. Chỉ hóa đơn PENDING mới được thanh toán. DRAFT, PAID, CANCELLED -> Chỉ ghi log theo quy tắc nghiệp vụ
+  if (invoice.status !== INVOICE_STATUS.PENDING) {
     console.log(
       `[SePay Webhook] Hóa đơn ${invoiceCode} đang ở trạng thái [${invoice.status}], chỉ ghi log.`,
     );
@@ -233,20 +242,27 @@ export const processSepayWebhook = async (payload) => {
 export const getPayments = async (query, user) => {
   const { from, to, page = 1, limit = 10 } = query;
   const userRole = user.role ?? user.roleId;
+  const emptyResult = {
+    items: [],
+    total: 0,
+    page: Number(page),
+    limit: Number(limit),
+    totalPages: 0,
+  };
 
   // 1. Phân quyền: Xác định danh sách invoiceId mà user có quyền xem
   let invoiceFilter = {};
 
   if (userRole === ROLE.CUSTOMER) {
-    // Customer: Chỉ xem các hợp đồng mà mình là người đại diện
-    const repOccupant = await Occupant.findOne({
+    // Customer: Xem mọi hợp đồng mà mình là người đại diện (khách thuê lại có nhiều hợp đồng)
+    const contractIds = await Occupant.distinct("contractId", {
       userId: user._id,
       isRepresentative: true,
     });
-    if (!repOccupant) {
-      return { items: [], total: 0, page: Number(page), limit: Number(limit) };
+    if (contractIds.length === 0) {
+      return emptyResult;
     }
-    invoiceFilter.contractId = repOccupant.contractId;
+    invoiceFilter.contractId = { $in: contractIds };
   } else if (userRole === ROLE.MANAGER) {
     // Manager: Xem các phòng thuộc tòa mình phụ trách
     const managerBuilding = await Building.findOne({
@@ -254,7 +270,7 @@ export const getPayments = async (query, user) => {
       isDeleted: false,
     });
     if (!managerBuilding) {
-      return { items: [], total: 0, page: Number(page), limit: Number(limit) };
+      return emptyResult;
     }
     const rooms = await Room.find({ buildingId: managerBuilding._id }).select(
       "_id",
@@ -276,14 +292,12 @@ export const getPayments = async (query, user) => {
   // Lọc theo khoảng ngày thanh toán paidAt
   if (from || to) {
     paymentFilter.paidAt = {};
+    // from, to là ngày theo giờ Việt Nam: từ 00:00 ngày from đến 23:59:59 ngày to
     if (from) {
-      paymentFilter.paidAt.$gte = new Date(from);
+      paymentFilter.paidAt.$gte = startOfVietnamDay(from);
     }
     if (to) {
-      // Đặt đến 23:59:59 của ngày 'to' để lấy trọn ngày
-      const toDate = new Date(to);
-      toDate.setHours(23, 59, 59, 999);
-      paymentFilter.paidAt.$lte = toDate;
+      paymentFilter.paidAt.$lte = endOfVietnamDay(to);
     }
   }
 
@@ -339,6 +353,7 @@ export const getPayments = async (query, user) => {
     total,
     page: Number(page),
     limit: Number(limit),
+    totalPages: Math.ceil(total / Number(limit)) || 0,
   };
 };
 
