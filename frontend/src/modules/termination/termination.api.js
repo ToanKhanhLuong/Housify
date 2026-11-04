@@ -10,7 +10,7 @@ const terminationApi = {
   // chi tiết đơn + contract, room, representative + xác nhận điện tử (electronicConfirmation, signatureValid…)
   detail: (id) => api.get(`/terminations/${id}`),
 
-  // Manager tạo đơn trên hợp đồng ACTIVE { type: MUTUAL | UNILATERAL, reason, effectiveDate, note? } → { termination, warning? }
+  // Manager tạo đơn trên hợp đồng ACTIVE { type: MUTUAL | UNILATERAL, reason, effectiveDate, note? } → đơn vừa tạo { _id, type, status, …, warning? }
   create: (contractId, data) => api.post(`/contracts/${contractId}/terminations`, data),
 
   // UC-28: người đại diện xác nhận điện tử đơn MUTUAL { agreed: true }

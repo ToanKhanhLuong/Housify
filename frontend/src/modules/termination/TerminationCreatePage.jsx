@@ -87,7 +87,7 @@ const TerminationCreatePage = () => {
       });
       if (response.data?.warning) toast.warning(response.data.warning);
       else toast.success(response.message || 'Đã gửi đơn chấm dứt hợp đồng');
-      navigate(`/terminations/${response.data?.termination?._id}`, { replace: true });
+      navigate(`/terminations/${response.data?._id}`, { replace: true });
     } catch (error) {
       setErrors(toFieldErrors(error.errors)); // 422: lỗi hiện dưới từng ô
       if (!error.errors) toast.error(error.message); // vd "Hợp đồng đã có đơn chấm dứt đang xử lý"
