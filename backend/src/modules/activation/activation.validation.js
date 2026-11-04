@@ -62,8 +62,8 @@ export const activateCustomerContractSchema = Joi.object({
         'string.empty': 'Vui lòng tải lên ảnh CCCD mặt sau',
         'any.required': 'Vui lòng tải lên ảnh CCCD mặt sau',
     }),
-    // [chờ An duyệt] người đại diện tự nhập người ở cùng lúc kích hoạt (thay cho Manager nhập ở UC-24)
-    // Câu lỗi giống contract.validation.js của An
+    // người đại diện tự nhập người ở cùng lúc kích hoạt (thay cho Manager nhập ở UC-24)
+    // Câu lỗi giống contract.validation.js
     coOccupants: Joi.array()
         .items(
             Joi.object({

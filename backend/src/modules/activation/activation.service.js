@@ -199,7 +199,7 @@ export const getContractActivationInfo = async (token) => {
         isRepresentative: false,
     }).sort({ createdAt: 1 });
 
-    // [chờ An duyệt] Bên A của hợp đồng = Manager tạo hợp đồng (createdBy, cũng là người nhận cọc)
+    // Bên A của hợp đồng = Manager tạo hợp đồng (createdBy, cũng là người nhận cọc)
     const manager = await Manager.findOne({ userId: contract.createdBy })
         .select('name phone address dateOfBirth')
         .lean();
@@ -215,9 +215,9 @@ export const getContractActivationInfo = async (token) => {
             floorNumber: room.floorNumber,
             roomTypeName: room.roomTypeId?.name || '',
             area: room.area,
-            capacity: room.roomTypeId?.capacity ?? null, // [chờ An duyệt] số người tối đa theo loại phòng
+            capacity: room.roomTypeId?.capacity ?? null, // số người tối đa theo loại phòng
         },
-        // [chờ An duyệt] null khi không tìm thấy hồ sơ Manager
+        // null khi không tìm thấy hồ sơ Manager
         manager: manager
             ? {
                   name: manager.name,
@@ -227,7 +227,7 @@ export const getContractActivationInfo = async (token) => {
               }
             : null,
         contractType: contract.contractType,
-        createdAt: contract.createdAt, // [chờ An duyệt] lúc Manager tạo và gửi hợp đồng = lúc Bên A xác nhận điện tử
+        createdAt: contract.createdAt, // lúc Manager tạo và gửi hợp đồng = lúc Bên A xác nhận điện tử
         startDate: contract.startDate,
         endDate: contract.endDate,
         rentPrice: contract.rentPrice,
@@ -287,7 +287,7 @@ export const activateCustomerContract = async ({
         throw new AppError('Số điện thoại đã tồn tại trong hệ thống', 409);
     }
 
-    // [chờ An duyệt] 2b. Người ở cùng do người đại diện nhập (luật và câu lỗi giống createContract của An)
+    // 2b. Người ở cùng do người đại diện nhập (luật và câu lỗi giống createContract)
     const newCoOccupants = coOccupants.map((co) => ({
         name: co.name.trim(),
         cccd: co.cccd.trim(),
@@ -431,7 +431,7 @@ export const activateCustomerContract = async ({
             { session },
         );
 
-        // [chờ An duyệt] người ở cùng người đại diện vừa nhập: không có tài khoản, vào ở từ ngày bắt đầu hợp đồng
+        // người ở cùng người đại diện vừa nhập: không có tài khoản, vào ở từ ngày bắt đầu hợp đồng
         if (newCoOccupants.length > 0) {
             await Occupant.insertMany(
                 newCoOccupants.map((co) => ({
