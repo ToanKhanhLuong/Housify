@@ -19,7 +19,7 @@ export const getContractActivationInfo = asyncHandler(async (request, response) 
 });
 
 export const activateCustomerContract = asyncHandler(async (request, response) => {
-    // [chờ An duyệt] trả thêm activatedAt để FE in giờ xác nhận điện tử lên hợp đồng
+    // trả thêm activatedAt để FE in giờ xác nhận điện tử lên hợp đồng
     const { activatedAt, warning } = await activationService.activateCustomerContract(request.body);
     return ok(
         response,
