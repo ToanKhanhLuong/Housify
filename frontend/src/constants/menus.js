@@ -7,9 +7,9 @@ import { ROLE } from './enums';
 
 // Trang mở ra ngay sau khi đăng nhập (UC-01 bước 4)
 export const HOME_PATH = {
-    [ROLE.ADMIN]: '/buildings', // Iter 1: vào thẳng Tòa nhà (Dashboard iter 2)
-    [ROLE.MANAGER]: '/my-building', // Iter 1: vào thẳng Tòa của tôi
-    [ROLE.CUSTOMER]: '/rules', // Iter 1: vào thẳng Nội quy
+    [ROLE.ADMIN]: '/dashboard', // UC-07
+    [ROLE.MANAGER]: '/dashboard', // UC-47
+    [ROLE.CUSTOMER]: '/rules',
 };
 
 // BR-023: Manager chưa được phân công tòa chỉ dùng được các trang này
