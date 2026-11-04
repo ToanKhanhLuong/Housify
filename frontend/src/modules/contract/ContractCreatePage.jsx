@@ -1,7 +1,6 @@
 // UC-24: tạo hợp đồng thuê (Manager) – chọn phòng Trống của tòa (giá thuê, tiền cọc lấy từ phòng, chỉ xem),
 // ngày bắt đầu + số tháng (tự tính ngày kết thúc), CCCD + email người đại diện, Đơn / Nhóm, ghi chú
 // Người ở cùng (Nhóm): Manager CÓ THỂ nhập trước, không bắt buộc – khách tự thêm khi kích hoạt lần đầu, sau đó chỉ Manager thêm (UC-32)
-// [chờ An duyệt] BE trên main_iter_2 vẫn bắt hợp đồng Nhóm có ≥ 1 người ở cùng → để trống sẽ hiện đúng câu lỗi BE
 // Tạo xong: chuyển sang chi tiết, hiện thông báo đã gửi lời mời (kèm link thử khi chạy dev). Mở sẵn phòng: /contracts/new?roomId=
 import { useEffect, useState } from 'react';
 import { Alert, Button, Card, Col, Form, Row, Spinner } from 'react-bootstrap';

@@ -17,7 +17,6 @@ const Sidebar = ({ show, onHide, collapsed, onToggleCollapse }) => {
 
     // Thu gọn / mở rộng mượt: chữ luôn nằm trên 1 dòng (whitespace-nowrap), mục menu cắt phần thừa (overflow-hidden),
     // chữ chỉ mờ dần / hiện dần theo bề rộng sidebar; icon đứng yên một chỗ (không đổi căn giữa ↔ căn trái).
-    // Trước đây chữ hiện ngay khi sidebar còn hẹp nên bị xuống 2–3 dòng rồi nhảy lại → cảm giác giật.
     // Ngăn kéo trên điện thoại luôn hiện đủ chữ (chỉ áp dụng từ 992px)
     const itemClass = 'overflow-hidden whitespace-nowrap';
     const labelClass = `transition-opacity duration-200 ${collapsed ? 'min-[992px]:opacity-0' : ''}`;
