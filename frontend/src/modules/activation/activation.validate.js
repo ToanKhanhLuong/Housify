@@ -10,7 +10,7 @@ const todayInput = () => {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 };
 
-// [chờ An duyệt] người ở cùng người đại diện tự nhập. Lỗi theo khóa coOccupants.0.cccd như BE trả
+// Người ở cùng người đại diện tự nhập. Lỗi theo khóa coOccupants.0.cccd như BE trả
 // Câu lỗi giống BE (activation.validation.js, activation.service.js)
 const validateCoOccupants = (form, contract) => {
   const errors = {};
