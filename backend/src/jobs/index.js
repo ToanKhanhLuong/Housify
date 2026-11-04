@@ -43,6 +43,7 @@ export const runStartupCatchUpJobs = async () => {
         'terminationEffective',
         'contractExpiry',
         'accountAfterEnd',
+        'paymentReminder',
     ];
 
     for (const name of jobNames) {

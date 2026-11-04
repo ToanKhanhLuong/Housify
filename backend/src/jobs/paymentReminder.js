@@ -1,11 +1,9 @@
-// Job nhắc thanh toán hóa đơn theo mốc trước và sau hạn (UC-49 – khung chờ module invoice gắn hàm service)
+// Job nhắc thanh toán hóa đơn theo mốc trước và sau hạn (UC-49)
 import cron from 'node-cron';
+import { runPaymentReminderJob } from '../modules/payment/paymentReminder.service.js';
 
 export const run = async () => {
-    return {
-        processedCount: 0,
-        note: 'Chờ gắn hàm service nhắc thanh toán hóa đơn (UC-49)',
-    };
+    return runPaymentReminderJob(new Date());
 };
 
 export const registerPaymentReminderJob = () => {
