@@ -25,7 +25,7 @@ import devRoutes from './modules/dev/dev.routes.js';                        // T
 
 // --- Iteration 3 ---
 import terminationRoutes from './modules/termination/termination.routes.js'; // An   | UC-28, 29
-// import dashboardRoutes from './modules/dashboard/dashboard.routes.js';      // Hiếu  | UC-07, 47, 48
+import dashboardRoutes from './modules/dashboard/dashboard.routes.js';      // Hiếu  | UC-07, 47, 48
 // import ocrRoutes from './modules/ocr/ocr.routes.js';                        // Toàn  | làm nếu kịp
 
 const router = Router();
@@ -52,7 +52,7 @@ router.use(devRoutes);
 
 // --- Iteration 3 ---
 router.use(terminationRoutes);
-// router.use(dashboardRoutes);
+router.use(dashboardRoutes);
 // router.use(ocrRoutes);
 
 export default router;

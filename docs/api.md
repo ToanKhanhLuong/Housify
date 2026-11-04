@@ -514,9 +514,9 @@ Chỉ Admin (Manager, Customer gọi → 403). Id sai định dạng → 404 nh�
 
 | Method | Path                   | Role | Ghi chú                   |
 | ------ | ---------------------- | ---- | -------------------------- |
-| GET    | `/dashboard/admin`   | A    | `?buildingId=`           |
-| GET    | `/dashboard/manager` | M    |                            |
-| GET    | `/reports`           | A M  | `?from=&to=&buildingId=` |
+| GET    | `/dashboard/admin`   | A    | Tổng quan toàn hệ thống hoặc một tòa (UC-07). Query: `?buildingId=`. Trả 200 `{ buildings, rooms: { total, available, occupied, maintenance }, monthlyRevenue, activeContracts, openIncidents, users, residents, movedIn, movedOut }`. Lỗi: 404 "Tòa nhà không tồn tại"; 422 sai `buildingId` |
+| GET    | `/dashboard/manager` | M    | Tổng quan tòa mình (UC-47). Trả 200 `{ rooms: { total, available, occupied, maintenance }, pendingInvoices: { count, totalAmount, overdueCount }, openIncidents, expiringContracts, monthlyRevenue }` (`expiringContracts`: hợp đồng hết hạn trong 30 ngày tới; `openIncidents`: đơn Chờ tiếp nhận hoặc Đang xử lý). Lỗi: 403 "Bạn chưa được cấp quyền quản lý tòa nhà" |
+| GET    | `/reports`           | A M  | Báo cáo theo kỳ (UC-48). Query: `?from=&to=&buildingId=` (`from`, `to` là YYYY-MM-DD giờ Việt Nam, bỏ trống là tháng hiện tại; tháng / quý / năm do FE đổi thành `from`, `to`; `buildingId` chỉ dùng cho Admin, Manager luôn là tòa mình). Trả 200 `{ from, to, totalRevenue, revenueByMonth: [{ month: 'YYYY-MM', revenue }], rooms: { total, available, occupied, maintenance, occupancyRate }, contracts: { new, ended }, latePayments: [{ _id, invoiceCode, month, roomNumber, amount, dueDate, overdueDays }] }` (`revenueByMonth` đủ mọi tháng trong kỳ; `latePayments` tính theo hiện tại, không phụ thuộc kỳ). Lỗi: 403 "Bạn chưa được cấp quyền quản lý tòa nhà"; 404 "Tòa nhà không tồn tại"; 422 sai định dạng hoặc ngày bắt đầu lớn hơn ngày kết thúc |
 
 ## OCR – `ocr` (làm nếu kịp)
 
