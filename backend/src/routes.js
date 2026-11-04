@@ -21,7 +21,7 @@ import invoiceRoutes from "./modules/invoice/invoice.routes.js"; // Toàn  | UC-
 import paymentRoutes from "./modules/payment/payment.routes.js"; // Toàn  | UC-38, 39, 42 (webhook SePay)
 // import announcementRoutes from './modules/announcement/announcement.routes.js'; // Toàn | UC-40
 import devRoutes from './modules/dev/dev.routes.js';                        // Toàn & An | giả lập webhook, chạy job tự động, bật bằng ENABLE_DEV_ROUTES
-// import incidentRoutes from './modules/incident/incident.routes.js';         // Hiếu  | UC-43, 44
+import incidentRoutes from './modules/incident/incident.routes.js';         // Hiếu  | UC-43, 44
 
 // --- Iteration 3 ---
 import terminationRoutes from './modules/termination/termination.routes.js'; // An   | UC-28, 29
@@ -48,7 +48,7 @@ router.use(invoiceRoutes);
 router.use(paymentRoutes);
 // router.use(announcementRoutes);
 router.use(devRoutes);
-// router.use(incidentRoutes);
+router.use(incidentRoutes);
 
 // --- Iteration 3 ---
 router.use(terminationRoutes);
