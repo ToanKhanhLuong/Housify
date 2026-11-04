@@ -2,7 +2,6 @@
 // Nháp → Gửi lại lời mời (UC-24 A2), Chỉnh sửa (UC-26), Hủy hợp đồng (UC-46)
 // Đang hiệu lực → Gia hạn (UC-27), Sửa ghi chú (UC-26), Thêm người ở cùng (UC-32, mở trang Cư dân), Lập hóa đơn (UC-34)
 // Bấm một cư dân trong bảng → chi tiết cư dân (/occupants/:id)
-// Chừa chỗ cho An: Chấm dứt (UC-28, 29) khi Đang hiệu lực, Hoàn cọc (UC-45) khi Đã kết thúc
 import { useCallback, useEffect, useState } from 'react';
 import { Button, Card, Placeholder, Spinner, Tab, Tabs } from 'react-bootstrap';
 import { BiCalendarPlus, BiEditAlt, BiReceipt, BiSend, BiUserPlus, BiXCircle } from 'react-icons/bi';

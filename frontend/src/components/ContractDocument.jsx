@@ -6,7 +6,7 @@
 //   notes, representativeEmail, representativeCccd, coOccupants[] }
 // party = thông tin Bên B khách đã điền (chưa điền thì để "………"); confirmation = { name, activatedAt } sau khi xác nhận
 // Bố cục 4 mục theo mẫu hợp đồng thuê phòng trọ: 1. Nội dung thuê phòng trọ · 2. Trách nhiệm Bên A · 3. Trách nhiệm Bên B · 4. Điều khoản thực hiện
-// Mục 2 viết cứng, mục 3 và 4 viết theo luật đã có trong docs – cần An duyệt câu chữ
+// Mục 2 viết cứng, mục 3 và 4 viết theo luật đã có trong docs
 // Ô ký ghi "Xác nhận điện tử", tuyệt đối không ghi "chữ ký số" (AGENTS.md)
 import { BiCheck } from 'react-icons/bi';
 import { CONTRACT_TYPE } from '../constants/enums';
@@ -73,7 +73,7 @@ const ContractDocument = ({ contract, party = {}, confirmation = null }) => {
   const { building, room, manager } = contract;
   const isGroup = contract.contractType === CONTRACT_TYPE.GROUP;
   const months = monthsBetween(contract.startDate, contract.endDate);
-  // người ở cùng = người Manager đã nhập sẵn + người đại diện vừa nhập (bỏ dòng chưa có tên) [chờ An duyệt]
+  // người ở cùng = người Manager đã nhập sẵn + người đại diện vừa nhập (bỏ dòng chưa có tên)
   const coOccupants = [
     ...(contract.coOccupants ?? []),
     ...(party.coOccupants ?? []).filter((person) => person.name.trim()),
