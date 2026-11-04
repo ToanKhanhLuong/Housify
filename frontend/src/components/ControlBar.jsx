@@ -351,97 +351,97 @@ const ControlBar = ({
                                         {rowIndex > 0 && <div className="hf-sep" />}
                                         {/* nhóm có beside: true nằm cùng hàng với nhóm trước (2 cột) */}
                                         <div className={row.length > 1 ? 'grid grid-cols-2 gap-3' : ''}>
-                                        {row.map((group) => (
-                                    <div key={group.id} className="min-w-0">
-                                        <div className="hf-sub">{group.label}</div>
+                                            {row.map((group) => (
+                                                <div key={group.id} className="min-w-0">
+                                                    <div className="hf-sub">{group.label}</div>
 
-                                        {group.type === 'checkbox' && (
-                                            <div className={`flex flex-col gap-0.5 ${scrollClass(group)}`}>
-                                                {group.options?.map((opt) => {
-                                                    const checked = (selectedFilters[group.id] || []).includes(opt.value);
-                                                    return (
-                                                        <Button
-                                                            key={opt.value}
-                                                            variant="secondary"
-                                                            className="hf-opt"
-                                                            onClick={() => handleToggleCheckbox(group.id, opt.value)}
-                                                        >
-                                                            <span className={`hf-box ${checked ? 'hf-box-on' : ''}`}>
-                                                                {checked && <BiCheck size={14} />}
-                                                            </span>
-                                                            <span className="text-sm">{opt.label}</span>
-                                                        </Button>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
+                                                    {group.type === 'checkbox' && (
+                                                        <div className={`flex flex-col gap-0.5 ${scrollClass(group)}`}>
+                                                            {group.options?.map((opt) => {
+                                                                const checked = (selectedFilters[group.id] || []).includes(opt.value);
+                                                                return (
+                                                                    <Button
+                                                                        key={opt.value}
+                                                                        variant="secondary"
+                                                                        className="hf-opt"
+                                                                        onClick={() => handleToggleCheckbox(group.id, opt.value)}
+                                                                    >
+                                                                        <span className={`hf-box ${checked ? 'hf-box-on' : ''}`}>
+                                                                            {checked && <BiCheck size={14} />}
+                                                                        </span>
+                                                                        <span className="text-sm">{opt.label}</span>
+                                                                    </Button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
 
-                                        {group.type === 'radio' && (
-                                            <div className={`flex flex-col gap-0.5 ${scrollClass(group)}`}>
-                                                {group.options?.map((opt) => {
-                                                    const checked = selectedFilters[group.id] === opt.value;
-                                                    return (
-                                                        <Button
-                                                            key={opt.value}
-                                                            variant="secondary"
-                                                            className="hf-opt"
-                                                            onClick={() => handleSelectRadio(group.id, opt.value)}
-                                                        >
-                                                            <span className={`hf-rd ${checked ? 'hf-rd-on' : ''}`} />
-                                                            <span className="text-sm">{opt.label}</span>
-                                                        </Button>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
+                                                    {group.type === 'radio' && (
+                                                        <div className={`flex flex-col gap-0.5 ${scrollClass(group)}`}>
+                                                            {group.options?.map((opt) => {
+                                                                const checked = selectedFilters[group.id] === opt.value;
+                                                                return (
+                                                                    <Button
+                                                                        key={opt.value}
+                                                                        variant="secondary"
+                                                                        className="hf-opt"
+                                                                        onClick={() => handleSelectRadio(group.id, opt.value)}
+                                                                    >
+                                                                        <span className={`hf-rd ${checked ? 'hf-rd-on' : ''}`} />
+                                                                        <span className="text-sm">{opt.label}</span>
+                                                                    </Button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
 
-                                        {group.type === 'month' && (
-                                            // 1 ô chọn tháng/năm của trình duyệt: gọn, chọn được tháng bất kỳ, không dài thêm theo thời gian
-                                            <div className="px-2 py-1">
-                                                <Form.Control
-                                                    type="month"
-                                                    size="sm"
-                                                    value={selectedFilters[group.id] || ''}
-                                                    max={group.max}
-                                                    onChange={(e) => handleSelectMonth(group.id, e.target.value)}
-                                                    aria-label={group.label}
-                                                />
-                                            </div>
-                                        )}
+                                                    {group.type === 'month' && (
+                                                        // 1 ô chọn tháng/năm của trình duyệt: gọn, chọn được tháng bất kỳ, không dài thêm theo thời gian
+                                                        <div className="px-2 py-1">
+                                                            <Form.Control
+                                                                type="month"
+                                                                size="sm"
+                                                                value={selectedFilters[group.id] || ''}
+                                                                max={group.max}
+                                                                onChange={(e) => handleSelectMonth(group.id, e.target.value)}
+                                                                aria-label={group.label}
+                                                            />
+                                                        </div>
+                                                    )}
 
-                                        {(group.type === 'range' || group.type === 'dateRange') && (
-                                            <div className="flex flex-col gap-2 px-2 py-1">
-                                                <div className="flex items-center gap-2">
-                                                    <Form.Control
-                                                        type={group.type === 'dateRange' ? 'date' : 'number'}
-                                                        size="sm"
-                                                        aria-label={`${group.label} từ`}
-                                                        placeholder="Từ"
-                                                        value={rangeDraft[group.minField] ?? (selectedFilters[group.minField] || '')}
-                                                        onChange={(e) => setRangeDraft((prev) => ({ ...prev, [group.minField]: e.target.value }))}
-                                                    />
-                                                    <span className="text-gray-400">-</span>
-                                                    <Form.Control
-                                                        type={group.type === 'dateRange' ? 'date' : 'number'}
-                                                        size="sm"
-                                                        aria-label={`${group.label} đến`}
-                                                        placeholder="Đến"
-                                                        value={rangeDraft[group.maxField] ?? (selectedFilters[group.maxField] || '')}
-                                                        onChange={(e) => setRangeDraft((prev) => ({ ...prev, [group.maxField]: e.target.value }))}
-                                                    />
+                                                    {(group.type === 'range' || group.type === 'dateRange') && (
+                                                        <div className="flex flex-col gap-2 px-2 py-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <Form.Control
+                                                                    type={group.type === 'dateRange' ? 'date' : 'number'}
+                                                                    size="sm"
+                                                                    aria-label={`${group.label} từ`}
+                                                                    placeholder="Từ"
+                                                                    value={rangeDraft[group.minField] ?? (selectedFilters[group.minField] || '')}
+                                                                    onChange={(e) => setRangeDraft((prev) => ({ ...prev, [group.minField]: e.target.value }))}
+                                                                />
+                                                                <span className="text-gray-400">-</span>
+                                                                <Form.Control
+                                                                    type={group.type === 'dateRange' ? 'date' : 'number'}
+                                                                    size="sm"
+                                                                    aria-label={`${group.label} đến`}
+                                                                    placeholder="Đến"
+                                                                    value={rangeDraft[group.maxField] ?? (selectedFilters[group.maxField] || '')}
+                                                                    onChange={(e) => setRangeDraft((prev) => ({ ...prev, [group.maxField]: e.target.value }))}
+                                                                />
+                                                            </div>
+                                                            <Button
+                                                                variant="secondary"
+                                                                size="sm"
+                                                                className="self-start"
+                                                                onClick={() => handleApplyRange(group.minField, group.maxField)}
+                                                            >
+                                                                Áp dụng
+                                                            </Button>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                                <Button
-                                                    variant="secondary"
-                                                    size="sm"
-                                                    className="self-start"
-                                                    onClick={() => handleApplyRange(group.minField, group.maxField)}
-                                                >
-                                                    Áp dụng
-                                                </Button>
-                                            </div>
-                                        )}
-                                    </div>
-                                        ))}
+                                            ))}
                                         </div>
                                     </div>
                                 ))}
