@@ -24,6 +24,10 @@ const roomApi = {
   contracts: (roomId) =>
     api.get('/contracts', { params: { roomId, status: 'DRAFT,ACTIVE', limit: 5 } }),
 
+  // UC-19 (chỉ Manager): lịch sử hợp đồng của phòng – Đã kết thúc, Đã hủy, mới nhất trước, có phân trang
+  contractHistory: (roomId, page) =>
+    api.get('/contracts', { params: { roomId, status: 'ENDED,CANCELLED', page, limit: 5 } }),
+
   // UC-19 (chỉ Manager): cư dân đang ở của phòng (GET /occupants?roomId=, mặc định STAYED)
   occupants: (roomId) => api.get('/occupants', { params: { roomId, limit: 50 } }),
 };
