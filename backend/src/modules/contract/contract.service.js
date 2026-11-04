@@ -224,7 +224,7 @@ export const createContract = async ({ managerId, data }) => {
         throw new AppError('Hợp đồng đơn không được có người ở cùng', 422);
     }
 
-    // [chờ An duyệt] bỏ luật "Nhóm phải có người ở cùng" lúc tạo: người đại diện tự nhập khi kích hoạt (UC-06),
+    // Không bắt buộc Nhóm có người ở cùng lúc tạo: người đại diện tự nhập khi kích hoạt (UC-06),
     // kiểm "ít nhất 1 người ở cùng" chuyển sang activateCustomerContract. Manager vẫn có thể gửi kèm nếu muốn
 
     const totalOccupants = 1 + coOccupants.length;
