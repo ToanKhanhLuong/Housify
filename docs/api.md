@@ -505,10 +505,10 @@ Chỉ Admin (Manager, Customer gọi → 403). Id sai định dạng → 404 nh�
 
 | Method | Path                                                     | Role | Ghi chú                                 |
 | ------ | -------------------------------------------------------- | ---- | ---------------------------------------- |
-| POST   | `/incidents`                                           | C    | `{ type, title, description, images }` |
-| GET    | `/incidents`                                           | M C  | `?status=&type=&roomId=`               |
-| GET    | `/incidents/:id`                                       | M C  |                                          |
-| PATCH  | `/incidents/:id/accept` · `/resolve` · `/reject` | M    | resolve / reject cần `{ resultNote }` |
+| POST   | `/incidents`                                           | C    | Gửi báo cáo sự cố (UC-43). Body: `{ type, title, description, images? }` – `images` là mảng đường dẫn công khai, tải trước qua `POST /uploads`. Trả 201 đơn vừa tạo `{ _id, incidentCode, contractId, roomId, reportedBy, type, title, description, images, status: 'PENDING', createdAt, updatedAt, warning? }` (`warning` khi gửi email cho Manager thất bại). Lỗi: 400 "Chỉ khách có hợp đồng đang hiệu lực mới gửi được báo cáo sự cố"; 422 thiếu loại / tiêu đề / mô tả |
+| GET    | `/incidents`                                           | M C  | Danh sách đơn, mới nhất trước (UC-43, 44). Customer: đơn mình gửi; Manager: đơn tòa mình. Query: `?status=&type=&roomId=&from=&to=&page=1&limit=10` (`status`, `type` nhiều giá trị cách nhau dấu phẩy; `from`, `to` là ngày gửi YYYY-MM-DD; `limit` tối đa 50). Trả 200 `{ items: [{ _id, incidentCode, type, title, description, images, status, resultNote, resolvedAt, handledBy, createdAt, room: { _id, roomNumber, floorNumber }, reporter: { name, phone } }], total, page, limit, totalPages }`. Lỗi: 403 phòng thuộc tòa khác; 404 "Không tìm thấy phòng"; 422 "Giá trị lọc không hợp lệ" |
+| GET    | `/incidents/:id`                                       | M C  | Chi tiết đơn (UC-43, 44). Trả 200 như 1 item ở danh sách, thêm `handledByName` và `history: [{ title, message, createdAt }]` (các thông báo cập nhật trạng thái đã gửi cho khách, cũ nhất trước). Lỗi: 403 "Bạn không có quyền thực hiện thao tác này"; 404 "Không tìm thấy đơn sự cố" |
+| PATCH  | `/incidents/:id/accept` · `/resolve` · `/reject` | M    | Xử lý đơn (UC-44), mỗi lần đổi trạng thái khách nhận thông báo. `accept`: PENDING → IN_PROGRESS. `resolve`: IN_PROGRESS → RESOLVED, body `{ resultNote }`, lưu `resolvedAt`. `reject`: PENDING / IN_PROGRESS → REJECTED, body `{ resultNote }` là lý do. Trả 200 đơn sau khi đổi. Lỗi: 400 "Đơn đã được xử lý"; 400 "Đơn đang được xử lý" (accept khi đã tiếp nhận); 400 "Vui lòng tiếp nhận đơn trước khi đánh dấu đã giải quyết"; 403 "Bạn không có quyền thực hiện thao tác này"; 404 "Không tìm thấy đơn sự cố"; 422 thiếu `resultNote` |
 
 ## Dashboard – `dashboard` (UC-07, 47, 48)
 
