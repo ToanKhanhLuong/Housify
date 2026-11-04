@@ -499,7 +499,7 @@ Chỉ Admin (Manager, Customer gọi → 403). Id sai định dạng → 404 nh�
 | Method | Path                | Role | Ghi chú                                 |
 | ------ | ------------------- | ---- | ---------------------------------------- |
 | POST   | `/webhooks/sepay` | —   | xác thực bằng API key (`sepayAuth`) |
-| GET    | `/payments`       | M C  | `?from=&to=`                           |
+| GET    | `/payments`       | M C  | Lịch sử thanh toán, mới nhất trước (UC-39). Manager: tòa mình; Customer: mọi hợp đồng mình đại diện. Query: `?from=&to=&page=1&limit=10` (`from`, `to` là ngày trả YYYY-MM-DD theo giờ Việt Nam). Trả 200 `{ items: [{ _id, sepayTxnId, amount, bankName, transferContent, paidAt, statusLabel, invoice: { _id, invoiceCode, month, totalAmount, dueDate, status, roomNumber } }], total, page, limit, totalPages }` |
 
 ## Sự cố – `incident` (UC-43, 44)
 
