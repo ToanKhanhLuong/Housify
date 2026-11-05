@@ -45,33 +45,33 @@ const RoomStatusChart = ({ rooms, openIncidents = 0 }) => {
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-x-6 gap-y-3 flex-1 min-w-40">
+      <div className="grid grid-cols-2 gap-3 flex-1 min-w-40">
         <div className="flex flex-col">
           <span className="fs-5 fw-bold tabular-nums leading-tight">{rooms.occupied ?? 0}</span>
-          <span className="small text-secondary flex items-center gap-1.5 mt-0.5">
+          <span className="small text-secondary flex items-center gap-2 mt-1">
             <span className="hf-dot hf-dot-plum" />
             {ROOM_STATUS_LABEL[ROOM_STATUS.OCCUPIED].label}
           </span>
         </div>
         <div className="flex flex-col">
           <span className="fs-5 fw-bold tabular-nums leading-tight">{rooms.available ?? 0}</span>
-          <span className="small text-secondary flex items-center gap-1.5 mt-0.5">
+          <span className="small text-secondary flex items-center gap-2 mt-1">
             <span className="hf-dot hf-dot-ok" />
             {ROOM_STATUS_LABEL[ROOM_STATUS.AVAILABLE].label}
           </span>
         </div>
         <div className="flex flex-col">
           <span className="fs-5 fw-bold tabular-nums leading-tight">{rooms.maintenance ?? 0}</span>
-          <span className="small text-secondary flex items-center gap-1.5 mt-0.5">
+          <span className="small text-secondary flex items-center gap-2 mt-1">
             <span className="hf-dot hf-dot-warn" />
             {ROOM_STATUS_LABEL[ROOM_STATUS.MAINTENANCE].label}
           </span>
         </div>
         <div className="flex flex-col">
           <span className="fs-5 fw-bold tabular-nums leading-tight">{openIncidents}</span>
-          <span className="small text-secondary flex items-center gap-1.5 mt-0.5">
+          <span className="small text-secondary flex items-center gap-2 mt-1">
             <span className="hf-dot hf-dot-red" />
-            Sự cố mở
+            Sự cố chưa xử lý
           </span>
         </div>
       </div>

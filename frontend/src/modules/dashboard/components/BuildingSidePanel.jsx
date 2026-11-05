@@ -1,6 +1,6 @@
-// Cột phải trang /dashboard theo mẫu Home Desk & Nova Residence (UC-07, 47): Ảnh lớn tòa nhà, 4 chỉ số ngang + thanh lấp đầy, Donut phòng và danh bạ Tòa/Manager
+// Cột phải trang /dashboard (UC-07, 47): khi xem Toàn hệ thống hiện tổng quan chung; khi chọn 1 tòa (hoặc Manager) mới hiện ảnh và hồ sơ tòa đó
 import { Card, ProgressBar } from 'react-bootstrap';
-import { BiBuildings, BiMap, BiPhone, BiUser } from 'react-icons/bi';
+import { BiMap, BiPhone, BiUser } from 'react-icons/bi';
 import RoomStatusChart from './RoomStatusChart';
 
 const shortName = (name = '') => name.replace(/^Tòa\s+/i, '').trim() || name;
@@ -15,52 +15,56 @@ const BuildingSidePanel = ({
   const rooms = data?.rooms ?? { total: 0, available: 0, occupied: 0, maintenance: 0 };
   const occupancyRate = rooms.total > 0 ? Math.round((rooms.occupied / rooms.total) * 100) : 0;
 
-  // Lấy thông tin tòa đang chọn từ data.buildingOverview (BE trả về) hoặc từ danh sách buildings
-  const activeBuilding =
-    data?.buildingOverview ??
-    buildings.find((item) => item._id === buildingId) ??
-    buildings[0] ??
-    null;
+  // Chỉ lấy thông tin tòa cụ thể khi Admin đã chọn 1 tòa hoặc khi đăng nhập bằng tài khoản Manager
+  const activeBuilding = isAdmin
+    ? buildingId
+      ? (data?.buildingOverview ?? buildings.find((item) => item._id === buildingId) ?? null)
+      : null
+    : (data?.buildingOverview ?? null);
 
   const coverImage = activeBuilding?.images?.[0] ?? '';
-  const displayTitle = buildingId
-    ? activeBuilding?.name
-    : isAdmin
-      ? data?.buildingOverview?.name || 'Hệ thống nhà trọ Housify'
-      : activeBuilding?.name || 'Tòa nhà phụ trách';
+  const totalBuildings = buildings.length || data?.buildings || 0;
+  const displayTitle = activeBuilding
+    ? activeBuilding.name
+    : 'Quy mô vận hành chung';
 
-  const displayAddress = buildingId
-    ? activeBuilding?.address
-    : isAdmin
-      ? data?.buildingOverview?.address || `${buildings.length || data?.buildings || 0} cơ sở đang vận hành`
-      : activeBuilding?.address || 'Cơ sở đang quản lý trực tiếp';
+  const displayAddress = activeBuilding
+    ? activeBuilding.address
+    : `${totalBuildings} cơ sở hoạt động · ${rooms.total} phòng cho thuê`;
 
-  const activeManager = data?.buildingOverview?.manager ?? activeBuilding?.manager ?? null;
+  const activeManager = activeBuilding?.manager ?? null;
 
   return (
     <Card className="h-full">
-      {/* Ảnh đại diện lớn của tòa nhà giống cột phải Green courtyard (Ảnh 2) & Nova Residence (Ảnh 1) */}
-      {coverImage ? (
-        <div className="relative h-48 overflow-hidden rounded-top">
-          <img
-            src={coverImage}
-            alt={displayTitle}
-            className="w-full h-full object-cover"
-          />
-        </div>
+      {/* Chỉ hiện ảnh tòa nhà khi đang xem 1 tòa cụ thể; xem chung thì hiện logo Housify */}
+      {activeBuilding ? (
+        coverImage ? (
+          <div className="relative h-48 overflow-hidden rounded-top">
+            <img
+              src={coverImage}
+              alt={displayTitle}
+              className="w-full h-full object-cover"
+            />
+          </div>
+        ) : (
+          <div className="hf-cover h-40 rounded-top flex-col gap-1 px-4 text-center">
+            <img src="/logo.png" alt="Housify" className="w-14 h-14 object-contain" />
+            <span className="fw-bold">{displayTitle}</span>
+            <span className="small">{displayAddress}</span>
+          </div>
+        )
       ) : (
-        <div className="hf-cover h-44 rounded-top flex-col gap-1 px-4 text-center">
-          <BiBuildings size={36} />
-          <span className="fw-bold">{displayTitle}</span>
-          <span className="small">{displayAddress}</span>
+        <div className="hf-cover h-40 rounded-top flex-col gap-1 px-4 text-center">
+          <img src="/logo.png" alt="Housify" className="w-16 h-16 object-contain" />
+          <span className="fw-bold">Chuỗi nhà trọ Housify</span>
+          <span className="small">Chọn một cơ sở bên dưới để xem ảnh & hồ sơ chi tiết</span>
         </div>
       )}
 
       <Card.Body className="p-4 flex flex-col gap-4">
-        {/* Tên tòa nhà + 4 con số nằm ngang + Thanh ngang Leased by % giống hệt Green courtyard (Ảnh 2) */}
         <div className="flex flex-col gap-3">
           <div>
-            <h3 className="h5 fw-bold mb-0.5">{displayTitle}</h3>
+            <h3 className="h5 fw-bold mb-1">{displayTitle}</h3>
             <div className="small text-secondary flex items-center gap-1">
               <BiMap className="shrink-0" />
               <span className="text-truncate">{displayAddress}</span>
@@ -90,27 +94,25 @@ const BuildingSidePanel = ({
             </div>
           </div>
 
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1">
             <ProgressBar now={occupancyRate} variant="primary" className="h-2" />
             <div className="flex items-center justify-between small text-secondary">
               <span>Đã lấp đầy {occupancyRate}%</span>
               <span>
                 {activeBuilding?.floorCount
-                  ? `${activeBuilding.floorCount} tầng`
+                  ? `${activeBuilding.floorCount} tầng · ${rooms.occupied}/${rooms.total} phòng`
                   : `${rooms.occupied}/${rooms.total} phòng`}
               </span>
             </div>
           </div>
         </div>
 
-        {/* Khối Vòng tròn Donut + Lưới 2x2 giống Work Orders (Ảnh 2) */}
         <div className="border-top pt-3 flex flex-col gap-2">
           <div className="fw-semibold text-body">Cơ cấu phòng & Sự cố</div>
           <RoomStatusChart rooms={rooms} openIncidents={data?.openIncidents ?? 0} />
         </div>
 
-        {/* Khối On-site staff / Danh bạ Tòa nhà & Manager giống Ảnh 1 & Ảnh 2 */}
-        <div className="border-top pt-3 flex flex-col gap-2.5">
+        <div className="border-top pt-3 flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <span className="fw-semibold text-body">
               {isAdmin ? 'Danh bạ Tòa nhà & Manager' : 'Thông tin quản lý tòa'}
@@ -128,14 +130,14 @@ const BuildingSidePanel = ({
                 }}
                 className="small text-primary cursor-pointer fw-medium"
               >
-                Xem tất cả
+                Xem tất cả cơ sở
               </span>
             )}
           </div>
 
-          {activeManager && (
-            <div className="p-2.5 rounded bg-body-tertiary flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2.5 min-w-0">
+          {activeBuilding && activeManager && (
+            <div className="p-2 rounded bg-body-tertiary flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
                 <span className="hf-av w-9 h-9 shrink-0">
                   <BiUser size={18} />
                 </span>
@@ -158,7 +160,7 @@ const BuildingSidePanel = ({
           )}
 
           {isAdmin && buildings.length > 0 && (
-            <div className="flex flex-col gap-2 max-h-64 overflow-y-auto pr-0.5">
+            <div className="flex flex-col gap-2 max-h-64 overflow-y-auto pr-1">
               {buildings.map((building) => {
                 const isSelected = buildingId === building._id;
                 const bRooms = building.roomStats ?? { total: building.totalRooms ?? 0, occupied: 0 };
@@ -177,11 +179,11 @@ const BuildingSidePanel = ({
                         onSelectBuilding?.(isSelected ? '' : building._id);
                       }
                     }}
-                    className={`hf-tcard flex-row items-center justify-between gap-2 p-2.5 ${
+                    className={`hf-tcard flex-row items-center justify-between gap-2 p-2 ${
                       isSelected ? 'border-primary bg-body-tertiary' : ''
                     }`}
                   >
-                    <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
                       {building.images?.[0] ? (
                         <img
                           src={building.images[0]}
@@ -214,4 +216,3 @@ const BuildingSidePanel = ({
 };
 
 export default BuildingSidePanel;
-
