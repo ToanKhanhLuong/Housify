@@ -5,7 +5,7 @@
 // Admin không gọi được API hợp đồng / cư dân (chỉ M, C) nên trang chỉ hiện phần này cho Manager
 import { useEffect, useState } from 'react';
 import { Alert, Button } from 'react-bootstrap';
-import { BiChevronRight, BiFile, BiGroup, BiUserPlus } from 'react-icons/bi';
+import { BiChevronRight, BiFile, BiGroup } from 'react-icons/bi';
 import { Link, useNavigate } from 'react-router-dom';
 import MoneyText from '../../../components/MoneyText';
 import SkeletonRows from '../../../components/SkeletonRows';
@@ -69,7 +69,6 @@ const RoomTenancySection = ({ room }) => {
   const draft = state.contracts.find((contract) => contract.status === CONTRACT_STATUS.DRAFT);
   const capacity = room.roomType?.capacity;
   const count = state.occupants.length;
-  const canAdd = active && capacity && count < capacity;
 
   return (
     <div className="grid lg:grid-cols-2 gap-4">
@@ -123,33 +122,13 @@ const RoomTenancySection = ({ room }) => {
 
       {/* cư dân đang ở */}
       <section className="flex flex-col gap-2">
-        <span className="flex items-center justify-between gap-2">
-          <SectionTitle icon={BiGroup}>
-            Cư dân đang ở{' '}
-            <span className="fw-normal text-secondary">
-              ({count}
-              {capacity ? `/${capacity}` : ''})
-            </span>
-          </SectionTitle>
-          {canAdd && (
-            <Button
-              variant="secondary"
-              size="sm"
-              className="flex items-center gap-1"
-              onClick={() =>
-                navigate('/occupants', {
-                  state: {
-                    addTo: { _id: active._id, roomNumber: room.roomNumber },
-                    returnTo: `/rooms/${room._id}`,
-                  },
-                })
-              }
-            >
-              <BiUserPlus />
-              Thêm người
-            </Button>
-          )}
-        </span>
+        <SectionTitle icon={BiGroup}>
+          Cư dân đang ở{' '}
+          <span className="fw-normal text-secondary">
+            ({count}
+            {capacity ? `/${capacity}` : ''})
+          </span>
+        </SectionTitle>
         {count === 0 ? (
           <div className="hf-ph h-24">Chưa có ai đang ở</div>
         ) : (
