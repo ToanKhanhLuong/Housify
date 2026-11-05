@@ -1,5 +1,5 @@
 // Menu bên trái lấy theo role từ constants/menus.js. Màn hình nhỏ thì thành ngăn kéo, mở bằng nút ở header
-// Màn hình lớn có nút 3 gạch cạnh logo để thu gọn còn icon / mở rộng (giống YouTube). Thu gọn chỉ áp dụng từ 992px:
+// Màn hình lớn có nút 3 gạch cạnh logo để thu gọn còn icon / mở rộng. Thu gọn chỉ áp dụng từ 992px:
 // dùng min-[992px]: và d-lg-* cho khớp điểm đổi của Offcanvas responsive="lg" (lg: của Tailwind là 1024px)
 import { Button, Nav, Offcanvas } from 'react-bootstrap';
 import { NavLink, useLocation } from 'react-router-dom';
@@ -40,10 +40,10 @@ const Sidebar = ({ show, onHide, collapsed, onToggleCollapse }) => {
     // Manager chưa được phân công tòa (BR-023): mọi mục menu đều mờ không bấm được
     const isManagerNoBuilding = user?.role === ROLE.MANAGER && !user?.building;
 
-    // Thu gọn / mở rộng mượt: chữ luôn nằm trên 1 dòng (whitespace-nowrap), mục menu cắt phần thừa (overflow-hidden),
-    // chữ chỉ mờ dần / hiện dần theo bề rộng sidebar; icon đứng yên một chỗ (không đổi căn giữa ↔ căn trái).
+    // Thu gọn / mở rộng: chữ nằm trên 1 dòng, cắt phần thừa khi thu gọn (min-w-0 overflow-hidden),
+    // chữ mờ dần theo bề rộng sidebar; icon giữ nguyên vị trí.
     // Ngăn kéo trên điện thoại luôn hiện đủ chữ (chỉ áp dụng từ 992px)
-    const itemClass = 'overflow-hidden whitespace-nowrap';
+    const itemClass = 'min-w-0 overflow-hidden whitespace-nowrap';
     const labelClass = `transition-opacity duration-200 ${collapsed ? 'min-[992px]:opacity-0' : ''}`;
 
     return (
@@ -51,12 +51,12 @@ const Sidebar = ({ show, onHide, collapsed, onToggleCollapse }) => {
             show={show}
             onHide={onHide}
             responsive="lg"
-            className={`print:hidden w-64 shrink-0 border-end bg-white lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto min-[992px]:transition-[width] min-[992px]:duration-200 ${collapsed ? 'min-[992px]:w-16' : ''}`}
+            className={`print:hidden w-64 shrink-0 border-end bg-white lg:sticky lg:top-0 lg:h-screen overflow-x-hidden lg:overflow-x-hidden lg:overflow-y-auto min-[992px]:transition-[width] min-[992px]:duration-200 ${collapsed ? 'min-[992px]:w-16' : ''}`}
         >
             <Offcanvas.Header closeButton className="border-bottom">
                 <Brand />
             </Offcanvas.Header>
-            <Offcanvas.Body className="flex-column p-0">
+            <Offcanvas.Body className="flex-column p-0 overflow-x-hidden">
                 {/* màn hình lớn ẩn Offcanvas.Header nên đặt logo ở đây, cao bằng header (h-14) */}
                 <div
                     className={`d-none d-lg-flex items-center gap-2 h-14 px-3 border-bottom ${itemClass}`}
@@ -72,12 +72,12 @@ const Sidebar = ({ show, onHide, collapsed, onToggleCollapse }) => {
                     >
                         <BiMenu size={20} />
                     </Button>
-                    {/* logo luôn có mặt, chỉ mờ đi khi thu gọn để không bật ra / biến mất đột ngột */}
+                    {/* logo mờ dần khi thu gọn */}
                     <div className={labelClass} aria-hidden={collapsed}>
                         <Brand />
                     </div>
                 </div>
-                <Nav variant="pills" className="flex-column gap-1 p-2">
+                <Nav variant="pills" className="flex-column gap-1 p-2 overflow-x-hidden">
                     {items.map(({ label, path, icon: Icon, disabled }) => {
                         const isOff = disabled || isManagerNoBuilding;
 
