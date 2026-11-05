@@ -11,12 +11,14 @@ import PasswordInput from '../../components/PasswordInput';
 import ImageUpload from '../../components/ImageUpload';
 import Loading from '../../components/Loading';
 import { hasErrors, toFieldErrors } from '../../utils/formErrors';
+import { toDateInput } from '../../utils/format';
 import activationApi from './activation.api';
 import { validateActivateCustomer } from './activation.validate';
 import ContractDocument from '../../components/ContractDocument';
 import CoOccupantsInput from './components/CoOccupantsInput';
 import { CONTRACT_TYPE } from '../../constants/enums';
 
+const TODAY = toDateInput(new Date());
 const STEP = { REVIEW: 1, FORM: 2, CONFIRM: 3, DONE: 4 };
 const STEP_LABELS = [
   { step: STEP.REVIEW, label: '1. Xem hợp đồng' },
@@ -72,7 +74,24 @@ const ActivateCustomerPage = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const setField = (name, value) => setForm((current) => ({ ...current, [name]: value }));
+  const setField = (name, value) => {
+    setForm((current) => ({ ...current, [name]: value }));
+    setErrors((prev) => {
+      if (!prev[name] && !prev.coOccupants) return prev;
+      const next = { ...prev };
+      delete next[name];
+      if (name === 'coOccupants') delete next.coOccupants;
+      return next;
+    });
+  };
+  const handleClearError = (errorKey) => {
+    setErrors((prev) => {
+      if (!prev[errorKey]) return prev;
+      const next = { ...prev };
+      delete next[errorKey];
+      return next;
+    });
+  };
   const handleChange = (event) => setField(event.target.name, event.target.value);
 
   // bước 2 → 3: kiểm tra form trước khi cho xem lại hợp đồng đã điền
@@ -151,7 +170,7 @@ const ActivateCustomerPage = () => {
           <div className="text-secondary mb-4">
             Vui lòng liên hệ Manager của tòa nhà để được gửi lại lời mời ký hợp đồng.
           </div>
-          <Button as={Link} to="/login" variant="secondary" size="lg" className="w-full">
+          <Button as={Link} to="/login" variant="secondary" className="w-full">
             Về trang đăng nhập
           </Button>
         </Card.Body>
@@ -185,11 +204,7 @@ const ActivateCustomerPage = () => {
           </Alert>
           <ContractDocument contract={contract} />
           <div className="flex justify-end gap-2 print:hidden">
-            <Button
-              variant="primary"
-              size="lg"
-              className="flex items-center gap-1"
-              onClick={() => goTo(STEP.FORM)}
+            <Button variant="primary" className="flex items-center gap-1" onClick={() => goTo(STEP.FORM)}
             >
               Tiếp tục điền thông tin
               <BiRightArrowAlt />
@@ -249,6 +264,8 @@ const ActivateCustomerPage = () => {
                   value={form.dateOfBirth}
                   onChange={handleChange}
                   error={errors.dateOfBirth}
+                  max={TODAY}
+                  helpText="Không chọn ngày trong tương lai."
                   required
                   className="mb-0"
                 />
@@ -308,6 +325,7 @@ const ActivateCustomerPage = () => {
                   contract={contract}
                   value={form.coOccupants}
                   onChange={(people) => setField('coOccupants', people)}
+                  onClearError={handleClearError}
                   errors={errors}
                 />
               </div>
@@ -344,16 +362,12 @@ const ActivateCustomerPage = () => {
 
             {/* nút căn phải theo yêu cầu: Quay lại (phụ) rồi Tiếp tục (chính) */}
             <div className="flex flex-wrap justify-end gap-2 mt-4">
-              <Button
-                variant="secondary"
-                size="lg"
-                className="flex items-center gap-1"
-                onClick={() => goTo(STEP.REVIEW)}
+              <Button variant="secondary" className="flex items-center gap-1" onClick={() => goTo(STEP.REVIEW)}
               >
                 <BiArrowBack />
                 Quay lại
               </Button>
-              <Button type="submit" variant="primary" size="lg" className="flex items-center gap-1">
+              <Button type="submit" variant="primary" className="flex items-center gap-1">
                 Tiếp tục
                 <BiRightArrowAlt />
               </Button>
@@ -388,23 +402,13 @@ const ActivateCustomerPage = () => {
                 </Alert>
               )}
               <div className="flex flex-wrap justify-end gap-2">
-                <Button
-                  variant="secondary"
-                  size="lg"
-                  className="flex items-center gap-1"
-                  onClick={() => goTo(STEP.FORM)}
+                <Button variant="secondary" className="flex items-center gap-1" onClick={() => goTo(STEP.FORM)}
                   disabled={submitting}
                 >
                   <BiArrowBack />
                   Quay lại sửa
                 </Button>
-                <Button
-                  variant="primary"
-                  size="lg"
-                  className="flex items-center gap-2"
-                  onClick={handleConfirm}
-                  disabled={submitting}
-                >
+                <Button variant="primary" className="flex items-center gap-2" onClick={handleConfirm} disabled={submitting} >
                   {submitting ? <Spinner animation="border" size="sm" /> : <BiCheckShield />}
                   Xác nhận hợp đồng
                 </Button>
@@ -428,16 +432,12 @@ const ActivateCustomerPage = () => {
           )}
           <ContractDocument contract={contract} party={form} confirmation={confirmation} />
           <div className="flex flex-wrap justify-end gap-2 print:hidden">
-            <Button
-              variant="secondary"
-              size="lg"
-              className="flex items-center gap-2"
-              onClick={() => window.print()}
+            <Button variant="secondary" className="flex items-center gap-2" onClick={() => window.print()}
             >
               <BiPrinter />
               In / Lưu PDF
             </Button>
-            <Button as={Link} to="/login" replace variant="primary" size="lg">
+            <Button as={Link} to="/login" replace variant="primary" >
               Đến trang đăng nhập
             </Button>
           </div>
