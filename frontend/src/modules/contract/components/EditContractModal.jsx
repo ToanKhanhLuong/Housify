@@ -24,7 +24,13 @@ const EditContractModal = ({ contract, onHide, onSaved }) => {
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
-  const handleChange = (event) => setForm({ ...form, [event.target.name]: event.target.value });
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: undefined }));
+    }
+  };
   const identityChanged =
     isDraft &&
     (form.representativeCccd.trim() !== initial.representativeCccd ||

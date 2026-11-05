@@ -83,15 +83,25 @@ const ContractCreatePage = () => {
   const total = 1 + (isGroup ? form.coOccupants.length : 0);
   const full = capacity !== null && total >= capacity;
 
-  const setField = (name, value) => setForm((current) => ({ ...current, [name]: value }));
+  const setField = (name, value) => {
+    setForm((current) => ({ ...current, [name]: value }));
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: undefined }));
+    }
+  };
   const handleChange = (event) => setField(event.target.name, event.target.value);
-  const updatePerson = (index, field, value) =>
+  const updatePerson = (index, field, value) => {
     setField(
       'coOccupants',
       form.coOccupants.map((person, position) =>
         position === index ? { ...person, [field]: value } : person,
       ),
     );
+    const key = `coOccupants.${index}.${field}`;
+    if (errors[key] || errors.coOccupants) {
+      setErrors((prev) => ({ ...prev, [key]: undefined, coOccupants: undefined }));
+    }
+  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
