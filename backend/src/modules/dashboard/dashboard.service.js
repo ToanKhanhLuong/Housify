@@ -118,6 +118,23 @@ const vietnamMonthKey = (date) => {
     return `${vietnamTime.getUTCFullYear()}-${String(vietnamTime.getUTCMonth() + 1).padStart(2, '0')}`;
 };
 
+// Thời điểm → "DD/MM/YY" và "YYYY-MM-DD" theo giờ Việt Nam
+const vietnamDayLabel = (date) => {
+    const vietnamTime = new Date(new Date(date).getTime() + VIETNAM_OFFSET_MS);
+    const day = String(vietnamTime.getUTCDate()).padStart(2, '0');
+    const month = String(vietnamTime.getUTCMonth() + 1).padStart(2, '0');
+    const year = String(vietnamTime.getUTCFullYear()).slice(-2);
+    return `${day}/${month}/${year}`;
+};
+
+const vietnamDateIso = (date) => {
+    const vietnamTime = new Date(new Date(date).getTime() + VIETNAM_OFFSET_MS);
+    const year = vietnamTime.getUTCFullYear();
+    const month = String(vietnamTime.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(vietnamTime.getUTCDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 /**
  * Phạm vi dữ liệu của một tòa (buildingId) hoặc toàn hệ thống (không truyền).
  * Phòng và tòa đã xóa không tính vào bất kỳ con số nào.
@@ -199,17 +216,136 @@ const countUsers = async (scope, buildingId) => {
     });
 };
 
-// Tổng hợp thông tin tòa tiêu điểm, danh sách phòng kèm ảnh và hoạt động gần đây trong phạm vi
+// Tạo chuỗi thời gian theo số ngày (7 ngày, 28 ngày) hoặc theo số tháng (3, 6, 12 tháng)
+const buildDailySeries = (now, daysCount, contracts, occupants, paidInvoices, incidents) => {
+    const points = [];
+    const totals = { revenue: 0, contracts: 0, residents: 0, incidents: 0 };
+
+    for (let i = daysCount - 1; i >= 0; i -= 1) {
+        const dayDate = new Date(now.getTime() - i * DAY_MS);
+        const start = startOfVietnamDay(dayDate);
+        const end = endOfVietnamDay(dayDate);
+        const label = vietnamDayLabel(dayDate);
+
+        let revenue = 0;
+        paidInvoices.forEach((inv) => {
+            if (inv.paidAt && new Date(inv.paidAt) >= start && new Date(inv.paidAt) <= end) {
+                revenue += inv.totalAmount ?? 0;
+            }
+        });
+
+        let contractsCount = 0;
+        contracts.forEach((contract) => {
+            const eventDate = contract.activatedAt ?? contract.createdAt;
+            if (eventDate && new Date(eventDate) >= start && new Date(eventDate) <= end) {
+                contractsCount += 1;
+            }
+        });
+
+        let residentsCount = 0;
+        occupants.forEach((occ) => {
+            if (occ.joinDate && new Date(occ.joinDate) >= start && new Date(occ.joinDate) <= end) {
+                residentsCount += 1;
+            }
+        });
+
+        let incidentsCount = 0;
+        incidents.forEach((inc) => {
+            if (inc.createdAt && new Date(inc.createdAt) >= start && new Date(inc.createdAt) <= end) {
+                incidentsCount += 1;
+            }
+        });
+
+        totals.revenue += revenue;
+        totals.contracts += contractsCount;
+        totals.residents += residentsCount;
+        totals.incidents += incidentsCount;
+
+        points.push({
+            date: vietnamDateIso(dayDate),
+            name: label,
+            revenue,
+            contracts: contractsCount,
+            residents: residentsCount,
+            incidents: incidentsCount,
+        });
+    }
+
+    return { totals, points };
+};
+
+const buildMonthlySeries = (now, monthsCount, contracts, occupants, paidInvoices, incidents) => {
+    const vietnamNow = new Date(now.getTime() + VIETNAM_OFFSET_MS);
+    const currentYear = vietnamNow.getUTCFullYear();
+    const currentMonth = vietnamNow.getUTCMonth();
+
+    const points = [];
+    const totals = { revenue: 0, contracts: 0, residents: 0, incidents: 0 };
+
+    for (let i = monthsCount - 1; i >= 0; i -= 1) {
+        const target = new Date(Date.UTC(currentYear, currentMonth - i, 1));
+        const year = target.getUTCFullYear();
+        const month = target.getUTCMonth();
+        const start = new Date(Date.UTC(year, month, 1) - VIETNAM_OFFSET_MS);
+        const end = new Date(Date.UTC(year, month + 1, 1) - VIETNAM_OFFSET_MS - 1);
+        const label = `${String(month + 1).padStart(2, '0')}/${year}`;
+
+        let revenue = 0;
+        paidInvoices.forEach((inv) => {
+            if (inv.paidAt && new Date(inv.paidAt) >= start && new Date(inv.paidAt) <= end) {
+                revenue += inv.totalAmount ?? 0;
+            }
+        });
+
+        let contractsCount = 0;
+        contracts.forEach((contract) => {
+            const eventDate = contract.activatedAt ?? contract.createdAt;
+            if (eventDate && new Date(eventDate) >= start && new Date(eventDate) <= end) {
+                contractsCount += 1;
+            }
+        });
+
+        let residentsCount = 0;
+        occupants.forEach((occ) => {
+            if (occ.joinDate && new Date(occ.joinDate) >= start && new Date(occ.joinDate) <= end) {
+                residentsCount += 1;
+            }
+        });
+
+        let incidentsCount = 0;
+        incidents.forEach((inc) => {
+            if (inc.createdAt && new Date(inc.createdAt) >= start && new Date(inc.createdAt) <= end) {
+                incidentsCount += 1;
+            }
+        });
+
+        totals.revenue += revenue;
+        totals.contracts += contractsCount;
+        totals.residents += residentsCount;
+        totals.incidents += incidentsCount;
+
+        points.push({
+            date: `${year}-${String(month + 1).padStart(2, '0')}`,
+            name: label,
+            revenue,
+            contracts: contractsCount,
+            residents: residentsCount,
+            incidents: incidentsCount,
+        });
+    }
+
+    return { totals, points };
+};
+
+// Tổng hợp thông tin tòa đang chọn, danh sách phòng kèm ảnh, hoạt động gần đây và chuỗi thời gian linh hoạt
 const loadDashboardExtras = async (scope, isFilteredByBuilding) => {
+    const now = new Date();
     const buildingById = new Map(scope.buildings.map((building) => [String(building._id), building]));
     const roomById = new Map(scope.rooms.map((room) => [String(room._id), room]));
     const contractById = new Map(scope.contracts.map((contract) => [String(contract._id), contract]));
 
-    // 1. Thông tin tòa nhà tiêu điểm và Manager phụ trách
-    const targetBuilding =
-        scope.buildings.find((building) => Array.isArray(building.images) && building.images.length > 0) ??
-        scope.buildings[0] ??
-        null;
+    // 1. Chỉ trả buildingOverview khi đang xem 1 tòa cụ thể (Admin lọc 1 tòa hoặc Manager)
+    const targetBuilding = isFilteredByBuilding ? (scope.buildings[0] ?? null) : null;
 
     let managerInfo = null;
     if (targetBuilding?.managerId) {
@@ -239,27 +375,45 @@ const loadDashboardExtras = async (scope, isFilteredByBuilding) => {
           }
         : null;
 
-    // 2. Danh sách phòng kèm ảnh, loại phòng, sức chứa và số người đang ở
+    // 2. Danh sách phòng kèm ảnh, loại phòng, sức chứa và dữ liệu lịch sử cho biểu đồ
     const roomTypeIds = [...new Set(scope.rooms.map((room) => String(room.roomTypeId)).filter(Boolean))];
-    const [roomTypes, activeOccupants] = await Promise.all([
+    const [roomTypes, allOccupants, paidInvoices, allIncidents] = await Promise.all([
         RoomType.find({ _id: { $in: roomTypeIds } }).select('_id name capacity').lean(),
-        Occupant.find({
-            contractId: { $in: scope.activeContractIds },
-            status: OCCUPANT_STATUS.STAYED,
+        Occupant.find({ contractId: { $in: scope.contractIds } })
+            .select('_id contractId userId name isRepresentative status joinDate exitDate')
+            .lean(),
+        Invoice.find({
+            contractId: { $in: scope.contractIds },
+            status: INVOICE_STATUS.PAID,
         })
-            .select('_id contractId userId name isRepresentative')
+            .select('totalAmount paidAt')
+            .lean(),
+        Incident.find({ roomId: { $in: scope.roomIds } })
+            .sort({ createdAt: -1 })
+            .select('_id incidentCode roomId reportedBy title status createdAt')
             .lean(),
     ]);
 
+    const activeContractIdSet = new Set(scope.activeContractIds.map(String));
     const roomTypeById = new Map(roomTypes.map((type) => [String(type._id), type]));
     const occupantCountByRoom = new Map();
     const repNameByContract = new Map();
+    const roomByOccupantId = new Map();
 
-    activeOccupants.forEach((occupant) => {
+    allOccupants.forEach((occupant) => {
         const contract = contractById.get(String(occupant.contractId));
         if (!contract) return;
         const roomKey = String(contract.roomId);
-        occupantCountByRoom.set(roomKey, (occupantCountByRoom.get(roomKey) ?? 0) + 1);
+        const room = roomById.get(roomKey);
+        if (room) {
+            roomByOccupantId.set(String(occupant._id), room);
+        }
+        if (
+            occupant.status === OCCUPANT_STATUS.STAYED &&
+            activeContractIdSet.has(String(occupant.contractId))
+        ) {
+            occupantCountByRoom.set(roomKey, (occupantCountByRoom.get(roomKey) ?? 0) + 1);
+        }
         if (occupant.isRepresentative && occupant.name) {
             repNameByContract.set(String(contract._id), occupant.name);
         }
@@ -273,7 +427,7 @@ const loadDashboardExtras = async (scope, isFilteredByBuilding) => {
         return String(a.roomNumber).localeCompare(String(b.roomNumber), 'vi', { numeric: true });
     });
 
-    const featuredRooms = sortedRooms.slice(0, 24).map((room) => {
+    const featuredRooms = sortedRooms.slice(0, 100).map((room) => {
         const roomType = roomTypeById.get(String(room.roomTypeId));
         const building = buildingById.get(String(room.buildingId));
         return {
@@ -292,10 +446,10 @@ const loadDashboardExtras = async (scope, isFilteredByBuilding) => {
         };
     });
 
-    // 3. Hoạt động gần đây: gộp từ audit_logs, hợp đồng vừa kích hoạt và sự cố phòng
+    // 3. Hoạt động gần đây: lấy tối đa 20 bản ghi để cuộn dọc trên trang
     const managerIds = scope.buildings.map((building) => building.managerId).filter(Boolean);
     const buildingIds = scope.buildings.map((building) => building._id);
-    const occupantIds = activeOccupants.map((occupant) => occupant._id);
+    const occupantIds = allOccupants.map((occupant) => occupant._id);
 
     const auditQuery = isFilteredByBuilding
         ? {
@@ -306,14 +460,8 @@ const loadDashboardExtras = async (scope, isFilteredByBuilding) => {
           }
         : {};
 
-    const [auditLogs, recentIncidents] = await Promise.all([
-        AuditLog.find(auditQuery).sort({ createdAt: -1 }).limit(8).lean(),
-        Incident.find({ roomId: { $in: scope.roomIds } })
-            .sort({ createdAt: -1 })
-            .limit(5)
-            .select('_id incidentCode roomId reportedBy title status createdAt')
-            .lean(),
-    ]);
+    const auditLogs = await AuditLog.find(auditQuery).sort({ createdAt: -1 }).limit(15).lean();
+    const recentIncidents = allIncidents.slice(0, 10);
 
     const actorIds = [
         ...new Set(
@@ -356,7 +504,8 @@ const loadDashboardExtras = async (scope, isFilteredByBuilding) => {
             const room = roomById.get(String(targetContract.roomId));
             if (room) code = `P.${room.roomNumber}`;
         } else {
-            const targetRoom = roomById.get(String(log.targetId));
+            const targetRoom =
+                roomById.get(String(log.targetId)) ?? roomByOccupantId.get(String(log.targetId));
             if (targetRoom) code = `P.${targetRoom.roomNumber}`;
             const targetBuildingDoc = buildingById.get(String(log.targetId));
             if (targetBuildingDoc) code = targetBuildingDoc.name;
@@ -380,7 +529,7 @@ const loadDashboardExtras = async (scope, isFilteredByBuilding) => {
     const activatedContractItems = scope.contracts
         .filter((contract) => Boolean(contract.activatedAt))
         .sort((a, b) => new Date(b.activatedAt) - new Date(a.activatedAt))
-        .slice(0, 5)
+        .slice(0, 10)
         .map((contract) => {
             const room = roomById.get(String(contract.roomId));
             const building = room ? buildingById.get(String(room.buildingId)) : null;
@@ -420,12 +569,32 @@ const loadDashboardExtras = async (scope, isFilteredByBuilding) => {
 
     const recentActivities = [...auditItems, ...activatedContractItems, ...incidentItems]
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-        .slice(0, 8);
+        .slice(0, 20);
+
+    // 4. Chuỗi dữ liệu linh hoạt theo kỳ (24 giờ, 7 ngày, 28 ngày, 3 tháng, 6 tháng, 12 tháng và chuỗi ngày/tháng)
+    const daily90 = buildDailySeries(now, 90, scope.contracts, allOccupants, paidInvoices, allIncidents);
+    const daily10 = daily90.points.slice(-10);
+
+    const performanceByPeriod = {
+        '24h': buildDailySeries(now, 2, scope.contracts, allOccupants, paidInvoices, allIncidents),
+        '7d': buildDailySeries(now, 7, scope.contracts, allOccupants, paidInvoices, allIncidents),
+        '28d': buildDailySeries(now, 28, scope.contracts, allOccupants, paidInvoices, allIncidents),
+        '3m': {
+            totals: daily90.totals,
+            points: daily10,
+            monthlyPoints: buildMonthlySeries(now, 3, scope.contracts, allOccupants, paidInvoices, allIncidents).points,
+        },
+        '6m': buildMonthlySeries(now, 6, scope.contracts, allOccupants, paidInvoices, allIncidents),
+        '12m': buildMonthlySeries(now, 12, scope.contracts, allOccupants, paidInvoices, allIncidents),
+        dailyPoints: daily90.points,
+        monthlyPoints: buildMonthlySeries(now, 12, scope.contracts, allOccupants, paidInvoices, allIncidents).points,
+    };
 
     return {
         buildingOverview,
         featuredRooms,
         recentActivities,
+        performanceByPeriod,
     };
 };
 
