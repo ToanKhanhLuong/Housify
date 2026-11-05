@@ -22,6 +22,7 @@ import { withTransaction } from '../../helpers/withTransaction.js';
 import { notify } from '../../helpers/notify.js';
 import { audit } from '../../helpers/audit.js';
 import { generateActivationToken, ACTIVATION_TOKEN_TTL_MS } from '../../helpers/activationToken.js';
+import { escapeRegex } from '../../helpers/filter.js';
 import { startOfVietnamDay, endOfVietnamDay } from '../../helpers/date.js';
 import Contract from '../../models/Contract.js';
 import Room from '../../models/Room.js';
@@ -433,7 +434,7 @@ export const resendInvite = async ({ managerId, contractId }) => {
  * - Customer: xem hợp đồng hiện tại của chính mình
  */
 export const getContracts = async ({ userId, roleId, query = {} }) => {
-    const { status, roomId, page = 1, limit = 10 } = query;
+    const { status, roomId, floor, q, page = 1, limit = 10 } = query;
     const pageNum = Number(page) || 1;
     const limitNum = Number(limit) || 10;
 
@@ -442,6 +443,14 @@ export const getContracts = async ({ userId, roleId, query = {} }) => {
         : typeof status === 'string' && status.trim()
             ? status.split(',').map((s) => s.trim()).filter(Boolean)
             : null;
+
+    const floorList = Array.isArray(floor)
+        ? floor.map(Number).filter(Boolean)
+        : typeof floor === 'string' && floor.trim()
+            ? floor.split(',').map((f) => Number(f.trim())).filter(Boolean)
+            : typeof floor === 'number'
+                ? [floor]
+                : null;
 
     const filter = {};
 
@@ -459,6 +468,11 @@ export const getContracts = async ({ userId, roleId, query = {} }) => {
             .lean();
         const buildingRoomIds = buildingRooms.map((r) => String(r._id));
 
+        let eligibleRooms = buildingRooms;
+        if (floorList && floorList.length > 0) {
+            eligibleRooms = eligibleRooms.filter((r) => floorList.includes(r.floorNumber));
+        }
+
         if (roomId) {
             const targetRoom = await Room.findOne({ _id: roomId, isDeleted: false }).lean();
             if (!targetRoom) {
@@ -467,13 +481,49 @@ export const getContracts = async ({ userId, roleId, query = {} }) => {
             if (!buildingRoomIds.includes(String(roomId))) {
                 throw new AppError('Bạn không có quyền thực hiện thao tác này', 403);
             }
+            if (floorList && floorList.length > 0 && !floorList.includes(targetRoom.floorNumber)) {
+                return { items: [], total: 0, page: pageNum, limit: limitNum, totalPages: 0 };
+            }
             filter.roomId = targetRoom._id;
         } else {
-            filter.roomId = { $in: buildingRooms.map((r) => r._id) };
+            if (eligibleRooms.length === 0) {
+                return { items: [], total: 0, page: pageNum, limit: limitNum, totalPages: 0 };
+            }
+            filter.roomId = { $in: eligibleRooms.map((r) => r._id) };
         }
 
         if (statusList && statusList.length > 0) {
             filter.status = { $in: statusList };
+        }
+
+        if (q && q.trim()) {
+            const keyword = q.trim();
+            const searchRegex = new RegExp(escapeRegex(keyword), 'i');
+
+            // 1. Tìm các phòng thuộc tòa có số phòng khớp từ khóa
+            const matchedRoomIds = eligibleRooms
+                .filter((r) => searchRegex.test(r.roomNumber))
+                .map((r) => r._id);
+
+            // 2. Tìm người đại diện khớp tên, SĐT hoặc CCCD
+            const repOccupants = await Occupant.find({
+                isRepresentative: true,
+                $or: [
+                    { name: searchRegex },
+                    { phone: searchRegex },
+                    { cccd: searchRegex },
+                ],
+            })
+                .select('contractId')
+                .lean();
+            const repContractIds = repOccupants.map((o) => o.contractId);
+
+            filter.$or = [
+                ...(matchedRoomIds.length > 0 ? [{ roomId: { $in: matchedRoomIds } }] : []),
+                ...(repContractIds.length > 0 ? [{ _id: { $in: repContractIds } }] : []),
+                { representativeEmail: searchRegex },
+                { representativeCccd: searchRegex },
+            ];
         }
     } else if (roleId === ROLE.CUSTOMER) {
         // Customer chỉ xem hợp đồng hiện tại của chính mình
@@ -500,6 +550,15 @@ export const getContracts = async ({ userId, roleId, query = {} }) => {
 
         if (roomId) {
             filter.roomId = roomId;
+        }
+
+        if (q && q.trim()) {
+            const keyword = q.trim();
+            const searchRegex = new RegExp(escapeRegex(keyword), 'i');
+            filter.$or = [
+                { representativeEmail: searchRegex },
+                { representativeCccd: searchRegex },
+            ];
         }
     } else {
         throw new AppError('Bạn không có quyền thực hiện thao tác này', 403);

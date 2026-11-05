@@ -2,7 +2,7 @@
 import Joi from 'joi';
 import { CONTRACT_STATUS, CONTRACT_TYPE, values } from '../../constants/enums.js';
 import { CCCD_REGEX, PHONE_REGEX } from '../../helpers/validators.js';
-import { OBJECT_ID_REGEX, commaSeparatedEnum } from '../../helpers/filter.js';
+import { OBJECT_ID_REGEX, commaSeparatedEnum, commaSeparatedIntegers } from '../../helpers/filter.js';
 
 // Kiểm tra tham số ID hợp đồng trên URL (/contracts/:id, /contracts/:id/resend-invite, /contracts/:id/renew, /contracts/:id/cancel)
 export const contractIdParamSchema = Joi.object({
@@ -25,6 +25,8 @@ export const listContractsSchema = Joi.object({
         .messages({
             'string.pattern.base': 'Mã phòng không hợp lệ',
         }),
+    floor: commaSeparatedIntegers({ min: 1, message: 'Tầng không hợp lệ' }),
+    q: Joi.string().trim().max(100).allow(''),
     page: Joi.number()
         .integer()
         .min(1)
