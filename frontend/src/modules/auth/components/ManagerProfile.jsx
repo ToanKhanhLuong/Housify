@@ -75,7 +75,7 @@ const ManagerProfile = () => {
         subtitle="Quản lý thông tin cá nhân và hình ảnh giấy tờ của bạn."
       />
 
-      {/* thẻ danh tính; nút Chỉnh sửa đặt bên phải theo thiết kế (lệch quy định nút bên trái, nhóm đã cân nhắc) */}
+      {/* thẻ danh tính; nút Chỉnh sửa đặt bên phải theo thiết kế */}
       <Card className="mb-3">
         <Card.Body className="p-4 flex flex-wrap items-center gap-3">
           <span className="flex items-center justify-center w-14 h-14 rounded-circle bg-primary-subtle text-primary-emphasis fs-4 fw-semibold">

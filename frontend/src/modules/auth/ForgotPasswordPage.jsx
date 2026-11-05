@@ -1,4 +1,4 @@
-// UC-04: quên mật khẩu theo mockup docs/mock/ForgotPassword.dc.html
+// UC-04: quên mật khẩu
 // Thanh 3 bước: nhập email → nhập OTP (đổi email / gửi lại mã) → đặt mật khẩu mới → màn hình thành công
 import { useState } from 'react';
 import { Alert, Button, Card, Form, Spinner } from 'react-bootstrap';
@@ -27,7 +27,13 @@ const ForgotPasswordPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [resending, setResending] = useState(false);
 
-  const handleChange = (event) => setForm({ ...form, [event.target.name]: event.target.value });
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: undefined }));
+    }
+  };
 
   // 422 thì hiện dưới ô; lỗi khác (OTP sai / hết hạn, gửi mail lỗi…) hiện khung đỏ trong thẻ với câu BE trả về
   const showError = (error) => {

@@ -19,7 +19,10 @@ const LoginPage = () => {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setForm({ ...form, [name]: type === 'checkbox' ? checked : value });
+    setForm((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: undefined }));
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -33,7 +36,7 @@ const LoginPage = () => {
       const res = await authApi.login({ ...form, identifier: form.identifier.trim() });
       // ghi nhớ đăng nhập → BE cấp token 7 ngày, FE lưu localStorage
       await login(res.data.token, form.remember);
-      // "/" tự chuyển về trang chủ theo role (bước 4)
+      // "/" tự chuyển về trang chủ theo role
       navigate('/', { replace: true });
     } catch (err) {
       setErrors(toFieldErrors(err.errors)); // 422: lỗi hiện dưới từng ô
