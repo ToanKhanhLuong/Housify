@@ -1,5 +1,6 @@
 // Nghiệp vụ cho module dashboard: tổng quan Admin (UC-07), tổng quan Manager (UC-47), báo cáo (UC-48). Chỉ đọc, không ghi dữ liệu
 import {
+    AUDIT_ACTION,
     CONTRACT_STATUS,
     INCIDENT_STATUS,
     INVOICE_STATUS,
@@ -11,17 +12,95 @@ import {
 } from '../../constants/enums.js';
 import { endOfVietnamDay, startOfVietnamDay, VIETNAM_OFFSET_MS } from '../../helpers/date.js';
 import { AppError } from '../../utils/AppError.js';
+import AuditLog from '../../models/AuditLog.js';
 import Building from '../../models/Building.js';
 import Contract from '../../models/Contract.js';
 import Incident from '../../models/Incident.js';
 import Invoice from '../../models/Invoice.js';
+import Manager from '../../models/Manager.js';
 import Occupant from '../../models/Occupant.js';
 import Room from '../../models/Room.js';
+import RoomType from '../../models/RoomType.js';
 import TerminationRequest from '../../models/TerminationRequest.js';
 import User from '../../models/User.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const OPEN_INCIDENT_STATUSES = [INCIDENT_STATUS.PENDING, INCIDENT_STATUS.IN_PROGRESS];
+
+const AUDIT_ACTION_META = {
+    [AUDIT_ACTION.ADD_OCCUPANT]: {
+        category: 'Cư dân',
+        title: 'Thêm người ở cùng vào phòng',
+        badgeText: 'Thêm cư dân',
+        badgeTone: 'ok',
+    },
+    [AUDIT_ACTION.UPDATE_OCCUPANT]: {
+        category: 'Cư dân',
+        title: 'Cập nhật hồ sơ cư dân',
+        badgeText: 'Cập nhật',
+        badgeTone: 'info',
+    },
+    [AUDIT_ACTION.REMOVE_OCCUPANT]: {
+        category: 'Cư dân',
+        title: 'Rút tên người ở cùng khỏi phòng',
+        badgeText: 'Rời phòng',
+        badgeTone: 'warn',
+    },
+    [AUDIT_ACTION.UPDATE_CONTRACT]: {
+        category: 'Hợp đồng',
+        title: 'Cập nhật thông tin hợp đồng',
+        badgeText: 'Hợp đồng',
+        badgeTone: 'plum',
+    },
+    [AUDIT_ACTION.ASSIGN_MANAGER]: {
+        category: 'Quản lý tòa',
+        title: 'Phân công Manager phụ trách tòa nhà',
+        badgeText: 'Phân công',
+        badgeTone: 'ok',
+    },
+    [AUDIT_ACTION.UNASSIGN_MANAGER]: {
+        category: 'Quản lý tòa',
+        title: 'Gỡ phân công Manager khỏi tòa nhà',
+        badgeText: 'Gỡ quản lý',
+        badgeTone: 'warn',
+    },
+    [AUDIT_ACTION.LOCK_USER]: {
+        category: 'Tài khoản',
+        title: 'Khóa tài khoản người dùng',
+        badgeText: 'Đã khóa',
+        badgeTone: 'red',
+    },
+    [AUDIT_ACTION.UNLOCK_USER]: {
+        category: 'Tài khoản',
+        title: 'Mở khóa tài khoản người dùng',
+        badgeText: 'Mở khóa',
+        badgeTone: 'ok',
+    },
+    [AUDIT_ACTION.UPDATE_MANAGER]: {
+        category: 'Nhân sự',
+        title: 'Cập nhật hồ sơ Manager',
+        badgeText: 'Cập nhật',
+        badgeTone: 'info',
+    },
+    [AUDIT_ACTION.RESEND_ACTIVATION]: {
+        category: 'Tài khoản',
+        title: 'Gửi lại liên kết kích hoạt tài khoản',
+        badgeText: 'Kích hoạt',
+        badgeTone: 'plum',
+    },
+    [AUDIT_ACTION.DEACTIVATE_USER]: {
+        category: 'Tài khoản',
+        title: 'Ngưng hoạt động tài khoản sau trả phòng',
+        badgeText: 'Ngưng TK',
+        badgeTone: 'gray',
+    },
+    [AUDIT_ACTION.REACTIVATE_USER]: {
+        category: 'Tài khoản',
+        title: 'Kích hoạt lại tài khoản khách thuê lại',
+        badgeText: 'Mở lại TK',
+        badgeTone: 'ok',
+    },
+};
 
 // Đầu và cuối tháng chứa thời điểm now, theo giờ Việt Nam
 const currentMonthRange = (now) => {
@@ -48,18 +127,18 @@ const loadScope = async (buildingId) => {
         isDeleted: false,
         ...(buildingId && { _id: buildingId }),
     })
-        .select('_id managerId')
+        .select('_id name address floorCount images managerId')
         .lean();
 
     const rooms = await Room.find({
         buildingId: { $in: buildings.map((building) => building._id) },
         isDeleted: false,
     })
-        .select('_id roomNumber status')
+        .select('_id buildingId floorNumber roomTypeId roomNumber area images rentPrice deposit status')
         .lean();
 
     const contracts = await Contract.find({ roomId: { $in: rooms.map((room) => room._id) } })
-        .select('_id roomId status endDate activatedAt')
+        .select('_id roomId status endDate activatedAt representativeEmail createdBy createdAt')
         .lean();
 
     return {
@@ -120,6 +199,236 @@ const countUsers = async (scope, buildingId) => {
     });
 };
 
+// Tổng hợp thông tin tòa tiêu điểm, danh sách phòng kèm ảnh và hoạt động gần đây trong phạm vi
+const loadDashboardExtras = async (scope, isFilteredByBuilding) => {
+    const buildingById = new Map(scope.buildings.map((building) => [String(building._id), building]));
+    const roomById = new Map(scope.rooms.map((room) => [String(room._id), room]));
+    const contractById = new Map(scope.contracts.map((contract) => [String(contract._id), contract]));
+
+    // 1. Thông tin tòa nhà tiêu điểm và Manager phụ trách
+    const targetBuilding =
+        scope.buildings.find((building) => Array.isArray(building.images) && building.images.length > 0) ??
+        scope.buildings[0] ??
+        null;
+
+    let managerInfo = null;
+    if (targetBuilding?.managerId) {
+        const [managerDoc, managerUser] = await Promise.all([
+            Manager.findOne({ userId: targetBuilding.managerId }).select('name phone').lean(),
+            User.findById(targetBuilding.managerId).select('email status').lean(),
+        ]);
+        if (managerDoc || managerUser) {
+            managerInfo = {
+                _id: targetBuilding.managerId,
+                name: managerDoc?.name ?? '',
+                phone: managerDoc?.phone ?? '',
+                email: managerUser?.email ?? '',
+                status: managerUser?.status ?? '',
+            };
+        }
+    }
+
+    const buildingOverview = targetBuilding
+        ? {
+              _id: targetBuilding._id,
+              name: targetBuilding.name,
+              address: targetBuilding.address,
+              floorCount: targetBuilding.floorCount,
+              images: targetBuilding.images ?? [],
+              manager: managerInfo,
+          }
+        : null;
+
+    // 2. Danh sách phòng kèm ảnh, loại phòng, sức chứa và số người đang ở
+    const roomTypeIds = [...new Set(scope.rooms.map((room) => String(room.roomTypeId)).filter(Boolean))];
+    const [roomTypes, activeOccupants] = await Promise.all([
+        RoomType.find({ _id: { $in: roomTypeIds } }).select('_id name capacity').lean(),
+        Occupant.find({
+            contractId: { $in: scope.activeContractIds },
+            status: OCCUPANT_STATUS.STAYED,
+        })
+            .select('_id contractId userId name isRepresentative')
+            .lean(),
+    ]);
+
+    const roomTypeById = new Map(roomTypes.map((type) => [String(type._id), type]));
+    const occupantCountByRoom = new Map();
+    const repNameByContract = new Map();
+
+    activeOccupants.forEach((occupant) => {
+        const contract = contractById.get(String(occupant.contractId));
+        if (!contract) return;
+        const roomKey = String(contract.roomId);
+        occupantCountByRoom.set(roomKey, (occupantCountByRoom.get(roomKey) ?? 0) + 1);
+        if (occupant.isRepresentative && occupant.name) {
+            repNameByContract.set(String(contract._id), occupant.name);
+        }
+    });
+
+    const sortedRooms = [...scope.rooms].sort((a, b) => {
+        const aHasImg = Array.isArray(a.images) && a.images.length > 0 ? 1 : 0;
+        const bHasImg = Array.isArray(b.images) && b.images.length > 0 ? 1 : 0;
+        if (bHasImg !== aHasImg) return bHasImg - aHasImg;
+        if (a.floorNumber !== b.floorNumber) return a.floorNumber - b.floorNumber;
+        return String(a.roomNumber).localeCompare(String(b.roomNumber), 'vi', { numeric: true });
+    });
+
+    const featuredRooms = sortedRooms.slice(0, 24).map((room) => {
+        const roomType = roomTypeById.get(String(room.roomTypeId));
+        const building = buildingById.get(String(room.buildingId));
+        return {
+            _id: room._id,
+            roomNumber: room.roomNumber,
+            floorNumber: room.floorNumber,
+            area: room.area,
+            rentPrice: room.rentPrice,
+            deposit: room.deposit,
+            status: room.status,
+            images: room.images ?? [],
+            buildingName: building?.name ?? '',
+            roomTypeName: roomType?.name ?? '',
+            capacity: roomType?.capacity ?? 0,
+            occupantCount: occupantCountByRoom.get(String(room._id)) ?? 0,
+        };
+    });
+
+    // 3. Hoạt động gần đây: gộp từ audit_logs, hợp đồng vừa kích hoạt và sự cố phòng
+    const managerIds = scope.buildings.map((building) => building.managerId).filter(Boolean);
+    const buildingIds = scope.buildings.map((building) => building._id);
+    const occupantIds = activeOccupants.map((occupant) => occupant._id);
+
+    const auditQuery = isFilteredByBuilding
+        ? {
+              $or: [
+                  { targetId: { $in: [...scope.contractIds, ...scope.roomIds, ...buildingIds, ...occupantIds] } },
+                  { actorId: { $in: managerIds } },
+              ],
+          }
+        : {};
+
+    const [auditLogs, recentIncidents] = await Promise.all([
+        AuditLog.find(auditQuery).sort({ createdAt: -1 }).limit(8).lean(),
+        Incident.find({ roomId: { $in: scope.roomIds } })
+            .sort({ createdAt: -1 })
+            .limit(5)
+            .select('_id incidentCode roomId reportedBy title status createdAt')
+            .lean(),
+    ]);
+
+    const actorIds = [
+        ...new Set(
+            [
+                ...auditLogs.map((log) => log.actorId),
+                ...recentIncidents.map((incident) => incident.reportedBy),
+            ]
+                .filter(Boolean)
+                .map(String),
+        ),
+    ];
+
+    const [actorManagers, actorOccupants, actorUsers] = await Promise.all([
+        Manager.find({ userId: { $in: actorIds } }).select('userId name').lean(),
+        Occupant.find({ userId: { $in: actorIds } }).select('userId name').lean(),
+        User.find({ _id: { $in: actorIds } }).select('_id email roleId').lean(),
+    ]);
+
+    const actorNameById = new Map();
+    actorUsers.forEach((user) => {
+        actorNameById.set(String(user._id), user.roleId === ROLE.ADMIN ? 'Admin' : user.email);
+    });
+    actorOccupants.forEach((occupant) => {
+        if (occupant.userId && occupant.name) actorNameById.set(String(occupant.userId), occupant.name);
+    });
+    actorManagers.forEach((manager) => {
+        if (manager.userId && manager.name) actorNameById.set(String(manager.userId), `QL ${manager.name}`);
+    });
+
+    const auditItems = auditLogs.map((log) => {
+        const meta = AUDIT_ACTION_META[log.action] ?? {
+            category: 'Nhật ký',
+            title: `Thao tác ${log.action}`,
+            badgeText: 'Hệ thống',
+            badgeTone: 'gray',
+        };
+        let code = 'Hệ thống';
+        const targetContract = contractById.get(String(log.targetId));
+        if (targetContract) {
+            const room = roomById.get(String(targetContract.roomId));
+            if (room) code = `P.${room.roomNumber}`;
+        } else {
+            const targetRoom = roomById.get(String(log.targetId));
+            if (targetRoom) code = `P.${targetRoom.roomNumber}`;
+            const targetBuildingDoc = buildingById.get(String(log.targetId));
+            if (targetBuildingDoc) code = targetBuildingDoc.name;
+        }
+
+        const actorName = log.actorId ? (actorNameById.get(String(log.actorId)) ?? 'Người dùng') : 'Hệ thống';
+
+        return {
+            _id: `audit-${log._id}`,
+            code,
+            category: meta.category,
+            title: meta.title,
+            actorName,
+            badgeText: meta.badgeText,
+            badgeTone: meta.badgeTone,
+            detail: log.reason ? `Lý do: ${log.reason}` : `Thực hiện bởi ${actorName}.`,
+            createdAt: log.createdAt,
+        };
+    });
+
+    const activatedContractItems = scope.contracts
+        .filter((contract) => Boolean(contract.activatedAt))
+        .sort((a, b) => new Date(b.activatedAt) - new Date(a.activatedAt))
+        .slice(0, 5)
+        .map((contract) => {
+            const room = roomById.get(String(contract.roomId));
+            const building = room ? buildingById.get(String(room.buildingId)) : null;
+            const repName = repNameByContract.get(String(contract._id)) || contract.representativeEmail || 'Khách thuê';
+            return {
+                _id: `contract-${contract._id}`,
+                code: room ? `P.${room.roomNumber}` : 'Hợp đồng',
+                category: 'Ký hợp đồng',
+                title: `Đã kích hoạt hợp đồng thuê phòng ${room?.roomNumber ?? ''}`,
+                actorName: repName,
+                badgeText: 'Đã ký HĐ',
+                badgeTone: 'ok',
+                detail: `${repName} đã kích hoạt hợp đồng tại ${building?.name ?? 'tòa nhà'}.`,
+                createdAt: contract.activatedAt,
+            };
+        });
+
+    const incidentItems = recentIncidents.map((incident) => {
+        const room = roomById.get(String(incident.roomId));
+        const reporterName = incident.reportedBy
+            ? (actorNameById.get(String(incident.reportedBy)) ?? 'Cư dân')
+            : 'Cư dân';
+        const isResolved = incident.status === INCIDENT_STATUS.RESOLVED;
+        const isInProgress = incident.status === INCIDENT_STATUS.IN_PROGRESS;
+        return {
+            _id: `incident-${incident._id}`,
+            code: room ? `P.${room.roomNumber}` : incident.incidentCode,
+            category: 'Sự cố phòng',
+            title: `${incident.title} (${incident.incidentCode})`,
+            actorName: reporterName,
+            badgeText: isResolved ? 'Đã xử lý' : isInProgress ? 'Đang xử lý' : 'Chờ xử lý',
+            badgeTone: isResolved ? 'ok' : isInProgress ? 'info' : 'warn',
+            detail: `Sự cố mã ${incident.incidentCode} tại phòng ${room?.roomNumber ?? ''} do ${reporterName} gửi.`,
+            createdAt: incident.createdAt,
+        };
+    });
+
+    const recentActivities = [...auditItems, ...activatedContractItems, ...incidentItems]
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        .slice(0, 8);
+
+    return {
+        buildingOverview,
+        featuredRooms,
+        recentActivities,
+    };
+};
+
 /**
  * UC-07: tổng quan toàn hệ thống hoặc theo một tòa.
  */
@@ -134,7 +443,7 @@ export const getAdminDashboard = async ({ query = {} }) => {
     const { start, end } = currentMonthRange(now);
     const scope = await loadScope(buildingId);
 
-    const [monthlyRevenue, openIncidents, users, residents, movedIn, movedOut] = await Promise.all([
+    const [monthlyRevenue, openIncidents, users, residents, movedIn, movedOut, extras] = await Promise.all([
         sumRevenue(scope.contractIds, start, end),
         countOpenIncidents(scope.roomIds),
         countUsers(scope, buildingId),
@@ -151,6 +460,7 @@ export const getAdminDashboard = async ({ query = {} }) => {
             status: OCCUPANT_STATUS.LEFT,
             exitDate: { $gte: start, $lte: end },
         }),
+        loadDashboardExtras(scope, Boolean(buildingId)),
     ]);
 
     return {
@@ -163,6 +473,7 @@ export const getAdminDashboard = async ({ query = {} }) => {
         residents,
         movedIn,
         movedOut,
+        ...extras,
     };
 };
 
@@ -194,9 +505,10 @@ export const getManagerDashboard = async ({ managerId }) => {
             new Date(contract.endDate) <= in30Days,
     ).length;
 
-    const [monthlyRevenue, openIncidents] = await Promise.all([
+    const [monthlyRevenue, openIncidents, extras] = await Promise.all([
         sumRevenue(scope.contractIds, start, end),
         countOpenIncidents(scope.roomIds),
+        loadDashboardExtras(scope, true),
     ]);
 
     return {
@@ -211,6 +523,7 @@ export const getManagerDashboard = async ({ managerId }) => {
         openIncidents,
         expiringContracts,
         monthlyRevenue,
+        ...extras,
     };
 };
 
