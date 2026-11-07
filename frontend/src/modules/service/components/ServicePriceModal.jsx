@@ -23,7 +23,13 @@ const ServicePriceModal = ({ service, buildingId, buildingName, prices, onHide, 
         (price) => toDateInput(price.effectiveFrom) === form.effectiveFrom,
     );
 
-    const handleChange = (event) => setForm({ ...form, [event.target.name]: event.target.value });
+    const handleChange = (event) => {
+        const { name, value } = event.target;
+        setForm((prev) => ({ ...prev, [name]: value }));
+        if (errors[name]) {
+            setErrors((prev) => ({ ...prev, [name]: undefined }));
+        }
+    };
 
     const handleSubmit = async (event) => {
         event.preventDefault();
@@ -66,13 +72,22 @@ const ServicePriceModal = ({ service, buildingId, buildingName, prices, onHide, 
         },
         {
             key: 'state',
-            title: '',
+            title: 'Trạng thái',
             render: (row) => {
                 if (row._id === currentPrice?._id)
-                    return <span className="text-success fw-semibold">Đang áp dụng</span>;
+                    return (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            Đang áp dụng
+                        </span>
+                    );
                 if (toDateInput(row.effectiveFrom) > today)
-                    return <span className="text-secondary">Chưa tới ngày</span>;
-                return null;
+                    return (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-sky-50 text-sky-700 border border-sky-200">
+                            Chưa tới ngày
+                        </span>
+                    );
+                return <span className="text-xs text-gray-400">Lịch sử cũ</span>;
             },
         },
     ];

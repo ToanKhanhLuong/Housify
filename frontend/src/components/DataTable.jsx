@@ -28,24 +28,27 @@ const DataTable = ({ columns, data = [], loading = false, emptyMessage, rowKey =
 
         return (
             <Table hover={Boolean(onRowClick)} responsive className="align-middle mb-0">
-                <thead>
+                <thead className="bg-gray-50/80 border-b border-gray-200/80">
                     <tr>
                         {columns.map((col, i) => (
-                            <th key={col.key} className={cellClass(col, i, columns.length)}>
+                            <th
+                                key={col.key}
+                                className={`py-3 text-xs font-bold text-gray-500 uppercase tracking-wider border-0 ${cellClass(col, i, columns.length)}`}
+                            >
                                 {col.title}
                             </th>
                         ))}
                     </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-gray-100">
                     {data.map((row) => (
                         <tr
                             key={row[rowKey]}
                             onClick={onRowClick ? () => onRowClick(row) : undefined}
-                            className={onRowClick ? 'cursor-pointer' : undefined}
+                            className={`transition-colors ${onRowClick ? 'cursor-pointer hover:bg-purple-50/40' : ''}`}
                         >
                             {columns.map((col, i) => (
-                                <td key={col.key} className={cellClass(col, i, columns.length)}>
+                                <td key={col.key} className={`py-3.5 border-0 ${cellClass(col, i, columns.length)}`}>
                                     {col.render ? col.render(row) : (row[col.key] ?? '—')}
                                 </td>
                             ))}
@@ -57,7 +60,7 @@ const DataTable = ({ columns, data = [], loading = false, emptyMessage, rowKey =
     };
 
     return (
-        <Card>
+        <Card className="border-0 shadow-xs rounded-2xl overflow-hidden">
             <Card.Body className="p-0">{renderBody()}</Card.Body>
         </Card>
     );

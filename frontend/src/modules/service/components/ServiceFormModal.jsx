@@ -1,4 +1,4 @@
-// UC-21: form thêm / sửa dịch vụ. service = {} là thêm mới, có _id là sửa
+// UC-21: Form thêm / sửa dịch vụ – hỗ trợ xóa mềm dịch vụ
 import { useState } from 'react';
 import { Button, Form, Modal, Spinner } from 'react-bootstrap';
 import { toast } from 'react-toastify';
@@ -8,7 +8,6 @@ import { hasErrors, toFieldErrors } from '../../../utils/formErrors';
 import serviceApi from '../service.api';
 import { validateService } from '../service.validate';
 
-// isFixed là Boolean, Select chỉ giữ chuỗi nên đổi qua lại 'true' / 'false'
 const CALC_OPTIONS = [
     { value: 'false', label: 'Theo chỉ số (điện, nước)' },
     { value: 'true', label: 'Cố định (gửi xe, wifi…)' },
@@ -24,7 +23,13 @@ const ServiceFormModal = ({ service, onHide, onSaved, onDelete }) => {
     const [errors, setErrors] = useState({});
     const [submitting, setSubmitting] = useState(false);
 
-    const handleChange = (event) => setForm({ ...form, [event.target.name]: event.target.value });
+    const handleChange = (event) => {
+        const { name, value } = event.target;
+        setForm((prev) => ({ ...prev, [name]: value }));
+        if (errors[name]) {
+            setErrors((prev) => ({ ...prev, [name]: undefined }));
+        }
+    };
 
     const handleSubmit = async (event) => {
         event.preventDefault();
