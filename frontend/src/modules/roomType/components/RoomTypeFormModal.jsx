@@ -18,6 +18,14 @@ const RoomTypeFormModal = ({ roomType = {}, onHide, onSaved, onDelete }) => {
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: undefined }));
+    }
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     const clientErrors = validateRoomType(form);
@@ -61,7 +69,7 @@ const RoomTypeFormModal = ({ roomType = {}, onHide, onSaved, onDelete }) => {
             label="Tên loại phòng"
             name="name"
             value={form.name}
-            onChange={(event) => setForm({ ...form, name: event.target.value })}
+            onChange={handleChange}
             error={errors.name}
             placeholder="VD: Phòng đôi"
             helpText={isEdit ? 'Tên mới hiện ngay ở mọi phòng đang dùng loại này' : undefined}
@@ -75,7 +83,7 @@ const RoomTypeFormModal = ({ roomType = {}, onHide, onSaved, onDelete }) => {
             min={1}
             step={1}
             value={form.capacity}
-            onChange={(event) => setForm({ ...form, capacity: event.target.value })}
+            onChange={handleChange}
             error={errors.capacity}
             helpText={
               isEdit
