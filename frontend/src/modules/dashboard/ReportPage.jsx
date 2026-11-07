@@ -1,247 +1,207 @@
-// UC-48: báo cáo /reports. Chọn kỳ theo tháng, quý hoặc năm; Admin lọc được theo tòa, Manager chỉ xem tòa mình
-// Gồm: tổng doanh thu, biểu đồ doanh thu theo tháng, phòng theo trạng thái + tỷ lệ lấp đầy, hợp đồng mới / kết thúc,
-// bảng phòng chậm thanh toán (tính theo hiện tại, không phụ thuộc kỳ). Trang chỉ đọc
-import { useCallback, useEffect, useState } from 'react';
-import { Card, Form } from 'react-bootstrap';
-import { BiBuildings, BiFile, BiMoney, BiXCircle } from 'react-icons/bi';
+// UC-48: Trang Báo cáo phân tích chuyên sâu /reports cho cả Admin và Manager
+// Kế thừa toàn bộ giao diện phân tích hiệu suất đa chiều (biểu đồ chuỗi thời gian, hồ sơ tòa nhà, hoạt động) và bảng đối soát công nợ
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Alert, Button, Card } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import DataTable from '../../components/DataTable';
+import EmptyState from '../../components/EmptyState';
 import ErrorState from '../../components/ErrorState';
 import MoneyText from '../../components/MoneyText';
 import SkeletonRows from '../../components/SkeletonRows';
 import { useAuth } from '../../context/AuthContext';
 import { ROLE } from '../../constants/enums';
-import { formatDate, formatMoney } from '../../utils/format';
+import { formatDate } from '../../utils/format';
 import dashboardApi from './dashboard.api';
-import { monthLabel, PERIOD_TYPE, periodRange } from './reportPeriod';
-import RoomStatusChart from './components/RoomStatusChart';
-import StatTile from './components/StatTile';
+import BuildingSidePanel from './components/BuildingSidePanel';
+import HorizontalFlowDiagram from './components/HorizontalFlowDiagram';
+import RecentActivitiesSection from './components/RecentActivitiesSection';
+import { monthLabel } from './reportPeriod';
 
-const QUARTERS = [1, 2, 3, 4];
-const pad = (value) => String(value).padStart(2, '0');
-
-// trục tiền rút gọn: 3.500.000 → "3,5 tr"
-const shortMoney = (value) =>
-  value >= 1000000 ? `${new Intl.NumberFormat('vi-VN').format(value / 1000000)} tr` : String(value);
-
-const latePaymentColumns = [
-  { key: 'roomNumber', title: 'Phòng', className: 'fw-semibold' },
-  { key: 'invoiceCode', title: 'Hóa đơn' },
-  { key: 'month', title: 'Kỳ', render: (row) => monthLabel(row.month) },
-  { key: 'dueDate', title: 'Hạn thanh toán', render: (row) => formatDate(row.dueDate) },
-  {
-    key: 'overdueDays',
-    title: 'Quá hạn',
-    render: (row) => <span className="hf-badge hf-b-red">{row.overdueDays} ngày</span>,
-  },
-  {
-    key: 'amount',
-    title: 'Số tiền còn nợ',
-    align: 'end',
-    render: (row) => <MoneyText value={row.amount} className="fw-semibold" />,
-  },
-];
+const getSixMonthRange = () => {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+  const pad = (n) => String(n).padStart(2, '0');
+  return {
+    from: `${start.getFullYear()}-${pad(start.getMonth() + 1)}-01`,
+    to: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
+  };
+};
 
 const ReportPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isAdmin = user.role === ROLE.ADMIN;
 
-  // kỳ mặc định: tháng hiện tại, tính 1 lần khi mở trang (render phải thuần)
-  const [today] = useState(() => new Date());
-  const currentYear = today.getFullYear();
-  const [period, setPeriod] = useState({
-    type: PERIOD_TYPE.MONTH,
-    month: `${currentYear}-${pad(today.getMonth() + 1)}`,
-    year: currentYear,
-    quarter: Math.floor(today.getMonth() / 3) + 1,
-  });
+  const [state, setState] = useState({ status: 'loading', data: null, error: '' });
   const [buildings, setBuildings] = useState([]);
   const [buildingId, setBuildingId] = useState('');
-  // loading → ok | error
-  const [state, setState] = useState({ status: 'loading', data: null, error: '' });
-
-  const years = Array.from({ length: 5 }, (_, index) => currentYear - index);
+  const [reportData, setReportData] = useState(null);
 
   useEffect(() => {
     if (!isAdmin) return;
     dashboardApi
       .buildings()
       .then((response) => {
-        const data = response.data;
-        setBuildings(Array.isArray(data) ? data : (data?.items ?? []));
+        const raw = response.data;
+        setBuildings(Array.isArray(raw) ? raw : (raw?.items ?? []));
       })
       .catch(() => setBuildings([]));
   }, [isAdmin]);
 
-  const { from, to } = periodRange(period);
-  const loadReport = useCallback(
-    () =>
-      dashboardApi
-        .report({ from, to, ...(buildingId && { buildingId }) })
-        .then((response) => setState({ status: 'ok', data: response.data, error: '' }))
-        .catch((error) => setState({ status: 'error', data: null, error: error.message })),
-    [from, to, buildingId],
-  );
+  const loadData = useCallback(() => {
+    const query = isAdmin && buildingId ? { buildingId } : {};
+    const mainRequest = isAdmin ? dashboardApi.admin(query) : dashboardApi.manager();
+    const { from, to } = getSixMonthRange();
+
+    dashboardApi
+      .report({ ...query, from, to })
+      .then((response) => setReportData(response.data))
+      .catch(() => setReportData(null));
+
+    return mainRequest
+      .then((response) => setState({ status: 'ok', data: response.data, error: '' }))
+      .catch((error) =>
+        setState((prev) => ({
+          status: error.status === 403 && !isAdmin ? 'noBuilding' : 'error',
+          data: prev.data,
+          error: error.message,
+        })),
+      );
+  }, [isAdmin, buildingId]);
 
   useEffect(() => {
-    loadReport();
-  }, [loadReport]);
+    loadData();
+  }, [loadData]);
 
-  const updatePeriod = (patch) => setPeriod((prev) => ({ ...prev, ...patch }));
+  const { status, data, error } = state;
 
-  const renderContent = () => {
-    if (state.status === 'loading' && !state.data) {
-      return (
-        <Card>
-          <Card.Body>
-            <SkeletonRows rows={6} columns={4} />
-          </Card.Body>
-        </Card>
-      );
-    }
-    if (state.status === 'error') {
-      return <ErrorState message="Không tải được báo cáo" detail={state.error} onRetry={loadReport} />;
-    }
+  const selectedBuilding = useMemo(
+    () => buildings.find((item) => item._id === buildingId) ?? null,
+    [buildings, buildingId],
+  );
 
-    const { data } = state;
-    const chartData = data.revenueByMonth.map((item) => ({ ...item, label: monthLabel(item.month) }));
-    const hasPeriodData = data.totalRevenue > 0 || data.contracts.new > 0 || data.contracts.ended > 0;
+  const showRoomsSection = !isAdmin || Boolean(buildingId);
 
+  const latePayments = useMemo(
+    () => (Array.isArray(reportData?.latePayments) ? reportData.latePayments : []),
+    [reportData],
+  );
+
+  const latePaymentColumns = [
+    ...(isAdmin && !buildingId
+      ? [{ key: 'buildingName', title: 'Tòa nhà', render: (row) => row.buildingName || '—' }]
+      : []),
+    { key: 'roomNumber', title: 'Phòng', className: 'fw-semibold' },
+    { key: 'invoiceCode', title: 'Hóa đơn' },
+    { key: 'month', title: 'Kỳ', render: (row) => monthLabel(row.month) },
+    { key: 'dueDate', title: 'Hạn thanh toán', render: (row) => formatDate(row.dueDate) },
+    {
+      key: 'overdueDays',
+      title: 'Quá hạn',
+      render: (row) => <span className="hf-badge hf-b-red">{row.overdueDays} ngày</span>,
+    },
+    {
+      key: 'amount',
+      title: 'Số tiền còn nợ',
+      align: 'end',
+      render: (row) => <MoneyText value={row.amount} className="fw-semibold" />,
+    },
+  ];
+
+  if (status === 'noBuilding') {
+    return <EmptyState message={error || 'Bạn chưa được cấp quyền quản lý tòa nhà'} />;
+  }
+  if (status === 'loading' && !data) {
     return (
-      <>
-        <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
-          <StatTile icon={BiMoney} label="Tổng doanh thu trong kỳ" value={<MoneyText value={data.totalRevenue} />} />
-          <StatTile
-            icon={BiBuildings}
-            label="Tỷ lệ lấp đầy hiện tại"
-            value={`${data.rooms.occupancyRate}%`}
-            sub={`${data.rooms.occupied} / ${data.rooms.total} phòng đang thuê`}
-          />
-          <StatTile icon={BiFile} label="Hợp đồng mới trong kỳ" value={data.contracts.new} />
-          <StatTile icon={BiXCircle} label="Hợp đồng kết thúc trong kỳ" value={data.contracts.ended} />
-        </div>
-
-        <div className="grid xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-3">
-          <Card>
-            <Card.Body className="flex flex-col gap-3">
-              <h2 className="h6 fw-bold mb-0">Doanh thu theo tháng</h2>
-              {hasPeriodData ? (
-                <div className="h-72">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--bs-border-color)" />
-                      <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={12} />
-                      <YAxis tickFormatter={shortMoney} tickLine={false} axisLine={false} width={56} fontSize={12} />
-                      <Tooltip formatter={(value) => [formatMoney(value), 'Doanh thu']} cursor={{ fill: 'var(--bs-tertiary-bg)' }} />
-                      <Bar dataKey="revenue" fill="var(--bs-primary)" radius={[4, 4, 0, 0]} maxBarSize={56} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <div className="hf-ph h-72">Không có dữ liệu cho kỳ này</div>
-              )}
-            </Card.Body>
-          </Card>
-          <Card>
-            <Card.Body className="flex flex-col gap-3">
-              <h2 className="h6 fw-bold mb-0">Phòng theo trạng thái</h2>
-              <RoomStatusChart rooms={data.rooms} />
-            </Card.Body>
-          </Card>
-        </div>
-
-        <section className="flex flex-col gap-2">
-          <h2 className="h6 fw-bold mb-0">
-            Phòng chậm thanh toán{' '}
-            <span className="fw-normal text-secondary">({data.latePayments.length})</span>
-          </h2>
-          <DataTable
-            columns={latePaymentColumns}
-            data={data.latePayments}
-            emptyMessage="Không có phòng nào chậm thanh toán."
-            onRowClick={isAdmin ? undefined : (row) => navigate(`/invoices/${row._id}`)}
-          />
-        </section>
-      </>
-    );
-  };
-
-  return (
-    <div className="flex flex-col gap-3">
       <Card>
-        <Card.Body className="flex flex-wrap items-center gap-3 py-2">
-          <span className="fw-semibold">Kỳ báo cáo</span>
-          <Form.Select
-            aria-label="Loại kỳ"
-            className="w-auto"
-            value={period.type}
-            onChange={(event) => updatePeriod({ type: event.target.value })}
-          >
-            <option value={PERIOD_TYPE.MONTH}>Theo tháng</option>
-            <option value={PERIOD_TYPE.QUARTER}>Theo quý</option>
-            <option value={PERIOD_TYPE.YEAR}>Theo năm</option>
-          </Form.Select>
-
-          {period.type === PERIOD_TYPE.MONTH ? (
-            <Form.Control
-              type="month"
-              aria-label="Tháng"
-              className="w-auto"
-              value={period.month}
-              onChange={(event) => event.target.value && updatePeriod({ month: event.target.value })}
-            />
-          ) : (
-            <>
-              {period.type === PERIOD_TYPE.QUARTER && (
-                <Form.Select
-                  aria-label="Quý"
-                  className="w-auto"
-                  value={period.quarter}
-                  onChange={(event) => updatePeriod({ quarter: Number(event.target.value) })}
-                >
-                  {QUARTERS.map((quarter) => (
-                    <option key={quarter} value={quarter}>
-                      Quý {quarter}
-                    </option>
-                  ))}
-                </Form.Select>
-              )}
-              <Form.Select
-                aria-label="Năm"
-                className="w-auto"
-                value={period.year}
-                onChange={(event) => updatePeriod({ year: Number(event.target.value) })}
-              >
-                {years.map((year) => (
-                  <option key={year} value={year}>
-                    Năm {year}
-                  </option>
-                ))}
-              </Form.Select>
-            </>
-          )}
-
-          {isAdmin && (
-            <Form.Select
-              aria-label="Tòa nhà"
-              className="w-auto min-w-56 ms-auto"
-              value={buildingId}
-              onChange={(event) => setBuildingId(event.target.value)}
-            >
-              <option value="">Toàn hệ thống</option>
-              {buildings.map((building) => (
-                <option key={building._id} value={building._id}>
-                  {building.name}
-                </option>
-              ))}
-            </Form.Select>
-          )}
+        <Card.Body>
+          <SkeletonRows rows={6} columns={4} />
         </Card.Body>
       </Card>
+    );
+  }
+  if (status === 'error' && !data) {
+    return <ErrorState message="Không tải được dữ liệu báo cáo" detail={error} onRetry={loadData} />;
+  }
 
-      {renderContent()}
+  const overdueInvoicesCount = isAdmin
+    ? (reportData?.latePayments?.length ?? 0)
+    : (data?.pendingInvoices?.overdueCount ?? 0);
+
+  const totalBuildings = buildings.length || data?.buildings || 0;
+  const scopeLabel = selectedBuilding
+    ? selectedBuilding.name
+    : isAdmin
+      ? `Chuỗi nhà trọ Housify · ${totalBuildings} cơ sở`
+      : data?.buildingOverview?.name || 'Cơ sở đang phụ trách';
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Tiêu đề & phạm vi báo cáo phân tích */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <span className="small text-secondary text-uppercase fw-semibold">
+            {isAdmin ? 'Báo cáo phân tích toàn hệ thống' : 'Báo cáo chi tiết cơ sở'}
+          </span>
+          <h1 className="h5 fw-bold mb-0 mt-1">{scopeLabel}</h1>
+        </div>
+
+        {isAdmin && buildingId && (
+          <Button variant="secondary" size="sm" onClick={() => setBuildingId('')}>
+            Xem tất cả cơ sở
+          </Button>
+        )}
+      </div>
+
+      {status === 'error' && (
+        <Alert variant="warning" className="mb-0 small">
+          Dữ liệu có thể chưa cập nhật: {error}
+        </Alert>
+      )}
+
+      {/* Bố cục 2 cột nguyên bản: Trái 8 cột (Hiệu suất luồng + Hoạt động + Bảng nợ) | Phải 4 cột (Hồ sơ tòa & Danh bạ) */}
+      <div className="grid lg:grid-cols-12 gap-4 items-start">
+        <div className="lg:col-span-8 flex flex-col gap-4">
+          <HorizontalFlowDiagram
+            isAdmin={isAdmin}
+            data={data}
+            overdueInvoicesCount={overdueInvoicesCount}
+          />
+
+          <RecentActivitiesSection
+            data={data}
+            reportData={reportData}
+            showRooms={showRoomsSection}
+          />
+
+          {/* Bảng đối soát phòng chậm thanh toán chi tiết */}
+          <section className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <h2 className="h6 fw-bold mb-0">
+                Phòng chậm thanh toán & Thu hồi nợ{' '}
+                <span className="fw-normal text-secondary">({latePayments.length})</span>
+              </h2>
+              <span className="small text-secondary">Danh sách hóa đơn quá hạn cần thu tiền</span>
+            </div>
+            <DataTable
+              columns={latePaymentColumns}
+              data={latePayments}
+              emptyMessage="Không có phòng nào chậm thanh toán."
+              onRowClick={isAdmin ? undefined : (row) => navigate(`/invoices/${row._id}`)}
+            />
+          </section>
+        </div>
+
+        <div className="lg:col-span-4">
+          <BuildingSidePanel
+            isAdmin={isAdmin}
+            data={data}
+            buildings={buildings}
+            buildingId={buildingId}
+            onSelectBuilding={setBuildingId}
+          />
+        </div>
+      </div>
     </div>
   );
 };
