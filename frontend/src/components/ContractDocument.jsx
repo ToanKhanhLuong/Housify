@@ -41,24 +41,21 @@ const longDate = (value) => {
 const monthsBetween = (start, end) =>
   Math.round((new Date(end) - new Date(start)) / (1000 * 60 * 60 * 24 * 30.44));
 
-// ô xác nhận điện tử: nền nhạt, dấu ✓ lớn chìm phía sau chữ (giống ô xác nhận trên hóa đơn điện tử)
-// variant: 'info' (xanh dương) cho Bên A – Manager xác nhận khi tạo và gửi; 'success' (xanh lá) cho Bên B – khách xác nhận
-const ConfirmationStamp = ({ name, activatedAt, variant = 'success' }) => {
+// ô xác nhận điện tử: dấu ✓ lớn chìm phía sau chữ, không khung bao quanh
+const ConfirmationStamp = ({ name, activatedAt }) => {
   const time = new Date(activatedAt).toLocaleTimeString('vi-VN', {
     hour: '2-digit',
     minute: '2-digit',
   });
   return (
-    <div
-      className={`relative overflow-hidden rounded border border-${variant} bg-${variant}-subtle px-4 py-3 text-center [print-color-adjust:exact]`}
-    >
+    <div className="relative px-4 py-2 text-center min-w-[200px] [print-color-adjust:exact]">
       <BiCheck
         aria-hidden="true"
-        className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 size-28 text-${variant} opacity-25`}
+        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 size-28 text-success opacity-60 pointer-events-none"
       />
       <div className="relative flex flex-col gap-1">
-        <span className={`small fw-semibold text-${variant}-emphasis`}>
-          Đã xác nhận điện tử bởi
+        <span className="small fw-semibold text-success">
+          Đã xác nhận điện tử
         </span>
         <span className="fw-bold text-uppercase">{name}</span>
         <span className="small text-secondary">
@@ -248,7 +245,6 @@ const ContractDocument = ({ contract, party = {}, confirmation = null }) => {
             <ConfirmationStamp
               name={manager.name}
               activatedAt={contract.createdAt}
-              variant="info"
             />
           ) : (
             <span className="small fst-italic text-secondary">Housify – {building.name}</span>

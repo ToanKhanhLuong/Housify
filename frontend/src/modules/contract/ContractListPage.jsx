@@ -1,10 +1,10 @@
 // UC-25: danh sách hợp đồng (Manager) – hợp đồng tòa mình, mới nhất trước, có phân trang (api.md)
-// Khuôn danh sách như Hóa đơn: ControlBar (nút Tạo hợp đồng, tìm mã phòng, lọc trạng thái), đổi Thẻ / Bảng, Pager
+// Khuôn danh sách như Hóa đơn: ControlBar (nút Tạo hợp đồng, tìm phòng / tên, lọc trạng thái / tầng), đổi Thẻ / Bảng, Pager
 // Cột Thời hạn có thanh tiến độ, nhãn còn X ngày (vàng khi sắp hết hạn)
-// API không có ?q nên mã phòng gõ vào ô tìm được đổi sang roomId
-import { useEffect, useState } from 'react';
+// Tìm kiếm theo số phòng, tên người đại diện, SĐT, CCCD; lọc trạng thái và tầng
+import { useEffect, useMemo, useState } from 'react';
 import { Button, Card } from 'react-bootstrap';
-import { BiPlus, BiReset } from 'react-icons/bi';
+import { BiLayer, BiListUl, BiPlus, BiReset } from 'react-icons/bi';
 import { useNavigate } from 'react-router-dom';
 import ControlBar from '../../components/ControlBar';
 import DataTable from '../../components/DataTable';
@@ -18,19 +18,14 @@ import { useAuth } from '../../context/AuthContext';
 import { CONTRACT_STATUS } from '../../constants/enums';
 import { CONTRACT_STATUS_LABEL, CONTRACT_TYPE_LABEL } from '../../constants/statusLabels';
 import contractApi from './contract.api';
+import buildingApi from '../building/building.api';
 import { ContractCard, Representative, Term } from './components/ContractListParts';
 
 const LIMIT = 12;
-const FILTER_GROUPS = [
-  {
-    id: 'status',
-    label: 'Trạng thái',
-    type: 'checkbox',
-    options: Object.values(CONTRACT_STATUS).map((status) => ({
-      value: status,
-      label: CONTRACT_STATUS_LABEL[status].label,
-    })),
-  },
+
+const VIEW_OPTIONS = [
+  { id: 'cards', icon: BiLayer, title: 'Dạng thẻ' },
+  { id: 'table', icon: BiListUl, title: 'Dạng bảng' },
 ];
 
 const ContractListPage = () => {
@@ -41,37 +36,72 @@ const ContractListPage = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [query, setQuery] = useState('');
-  const [filters, setFilters] = useState({ status: [] });
+  const [filters, setFilters] = useState({ status: [], floor: [] });
   const [page, setPage] = useState(1);
-  const [view, setView] = useState('table');
+  const [view, setView] = useState('cards');
   const [reloadKey, setReloadKey] = useState(0);
-  const [rooms, setRooms] = useState([]);
+  const [floorCount, setFloorCount] = useState(0);
   // mốc thời gian để tính "còn X ngày" – lấy 1 lần khi mở trang (render phải thuần)
   const [now] = useState(() => Date.now());
 
-  // phòng của tòa để đổi mã phòng gõ vào → roomId
   const buildingId = user.building?._id;
+
+  // Lấy thông tin tòa nhà để có số tầng (phục vụ lọc theo tầng)
   useEffect(() => {
     if (!buildingId) return;
-    contractApi
-      .rooms(buildingId)
-      .then((response) => setRooms(Array.isArray(response.data) ? response.data : []))
-      .catch(() => setRooms([]));
+    buildingApi
+      .detail(buildingId)
+      .then((response) => {
+        if (response.data?.floorCount) {
+          setFloorCount(response.data.floorCount);
+        }
+      })
+      .catch(() => {});
   }, [buildingId]);
 
+  const totalFloors = floorCount || user.building?.floorCount || 0;
+
+  const filterGroups = useMemo(() => {
+    const groups = [
+      {
+        id: 'status',
+        label: 'Trạng thái',
+        type: 'checkbox',
+        options: Object.values(CONTRACT_STATUS).map((status) => ({
+          value: status,
+          label: CONTRACT_STATUS_LABEL[status].label,
+        })),
+      },
+    ];
+
+    if (totalFloors > 0) {
+      groups.push({
+        id: 'floor',
+        label: 'Tầng',
+        type: 'checkbox',
+        beside: true,
+        maxVisible: 5,
+        options: Array.from({ length: totalFloors }, (_, index) => ({
+          value: String(index + 1),
+          label: `Tầng ${index + 1}`,
+        })),
+      });
+    }
+
+    return groups;
+  }, [totalFloors]);
+
   const keyword = query.trim();
-  const matchedRoom = keyword ? rooms.find((room) => room.roomNumber === keyword) : null;
-  const noMatch = Boolean(keyword && rooms.length > 0 && !matchedRoom);
-  const roomId = matchedRoom?._id ?? '';
   const statusParam = filters.status.join(',');
+  const floorParam = filters.floor.join(',');
 
   // ignore: bỏ kết quả lần gọi cũ khi bộ lọc đã đổi tiếp
   useEffect(() => {
-    if (noMatch) return undefined;
     let ignore = false;
     const params = { page, limit: LIMIT };
     if (statusParam) params.status = statusParam;
-    if (roomId) params.roomId = roomId;
+    if (floorParam) params.floor = floorParam;
+    if (keyword) params.q = keyword;
     contractApi
       .list(params)
       .then((response) => {
@@ -88,7 +118,7 @@ const ContractListPage = () => {
     return () => {
       ignore = true;
     };
-  }, [page, statusParam, roomId, noMatch, reloadKey]);
+  }, [page, statusParam, floorParam, keyword, reloadKey]);
 
   const handleSearchChange = (value) => {
     setQuery(value);
@@ -96,7 +126,10 @@ const ContractListPage = () => {
     setRefreshing(true);
   };
   const handleFilterChange = (next) => {
-    setFilters({ status: next.status ?? [] });
+    setFilters({
+      status: next.status ?? [],
+      floor: next.floor ?? [],
+    });
     setPage(1);
     setRefreshing(true);
   };
@@ -106,7 +139,7 @@ const ContractListPage = () => {
   };
   const handleResetFilters = () => {
     setQuery('');
-    setFilters({ status: [] });
+    setFilters({ status: [], floor: [] });
     setPage(1);
     setRefreshing(true);
   };
@@ -115,9 +148,9 @@ const ContractListPage = () => {
     setReloadKey((key) => key + 1);
   };
 
-  const isFiltering = Boolean(keyword || filters.status.length);
-  const items = noMatch ? [] : data.items;
-  const total = noMatch ? 0 : data.total;
+  const isFiltering = Boolean(keyword || filters.status.length || filters.floor.length);
+  const items = data.items;
+  const total = data.total;
 
   const columns = [
     {
@@ -180,11 +213,7 @@ const ContractListPage = () => {
           <Card.Body>
             {isFiltering ? (
               <EmptyState
-                message={
-                  noMatch
-                    ? `Tòa của bạn không có phòng "${keyword}".`
-                    : 'Không có hợp đồng nào phù hợp. Thử đổi mã phòng hoặc bỏ bớt bộ lọc.'
-                }
+                message="Không có hợp đồng nào phù hợp. Thử đổi từ khóa hoặc bỏ bớt bộ lọc."
               >
                 <Button
                   variant="secondary"
@@ -241,13 +270,14 @@ const ContractListPage = () => {
           }
           searchValue={query}
           onSearchChange={handleSearchChange}
-          searchPlaceholder="Tìm theo mã phòng, vd 101..."
-          filterGroups={FILTER_GROUPS}
+          searchPlaceholder="Tìm theo phòng, tên người..."
+          filterGroups={filterGroups}
           selectedFilters={filters}
           onFilterChange={handleFilterChange}
           count={loading || loadError ? null : `${total} hợp đồng`}
           view={view}
           onViewChange={setView}
+          viewOptions={VIEW_OPTIONS}
         />
       </Card>
 
