@@ -239,9 +239,23 @@
     clip-path: polygon(0 0, calc(100% - 0.6rem) 0, 100% 50%, calc(100% - 0.6rem) 100%, 0 100%);
   }
 
+  .status-steps .step:last-child {
+    padding-right: 1.25rem;
+    border-radius: 0 var(--bs-border-radius) var(--bs-border-radius) 0;
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 0.6rem 50%);
+  }
+
+  .status-steps .step:only-child {
+    border-radius: var(--bs-border-radius);
+    clip-path: none;
+    padding: 0.375rem 1rem;
+  }
+
   .status-steps .step.active {
-    background-color: var(--bs-primary-bg-subtle);
-    color: var(--bs-primary-text-emphasis);
+    position: relative;
+    z-index: 2;
+    background-color: var(--bs-primary);
+    color: #ffffff;
     font-weight: 600;
   }
 
