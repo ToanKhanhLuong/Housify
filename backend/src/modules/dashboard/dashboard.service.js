@@ -612,6 +612,38 @@ export const getAdminDashboard = async ({ query = {} }) => {
     const { start, end } = currentMonthRange(now);
     const scope = await loadScope(buildingId);
 
+    const pendingInvoices = await Invoice.find({
+        contractId: { $in: scope.contractIds },
+        status: INVOICE_STATUS.PENDING,
+    })
+        .select('totalAmount dueDate')
+        .lean();
+    const overdueInvoices = pendingInvoices.filter((inv) => inv.dueDate && new Date(inv.dueDate) < now);
+
+    const in30Days = endOfVietnamDay(new Date(now.getTime() + 30 * DAY_MS));
+    const expiringContracts = scope.contracts.filter(
+        (contract) =>
+            contract.status === CONTRACT_STATUS.ACTIVE &&
+            new Date(contract.endDate) >= startOfVietnamDay(now) &&
+            new Date(contract.endDate) <= in30Days,
+    ).length;
+
+    const buildingSummaries = scope.buildings.map((b) => {
+        const bRooms = scope.rooms.filter((r) => String(r.buildingId) === String(b._id));
+        const bOccupied = bRooms.filter((r) => r.status === ROOM_STATUS.OCCUPIED).length;
+        return {
+            _id: b._id,
+            name: b.name,
+            address: b.address,
+            floorCount: b.floorCount,
+            images: b.images ?? [],
+            totalRooms: bRooms.length,
+            occupiedRooms: bOccupied,
+            availableRooms: bRooms.filter((r) => r.status === ROOM_STATUS.AVAILABLE).length,
+            occupancyRate: bRooms.length > 0 ? Math.round((bOccupied / bRooms.length) * 100) : 0,
+        };
+    });
+
     const [monthlyRevenue, openIncidents, users, residents, movedIn, movedOut, extras] = await Promise.all([
         sumRevenue(scope.contractIds, start, end),
         countOpenIncidents(scope.roomIds),
@@ -634,9 +666,17 @@ export const getAdminDashboard = async ({ query = {} }) => {
 
     return {
         buildings: scope.buildings.length,
+        buildingSummaries,
         rooms: roomStats(scope.rooms),
         monthlyRevenue,
         activeContracts: scope.activeContractIds.length,
+        expiringContracts,
+        pendingInvoices: {
+            count: pendingInvoices.length,
+            totalAmount: pendingInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0),
+            overdueCount: overdueInvoices.length,
+            overdueAmount: overdueInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0),
+        },
         openIncidents,
         users,
         residents,
@@ -665,6 +705,7 @@ export const getManagerDashboard = async ({ managerId }) => {
     })
         .select('totalAmount dueDate')
         .lean();
+    const overdueInvoices = pendingInvoices.filter((inv) => inv.dueDate && new Date(inv.dueDate) < now);
 
     const in30Days = endOfVietnamDay(new Date(now.getTime() + 30 * DAY_MS));
     const expiringContracts = scope.contracts.filter(
@@ -685,9 +726,8 @@ export const getManagerDashboard = async ({ managerId }) => {
         pendingInvoices: {
             count: pendingInvoices.length,
             totalAmount: pendingInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0),
-            overdueCount: pendingInvoices.filter(
-                (invoice) => invoice.dueDate && new Date(invoice.dueDate) < now,
-            ).length,
+            overdueCount: overdueInvoices.length,
+            overdueAmount: overdueInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0),
         },
         openIncidents,
         expiringContracts,
@@ -731,18 +771,26 @@ const loadLatePayments = async (scope, now) => {
         .lean();
 
     const roomByContract = new Map(scope.contracts.map((contract) => [String(contract._id), contract.roomId]));
-    const roomNumberById = new Map(scope.rooms.map((room) => [String(room._id), room.roomNumber]));
+    const roomById = new Map(scope.rooms.map((room) => [String(room._id), room]));
+    const buildingById = new Map(scope.buildings.map((building) => [String(building._id), building.name]));
 
     return invoices
-        .map((invoice) => ({
-            _id: invoice._id,
-            invoiceCode: invoice.invoiceCode,
-            month: invoice.month,
-            roomNumber: roomNumberById.get(String(roomByContract.get(String(invoice.contractId)))) ?? '',
-            amount: invoice.totalAmount,
-            dueDate: invoice.dueDate,
-            overdueDays: Math.ceil((now.getTime() - new Date(invoice.dueDate).getTime()) / DAY_MS),
-        }))
+        .map((invoice) => {
+            const roomId = roomByContract.get(String(invoice.contractId));
+            const room = roomId ? roomById.get(String(roomId)) : null;
+            const buildingName = room ? (buildingById.get(String(room.buildingId)) ?? '') : '';
+            return {
+                _id: invoice._id,
+                invoiceCode: invoice.invoiceCode,
+                month: invoice.month,
+                roomNumber: room?.roomNumber ?? '',
+                buildingId: room?.buildingId ?? null,
+                buildingName,
+                amount: invoice.totalAmount,
+                dueDate: invoice.dueDate,
+                overdueDays: Math.ceil((now.getTime() - new Date(invoice.dueDate).getTime()) / DAY_MS),
+            };
+        })
         .sort((a, b) => b.overdueDays - a.overdueDays);
 };
 
@@ -769,13 +817,27 @@ export const getReport = async ({ userId, roleId, query = {} }) => {
     const end = query.to ? endOfVietnamDay(query.to) : defaultRange.end;
     const scope = await loadScope(buildingId);
 
-    const paidInvoices = await Invoice.find({
-        contractId: { $in: scope.contractIds },
-        status: INVOICE_STATUS.PAID,
-        paidAt: { $gte: start, $lte: end },
-    })
-        .select('totalAmount paidAt')
-        .lean();
+    const [paidInvoices, periodOccupants, periodIncidents] = await Promise.all([
+        Invoice.find({
+            contractId: { $in: scope.contractIds },
+            status: INVOICE_STATUS.PAID,
+            paidAt: { $gte: start, $lte: end },
+        })
+            .select('totalAmount paidAt contractId')
+            .lean(),
+        Occupant.find({
+            contractId: { $in: scope.contractIds },
+            joinDate: { $gte: start, $lte: end },
+        })
+            .select('joinDate')
+            .lean(),
+        Incident.find({
+            roomId: { $in: scope.roomIds },
+            createdAt: { $gte: start, $lte: end },
+        })
+            .select('createdAt')
+            .lean(),
+    ]);
 
     const revenueMap = new Map();
     paidInvoices.forEach((invoice) => {
@@ -785,12 +847,40 @@ export const getReport = async ({ userId, roleId, query = {} }) => {
 
     // Đủ mọi tháng trong kỳ, tháng không có doanh thu là 0, để biểu đồ không bị hụt cột
     const revenueByMonth = [];
+    const performancePoints = [];
     const lastKey = vietnamMonthKey(end);
     const cursor = new Date(start.getTime() + VIETNAM_OFFSET_MS);
     cursor.setUTCDate(1);
     let key = vietnamMonthKey(start);
     while (key <= lastKey) {
-        revenueByMonth.push({ month: key, revenue: revenueMap.get(key) ?? 0 });
+        const mYear = cursor.getUTCFullYear();
+        const mMonth = cursor.getUTCMonth();
+        const mStart = new Date(Date.UTC(mYear, mMonth, 1) - VIETNAM_OFFSET_MS);
+        const mEnd = new Date(Date.UTC(mYear, mMonth + 1, 1) - VIETNAM_OFFSET_MS - 1);
+        const label = `${String(mMonth + 1).padStart(2, '0')}/${mYear}`;
+
+        const rev = revenueMap.get(key) ?? 0;
+        const contractsCount = scope.contracts.filter((c) => {
+            const d = c.activatedAt ?? c.createdAt;
+            return d && new Date(d) >= mStart && new Date(d) <= mEnd;
+        }).length;
+        const residentsCount = periodOccupants.filter((occ) => {
+            return occ.joinDate && new Date(occ.joinDate) >= mStart && new Date(occ.joinDate) <= mEnd;
+        }).length;
+        const incidentsCount = periodIncidents.filter((inc) => {
+            return inc.createdAt && new Date(inc.createdAt) >= mStart && new Date(inc.createdAt) <= mEnd;
+        }).length;
+
+        revenueByMonth.push({ month: key, revenue: rev });
+        performancePoints.push({
+            date: key,
+            name: label,
+            revenue: rev,
+            contracts: contractsCount,
+            residents: residentsCount,
+            incidents: incidentsCount,
+        });
+
         cursor.setUTCMonth(cursor.getUTCMonth() + 1);
         key = `${cursor.getUTCFullYear()}-${String(cursor.getUTCMonth() + 1).padStart(2, '0')}`;
     }
@@ -801,11 +891,114 @@ export const getReport = async ({ userId, roleId, query = {} }) => {
             contract.activatedAt && new Date(contract.activatedAt) >= start && new Date(contract.activatedAt) <= end,
     ).length;
 
+    const totalRevenue = paidInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0);
+    const performance = {
+        totals: {
+            revenue: totalRevenue,
+            contracts: newContracts,
+            residents: periodOccupants.length,
+            incidents: periodIncidents.length,
+        },
+        points: performancePoints,
+    };
+
+    const latePayments = await loadLatePayments(scope, now);
+
+    // Bảng chi tiết hiệu quả từng cơ sở (byBuilding) khi Admin xem toàn hệ thống
+    let byBuilding = null;
+    if (roleId === ROLE.ADMIN && !buildingId) {
+        const endedContracts = scope.contracts.filter((c) => c.status === CONTRACT_STATUS.ENDED);
+        const terminations = await TerminationRequest.find({
+            contractId: { $in: endedContracts.map((c) => c._id) },
+            status: TERMINATION_STATUS.CONFIRMED,
+        })
+            .select('contractId effectiveDate')
+            .lean();
+        const effectiveByContract = new Map(
+            terminations.map((t) => [String(t.contractId), t.effectiveDate]),
+        );
+
+        const buildingByRoomId = new Map(scope.rooms.map((r) => [String(r._id), String(r.buildingId)]));
+        const buildingByContractId = new Map();
+        scope.contracts.forEach((c) => {
+            const bId = buildingByRoomId.get(String(c.roomId));
+            if (bId) buildingByContractId.set(String(c._id), bId);
+        });
+
+        const revenueByBuilding = new Map();
+        paidInvoices.forEach((inv) => {
+            const bId = buildingByContractId.get(String(inv.contractId));
+            if (bId) {
+                revenueByBuilding.set(bId, (revenueByBuilding.get(bId) ?? 0) + (inv.totalAmount ?? 0));
+            }
+        });
+
+        const overdueByBuilding = new Map();
+        latePayments.forEach((lp) => {
+            if (lp.buildingId) {
+                const bId = String(lp.buildingId);
+                const cur = overdueByBuilding.get(bId) ?? { count: 0, amount: 0 };
+                overdueByBuilding.set(bId, {
+                    count: cur.count + 1,
+                    amount: cur.amount + (lp.amount ?? 0),
+                });
+            }
+        });
+
+        const roomsByBuilding = new Map();
+        scope.rooms.forEach((r) => {
+            const bId = String(r.buildingId);
+            const list = roomsByBuilding.get(bId) ?? [];
+            list.push(r);
+            roomsByBuilding.set(bId, list);
+        });
+
+        const newContractsByBuilding = new Map();
+        const endedContractsByBuilding = new Map();
+        scope.contracts.forEach((c) => {
+            const bId = buildingByContractId.get(String(c._id));
+            if (!bId) return;
+            if (c.activatedAt && new Date(c.activatedAt) >= start && new Date(c.activatedAt) <= end) {
+                newContractsByBuilding.set(bId, (newContractsByBuilding.get(bId) ?? 0) + 1);
+            }
+            if (c.status === CONTRACT_STATUS.ENDED) {
+                const endedAt = new Date(effectiveByContract.get(String(c._id)) ?? c.endDate);
+                if (endedAt >= start && endedAt <= end) {
+                    endedContractsByBuilding.set(bId, (endedContractsByBuilding.get(bId) ?? 0) + 1);
+                }
+            }
+        });
+
+        byBuilding = scope.buildings
+            .map((b) => {
+                const bId = String(b._id);
+                const bRooms = roomsByBuilding.get(bId) ?? [];
+                const stats = roomStats(bRooms);
+                const overdue = overdueByBuilding.get(bId) ?? { count: 0, amount: 0 };
+                return {
+                    _id: b._id,
+                    name: b.name,
+                    address: b.address,
+                    totalRooms: stats.total,
+                    occupiedRooms: stats.occupied,
+                    availableRooms: stats.available,
+                    occupancyRate: stats.total > 0 ? Math.round((stats.occupied / stats.total) * 100) : 0,
+                    revenue: revenueByBuilding.get(bId) ?? 0,
+                    newContracts: newContractsByBuilding.get(bId) ?? 0,
+                    endedContracts: endedContractsByBuilding.get(bId) ?? 0,
+                    overdueRoomsCount: overdue.count,
+                    overdueAmount: overdue.amount,
+                };
+            })
+            .sort((a, b) => b.revenue - a.revenue);
+    }
+
     return {
         from: start,
         to: end,
-        totalRevenue: paidInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0),
+        totalRevenue,
         revenueByMonth,
+        performance,
         rooms: {
             ...rooms,
             occupancyRate: rooms.total > 0 ? Math.round((rooms.occupied / rooms.total) * 100) : 0,
@@ -814,6 +1007,7 @@ export const getReport = async ({ userId, roleId, query = {} }) => {
             new: newContracts,
             ended: await countEndedContracts(scope.contracts, start, end),
         },
-        latePayments: await loadLatePayments(scope, now),
+        latePayments,
+        ...(byBuilding ? { byBuilding } : {}),
     };
 };
