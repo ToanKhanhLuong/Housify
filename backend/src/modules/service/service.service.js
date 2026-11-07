@@ -62,8 +62,20 @@ const ensureNameAvailable = async (name, exceptId) => {
 // ===== UC-21: danh mục dịch vụ =====
 
 // 1. Lấy danh sách dịch vụ, mới tạo trước (giống danh sách tòa, loại phòng)
-export const getServices = async () => {
-  const services = await Service.find({ isDeleted: false }).sort({
+export const getServices = async (query = {}) => {
+  const filter = { isDeleted: false };
+
+  if (query.q) {
+    filter.name = { $regex: new RegExp(escapeRegex(query.q), "i") };
+  }
+
+  if (query.isFixed === true || query.isFixed === "true") {
+    filter.isFixed = true;
+  } else if (query.isFixed === false || query.isFixed === "false") {
+    filter.isFixed = false;
+  }
+
+  const services = await Service.find(filter).sort({
     createdAt: -1,
   });
   return services;

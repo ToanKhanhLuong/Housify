@@ -5,7 +5,7 @@ import * as serviceService from "./service.service.js";
 
 // 1. Lấy danh sách dịch vụ (UC-21)
 export const getServices = asyncHandler(async (request, response) => {
-  const services = await serviceService.getServices();
+  const services = await serviceService.getServices(request.query);
   return ok(response, services, "Lấy danh sách dịch vụ thành công");
 });
 
