@@ -2,12 +2,13 @@
 // Thanh ControlBar: "Thêm phòng", "Quản lý tầng" (Admin) · tìm mã phòng · lọc trạng thái / loại phòng / tầng / giá thuê
 // Hai dạng xem: "Theo tầng" (mỗi tầng một hàng cuộn ngang, mỗi phòng một ô màu theo trạng thái) và "Bảng"
 // Lọc gửi lên BE: status, roomTypeId, floor chọn nhiều (nối dấu phẩy), minPrice / maxPrice (api.md)
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button, Card } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 import { BiLayer, BiListUl, BiPlus } from 'react-icons/bi';
 import ControlBar from '../../../components/ControlBar';
 import DataTable from '../../../components/DataTable';
+import Pager from '../../../components/Pager';
 import EmptyState from '../../../components/EmptyState';
 import ErrorState from '../../../components/ErrorState';
 import SkeletonRows from '../../../components/SkeletonRows';
@@ -21,6 +22,7 @@ import roomTypeApi from '../../roomType/roomType.api';
 import RoomFormModal from '../../room/components/RoomFormModal';
 import BuildingFloorsModal from './BuildingFloorsModal';
 
+const PAGE_SIZE = 10;
 const STATUS_ORDER = [ROOM_STATUS.AVAILABLE, ROOM_STATUS.OCCUPIED, ROOM_STATUS.MAINTENANCE];
 
 // màu ô phòng theo trạng thái (class hf-tile-* trong index.css chung)
@@ -93,6 +95,7 @@ const BuildingRoomsTab = ({ building, canEdit, onRoomChanged, onBuildingChanged 
   const [query, setQuery] = useState('');
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [view, setView] = useState('floors');
+  const [page, setPage] = useState(1);
   const [reloadKey, setReloadKey] = useState(0);
   const [showCreate, setShowCreate] = useState(false);
   const [showFloors, setShowFloors] = useState(false);
@@ -168,6 +171,14 @@ const BuildingRoomsTab = ({ building, canEdit, onRoomChanged, onBuildingChanged 
     setFilters(EMPTY_FILTERS);
     setRefreshing(true);
   };
+
+  const maxPage = Math.max(1, Math.ceil(rooms.length / PAGE_SIZE));
+  const safePage = Math.min(page, maxPage);
+
+  const paginatedRooms = useMemo(() => {
+    const start = (safePage - 1) * PAGE_SIZE;
+    return rooms.slice(start, start + PAGE_SIZE);
+  }, [rooms, safePage]);
 
   const isFiltering = Boolean(
     query.trim() ||
@@ -301,11 +312,23 @@ const BuildingRoomsTab = ({ building, canEdit, onRoomChanged, onBuildingChanged 
     }
     if (view === 'table') {
       return (
-        <DataTable
-          columns={columns}
-          data={rooms}
-          onRowClick={(row) => navigate(`/rooms/${row._id}`)}
-        />
+        <div className="flex flex-col gap-2">
+          <DataTable
+            columns={columns}
+            data={paginatedRooms}
+            onRowClick={(row) => navigate(`/rooms/${row._id}`)}
+          />
+          {rooms.length > PAGE_SIZE && (
+            <div className="flex justify-end mt-2">
+              <Pager
+                page={safePage}
+                limit={PAGE_SIZE}
+                total={rooms.length}
+                onChange={setPage}
+              />
+            </div>
+          )}
+        </div>
       );
     }
     return renderFloors();
