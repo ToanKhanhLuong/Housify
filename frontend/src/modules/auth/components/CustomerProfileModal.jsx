@@ -23,9 +23,20 @@ const CustomerProfileModal = ({ profile, onHide, onSaved }) => {
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
-  const handleChange = (event) => setForm({ ...form, [event.target.name]: event.target.value });
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: undefined }));
+    }
+  };
   // ảnh tải lên xong mới gọi về nên dùng prev để không ghi đè ô vừa nhập
-  const handleImage = (field) => (publicId) => setForm((prev) => ({ ...prev, [field]: publicId }));
+  const handleImage = (field) => (publicId) => {
+    setForm((prev) => ({ ...prev, [field]: publicId }));
+    if (errors[field]) {
+      setErrors((prev) => ({ ...prev, [field]: undefined }));
+    }
+  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
