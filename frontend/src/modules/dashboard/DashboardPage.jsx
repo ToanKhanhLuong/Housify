@@ -1,56 +1,57 @@
-// UC-07, 47: trang tổng quan /dashboard. Admin xem toàn hệ thống, lọc được theo tòa; Manager xem tòa mình phụ trách
-// Các ô số liệu bấm được sang trang chi tiết tương ứng. Trang chỉ đọc
-// Tải lại lỗi mà còn số liệu lần trước thì vẫn hiện, kèm ghi chú "Dữ liệu có thể chưa cập nhật" (UC-07)
-import { useCallback, useEffect, useState } from 'react';
-import { Alert, Card, Form } from 'react-bootstrap';
-import {
-  BiBuildings,
-  BiErrorCircle,
-  BiFile,
-  BiGroup,
-  BiLogIn,
-  BiLogOut,
-  BiMoney,
-  BiReceipt,
-  BiTimeFive,
-  BiUser,
-} from 'react-icons/bi';
-import { Link } from 'react-router-dom';
+// UC-07, 47: trang tổng quan /dashboard cho cả Admin và Manager theo bố cục 2 cột (Hiệu suất linh hoạt + Hồ sơ tòa nhà)
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Alert, Button, Card } from 'react-bootstrap';
 import EmptyState from '../../components/EmptyState';
 import ErrorState from '../../components/ErrorState';
-import MoneyText from '../../components/MoneyText';
 import SkeletonRows from '../../components/SkeletonRows';
 import { useAuth } from '../../context/AuthContext';
 import { ROLE } from '../../constants/enums';
 import dashboardApi from './dashboard.api';
-import RoomStatusChart from './components/RoomStatusChart';
-import StatTile from './components/StatTile';
+import BuildingSidePanel from './components/BuildingSidePanel';
+import HorizontalFlowDiagram from './components/HorizontalFlowDiagram';
+import RecentActivitiesSection from './components/RecentActivitiesSection';
+
+const getSixMonthRange = () => {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+  const pad = (n) => String(n).padStart(2, '0');
+  return {
+    from: `${start.getFullYear()}-${pad(start.getMonth() + 1)}-01`,
+    to: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
+  };
+};
 
 const DashboardPage = () => {
   const { user } = useAuth();
   const isAdmin = user.role === ROLE.ADMIN;
 
-  // loading → ok | noBuilding | error; data giữ số liệu lần tải được gần nhất
   const [state, setState] = useState({ status: 'loading', data: null, error: '' });
   const [buildings, setBuildings] = useState([]);
   const [buildingId, setBuildingId] = useState('');
+  const [reportData, setReportData] = useState(null);
 
   useEffect(() => {
     if (!isAdmin) return;
     dashboardApi
       .buildings()
       .then((response) => {
-        const data = response.data;
-        setBuildings(Array.isArray(data) ? data : (data?.items ?? []));
+        const raw = response.data;
+        setBuildings(Array.isArray(raw) ? raw : (raw?.items ?? []));
       })
       .catch(() => setBuildings([]));
   }, [isAdmin]);
 
   const loadData = useCallback(() => {
-    const request = isAdmin
-      ? dashboardApi.admin(buildingId ? { buildingId } : {})
-      : dashboardApi.manager();
-    return request
+    const query = isAdmin && buildingId ? { buildingId } : {};
+    const mainRequest = isAdmin ? dashboardApi.admin(query) : dashboardApi.manager();
+    const { from, to } = getSixMonthRange();
+
+    dashboardApi
+      .report({ ...query, from, to })
+      .then((response) => setReportData(response.data))
+      .catch(() => setReportData(null));
+
+    return mainRequest
       .then((response) => setState({ status: 'ok', data: response.data, error: '' }))
       .catch((error) =>
         setState((prev) => ({
@@ -66,6 +67,14 @@ const DashboardPage = () => {
   }, [loadData]);
 
   const { status, data, error } = state;
+
+  const selectedBuilding = useMemo(
+    () => buildings.find((item) => item._id === buildingId) ?? null,
+    [buildings, buildingId],
+  );
+
+  // Chỉ hiển thị Không gian Phòng theo tầng khi đã chọn 1 tòa nhà cụ thể (hoặc là tài khoản Manager)
+  const showRoomsSection = !isAdmin || Boolean(buildingId);
 
   if (status === 'noBuilding') {
     return <EmptyState message={error || 'Bạn chưa được cấp quyền quản lý tòa nhà'} />;
@@ -83,32 +92,34 @@ const DashboardPage = () => {
     return <ErrorState message="Không tải được số liệu tổng quan" detail={error} onRetry={loadData} />;
   }
 
-  const roomsPath = isAdmin ? '/buildings' : '/my-building';
+  const overdueInvoicesCount = isAdmin
+    ? (reportData?.latePayments?.length ?? 0)
+    : (data.pendingInvoices?.overdueCount ?? 0);
+
+  const totalBuildings = buildings.length || data.buildings || 0;
+  const scopeLabel = selectedBuilding
+    ? selectedBuilding.name
+    : isAdmin
+      ? `Chuỗi nhà trọ Housify · ${totalBuildings} cơ sở`
+      : data.buildingOverview?.name || 'Cơ sở đang phụ trách';
 
   return (
-    <div className="flex flex-col gap-3">
-      {isAdmin && (
-        <Card>
-          <Card.Body className="flex flex-wrap items-center gap-3 py-2">
-            <Form.Label htmlFor="dashboard-building" className="mb-0 fw-semibold">
-              Phạm vi
-            </Form.Label>
-            <Form.Select
-              id="dashboard-building"
-              className="w-auto min-w-64"
-              value={buildingId}
-              onChange={(event) => setBuildingId(event.target.value)}
-            >
-              <option value="">Toàn hệ thống</option>
-              {buildings.map((building) => (
-                <option key={building._id} value={building._id}>
-                  {building.name}
-                </option>
-              ))}
-            </Form.Select>
-          </Card.Body>
-        </Card>
-      )}
+    <div className="flex flex-col gap-4">
+      {/* Tiêu đề phạm vi đang xem (chọn tòa trực tiếp ở Danh bạ Tòa nhà & Manager bên phải) */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <span className="small text-secondary text-uppercase fw-semibold">
+            {isAdmin ? 'Tổng quan vận hành' : 'Tổng quan cơ sở'}
+          </span>
+          <h2 className="h5 fw-bold mb-0 mt-1">{scopeLabel}</h2>
+        </div>
+
+        {isAdmin && buildingId && (
+          <Button variant="secondary" size="sm" onClick={() => setBuildingId('')}>
+            Xem tất cả cơ sở
+          </Button>
+        )}
+      </div>
 
       {status === 'error' && (
         <Alert variant="warning" className="mb-0 small">
@@ -116,59 +127,32 @@ const DashboardPage = () => {
         </Alert>
       )}
 
-      <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
-        <StatTile
-          icon={BiMoney}
-          label="Doanh thu tháng này"
-          value={<MoneyText value={data.monthlyRevenue} />}
-          to="/reports"
-        />
-        {isAdmin ? (
-          <>
-            <StatTile icon={BiBuildings} label="Tòa nhà" value={data.buildings} to="/buildings" />
-            <StatTile icon={BiFile} label="Hợp đồng đang hiệu lực" value={data.activeContracts} />
-            <StatTile icon={BiErrorCircle} label="Sự cố chưa xử lý" value={data.openIncidents} />
-            <StatTile icon={BiUser} label="Người dùng" value={data.users} to="/managers" />
-            <StatTile icon={BiGroup} label="Người đang ở" value={data.residents} />
-            <StatTile icon={BiLogIn} label="Chuyển vào tháng này" value={data.movedIn} />
-            <StatTile icon={BiLogOut} label="Chuyển đi tháng này" value={data.movedOut} />
-          </>
-        ) : (
-          <>
-            <StatTile
-              icon={BiReceipt}
-              label="Hóa đơn chờ thanh toán"
-              value={data.pendingInvoices.count}
-              sub={
-                <>
-                  Chưa thu <MoneyText value={data.pendingInvoices.totalAmount} className="fw-semibold" />
-                  {data.pendingInvoices.overdueCount > 0 && ` · ${data.pendingInvoices.overdueCount} quá hạn`}
-                </>
-              }
-              to="/invoices"
-            />
-            <StatTile icon={BiErrorCircle} label="Sự cố chưa xử lý" value={data.openIncidents} to="/incidents" />
-            <StatTile
-              icon={BiTimeFive}
-              label="Hợp đồng hết hạn trong 30 ngày"
-              value={data.expiringContracts}
-              to="/contracts"
-            />
-          </>
-        )}
-      </div>
+      {/* Bố cục 2 cột: Trái 8 cột (Hiệu suất theo kỳ + Hoạt động + Phòng theo tầng) | Phải 4 cột (Tổng quan & Danh bạ Tòa) */}
+      <div className="grid lg:grid-cols-12 gap-4 items-start">
+        <div className="lg:col-span-8 flex flex-col gap-4">
+          <HorizontalFlowDiagram
+            isAdmin={isAdmin}
+            data={data}
+            overdueInvoicesCount={overdueInvoicesCount}
+          />
 
-      <Card>
-        <Card.Body className="flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="h6 fw-bold mb-0">Phòng theo trạng thái</h2>
-            <Link to={roomsPath} className="small">
-              Xem phòng
-            </Link>
-          </div>
-          <RoomStatusChart rooms={data.rooms} />
-        </Card.Body>
-      </Card>
+          <RecentActivitiesSection
+            data={data}
+            reportData={reportData}
+            showRooms={showRoomsSection}
+          />
+        </div>
+
+        <div className="lg:col-span-4">
+          <BuildingSidePanel
+            isAdmin={isAdmin}
+            data={data}
+            buildings={buildings}
+            buildingId={buildingId}
+            onSelectBuilding={setBuildingId}
+          />
+        </div>
+      </div>
     </div>
   );
 };
