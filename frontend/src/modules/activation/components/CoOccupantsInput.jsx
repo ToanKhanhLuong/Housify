@@ -4,7 +4,9 @@
 import { Alert, Badge, Button, Card, Col, Row } from 'react-bootstrap';
 import { BiPlus, BiTrash, BiUser } from 'react-icons/bi';
 import Input from '../../../components/Input';
-import { formatDate } from '../../../utils/format';
+import { formatDate, toDateInput } from '../../../utils/format';
+
+const TODAY = toDateInput(new Date());
 
 const newPerson = () => ({
   id: `${Date.now()}-${Math.random()}`, // khóa React, không gửi lên BE
@@ -15,18 +17,21 @@ const newPerson = () => ({
   address: '',
 });
 
-const CoOccupantsInput = ({ contract, value, onChange, errors = {}, disabled = false }) => {
+const CoOccupantsInput = ({ contract, value, onChange, onClearError, errors = {}, disabled = false }) => {
   const existing = contract.coOccupants ?? [];
   const capacity = contract.room.capacity;
   const total = 1 + existing.length + value.length; // tính cả người đại diện
   const full = capacity != null && total >= capacity;
 
-  const updatePerson = (index, field, fieldValue) =>
+  const updatePerson = (index, field, fieldValue) => {
+    onClearError?.(`coOccupants.${index}.${field}`);
+    onClearError?.('coOccupants');
     onChange(
       value.map((person, position) =>
         position === index ? { ...person, [field]: fieldValue } : person,
       ),
     );
+  };
   const removePerson = (index) => onChange(value.filter((_, position) => position !== index));
 
   return (
@@ -131,6 +136,7 @@ const CoOccupantsInput = ({ contract, value, onChange, errors = {}, disabled = f
                     value={person.dateOfBirth}
                     onChange={(event) => updatePerson(index, 'dateOfBirth', event.target.value)}
                     error={error('dateOfBirth')}
+                    max={TODAY}
                     required
                     className="mb-0"
                   />
