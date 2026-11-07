@@ -28,10 +28,18 @@ const DataTable = ({ columns, data = [], loading = false, emptyMessage, rowKey =
 
         return (
             <Table hover={Boolean(onRowClick)} responsive className="align-middle mb-0">
-                <thead>
+                <thead className="bg-body-tertiary border-bottom">
                     <tr>
                         {columns.map((col, i) => (
-                            <th key={col.key} className={cellClass(col, i, columns.length)}>
+                            <th
+                                key={col.key}
+                                className={[
+                                    cellClass(col, i, columns.length),
+                                    'py-3 text-secondary small fw-semibold tracking-wide',
+                                ]
+                                    .filter(Boolean)
+                                    .join(' ')}
+                            >
                                 {col.title}
                             </th>
                         ))}
@@ -42,10 +50,20 @@ const DataTable = ({ columns, data = [], loading = false, emptyMessage, rowKey =
                         <tr
                             key={row[rowKey]}
                             onClick={onRowClick ? () => onRowClick(row) : undefined}
-                            className={onRowClick ? 'cursor-pointer' : undefined}
+                            className={[
+                                onRowClick && 'cursor-pointer transition-colors hover:bg-slate-50',
+                                'group',
+                            ]
+                                .filter(Boolean)
+                                .join(' ')}
                         >
                             {columns.map((col, i) => (
-                                <td key={col.key} className={cellClass(col, i, columns.length)}>
+                                <td
+                                    key={col.key}
+                                    className={[cellClass(col, i, columns.length), 'py-3']
+                                        .filter(Boolean)
+                                        .join(' ')}
+                                >
                                     {col.render ? col.render(row) : (row[col.key] ?? '—')}
                                 </td>
                             ))}
@@ -57,7 +75,7 @@ const DataTable = ({ columns, data = [], loading = false, emptyMessage, rowKey =
     };
 
     return (
-        <Card>
+        <Card className="shadow-sm border border-light-subtle rounded-3 overflow-hidden">
             <Card.Body className="p-0">{renderBody()}</Card.Body>
         </Card>
     );

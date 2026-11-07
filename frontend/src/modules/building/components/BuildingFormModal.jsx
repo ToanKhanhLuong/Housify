@@ -13,7 +13,7 @@ import BuildingImagesInput from './BuildingImagesInput';
 
 const DESCRIPTION_MAX = 1000;
 
-// building mặc định {}: trang danh sách mở "Thêm tòa nhà" không truyền building (trước đây đọc undefined._id làm sập trang)
+// building mặc định {}: trang danh sách mở "Thêm tòa nhà" không truyền building
 const BuildingFormModal = ({ building = {}, onHide, onSaved }) => {
   const isEdit = Boolean(building._id);
   const [form, setForm] = useState({
@@ -26,9 +26,20 @@ const BuildingFormModal = ({ building = {}, onHide, onSaved }) => {
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
-  const handleChange = (event) => setForm({ ...form, [event.target.name]: event.target.value });
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: undefined }));
+    }
+  };
   // ảnh tải lên xong mới gọi về nên dùng prev để không ghi đè ô vừa nhập
-  const handleImages = (images) => setForm((prev) => ({ ...prev, images }));
+  const handleImages = (images) => {
+    setForm((prev) => ({ ...prev, images }));
+    if (errors.images) {
+      setErrors((prev) => ({ ...prev, images: undefined }));
+    }
+  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();

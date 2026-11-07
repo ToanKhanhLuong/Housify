@@ -3,7 +3,7 @@
 // - Hỗ trợ debounce 300ms, backspace xóa facet cuối khi ô trống.
 import { useEffect, useRef, useState } from 'react';
 import { Button, Form } from 'react-bootstrap';
-import { BiCheck, BiChevronDown, BiFilterAlt, BiGridAlt, BiListUl, BiSearch, BiX } from 'react-icons/bi';
+import { BiCheck, BiChevronDown, BiFilterAlt, BiLayer, BiListUl, BiSearch, BiX } from 'react-icons/bi';
 
 /**
  * Component ControlBar
@@ -36,7 +36,7 @@ import { BiCheck, BiChevronDown, BiFilterAlt, BiGridAlt, BiListUl, BiSearch, BiX
  * @param {string|number} count - Số lượng bản ghi hiển thị (vd: 3 hoặc "3 tòa nhà")
  * @param {string} view - Chế độ xem hiện tại ('cards' | 'table')
  * @param {Function} onViewChange - Callback đổi chế độ xem
- * @param {Array} viewOptions - Các nút switch view (mặc định [{ id: 'cards', icon: BiGridAlt, title: 'Thẻ' }, { id: 'table', icon: BiListUl, title: 'Bảng' }])
+ * @param {Array} viewOptions - Các nút switch view (mặc định [{ id: 'cards', icon: BiLayer, title: 'Thẻ' }, { id: 'table', icon: BiListUl, title: 'Bảng' }])
  */
 // maxVisible: nhóm checkbox / radio có nhiều lựa chọn hơn số này thì danh sách có thanh cuộn, chỉ cao đủ maxVisible dòng
 // (mỗi dòng hf-opt cao 32px + khoảng cách 2px; lớp Tailwind phải viết sẵn đầy đủ nên chỉ hỗ trợ 3..6)
@@ -273,7 +273,7 @@ const ControlBar = ({
     };
 
     const defaultViewOptions = [
-        { id: 'cards', icon: BiGridAlt, title: 'Dạng thẻ' },
+        { id: 'cards', icon: BiLayer, title: 'Dạng thẻ' },
         { id: 'table', icon: BiListUl, title: 'Dạng bảng' },
     ];
     const effectiveViewOptions = viewOptions || defaultViewOptions;

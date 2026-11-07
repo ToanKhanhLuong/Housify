@@ -47,7 +47,20 @@ const RoomFormModal = ({ room = {}, building, roomTypes = [], onHide, onSaved })
   // Tìm loại phòng đang chọn để hiển thị sức chứa chỉ đọc
   const selectedRoomType = roomTypes.find((type) => type._id === form.roomTypeId);
 
-  const handleChange = (event) => setForm({ ...form, [event.target.name]: event.target.value });
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: undefined }));
+    }
+  };
+
+  const handleImages = (images) => {
+    setForm((prev) => ({ ...prev, images }));
+    if (errors.images) {
+      setErrors((prev) => ({ ...prev, images: undefined }));
+    }
+  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -207,7 +220,7 @@ const RoomFormModal = ({ room = {}, building, roomTypes = [], onHide, onSaved })
             <Col xs={12}>
               <RoomImagesInput
                 value={form.images}
-                onChange={(images) => setForm({ ...form, images })}
+                onChange={handleImages}
                 disabled={submitting}
               />
             </Col>

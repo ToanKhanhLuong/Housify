@@ -95,7 +95,12 @@ const BuildingRulesTab = ({ building, readOnly = false }) => {
           as="textarea"
           rows={9}
           value={draft}
-          onChange={(event) => setDraft(event.target.value)}
+          onChange={(event) => {
+            setDraft(event.target.value);
+            if (errors.rules) {
+              setErrors((prev) => ({ ...prev, rules: undefined }));
+            }
+          }}
           error={errors.rules}
           helpText="Nội quy mới thay thế bản cũ và gửi thông báo cho Manager của tòa."
           disabled={submitting}
