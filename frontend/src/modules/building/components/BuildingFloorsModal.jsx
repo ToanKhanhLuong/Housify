@@ -131,7 +131,12 @@ const BuildingFloorsModal = ({ building, onHide, onChanged }) => {
             step={1}
             inputMode="numeric"
             value={floorCount}
-            onChange={(event) => setFloorCount(event.target.value)}
+            onChange={(event) => {
+              setFloorCount(event.target.value);
+              if (errors.floorCount) {
+                setErrors((prev) => ({ ...prev, floorCount: undefined }));
+              }
+            }}
             error={errors.floorCount}
             helpText={`Không giảm được xuống dưới tầng ${highestUsed} – tầng cao nhất đang có phòng.`}
             disabled={submitting}

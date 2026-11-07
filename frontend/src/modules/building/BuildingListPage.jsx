@@ -3,7 +3,7 @@
 // Thẻ: ảnh đại diện = ảnh đầu tiên, số tầng, số phòng theo trạng thái, Manager. BE trả mảng, không phân trang
 import { useEffect, useState } from 'react';
 import { Button, Card } from 'react-bootstrap';
-import { BiPlus, BiReset } from 'react-icons/bi';
+import { BiBuildings, BiChevronRight, BiMap, BiPlus, BiReset } from 'react-icons/bi';
 import { useNavigate } from 'react-router-dom';
 import ControlBar from '../../components/ControlBar';
 import DataTable from '../../components/DataTable';
@@ -60,17 +60,17 @@ const initialsOf = (name = '') =>
     .map((word) => word[0]?.toUpperCase() ?? '')
     .join('') || '?';
 
-// Manager phụ trách: avatar tròn chữ cái đầu + tên (như mockup), chưa có thì nhãn vàng
+// Manager phụ trách: avatar tròn chữ cái đầu + tên, chưa có thì nhãn vàng
 const ManagerLabel = ({ manager }) =>
   manager ? (
     <span className="flex items-center gap-2 text-body">
       <span className="flex items-center justify-center w-7 h-7 shrink-0 rounded-circle bg-primary-subtle text-primary-emphasis small fw-semibold">
         {initialsOf(manager.name)}
       </span>
-      {manager.name}
+      <span className="fw-medium text-body-emphasis">{manager.name}</span>
     </span>
   ) : (
-    <span className="badge rounded-pill bg-warning-subtle text-warning-emphasis">
+    <span className="badge rounded-pill bg-warning-subtle text-warning-emphasis fw-medium px-2.5 py-1">
       Chưa có Manager
     </span>
   );
@@ -136,25 +136,104 @@ const BuildingListPage = () => {
   const isFiltering = Boolean(query.trim() || filters.hasManager.length);
 
   const columns = [
-    { key: 'name', title: 'Tên tòa nhà', className: 'fw-semibold' },
-    { key: 'address', title: 'Địa chỉ' },
-    { key: 'floorCount', title: 'Số tầng', align: 'end' },
+    {
+      key: 'name',
+      title: 'Tòa nhà',
+      render: (row) => {
+        const image = row.images?.[0];
+        return (
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 shrink-0 rounded-2 overflow-hidden border bg-body-secondary flex items-center justify-center">
+              {image ? (
+                <img src={image} alt={row.name} className="w-full h-full object-cover" />
+              ) : (
+                <BiBuildings className="text-secondary" size={22} />
+              )}
+            </div>
+            <div className="flex flex-col">
+              <span className="fw-semibold text-body-emphasis group-hover:text-primary transition-colors">
+                {row.name}
+              </span>
+              <span className="small text-secondary">{row.floorCount} tầng</span>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'address',
+      title: 'Địa chỉ',
+      render: (row) => (
+        <span className="inline-flex items-center gap-1.5 text-secondary">
+          <BiMap className="shrink-0 text-muted" size={15} />
+          <span className="truncate max-w-xs md:max-w-sm" title={row.address}>
+            {row.address}
+          </span>
+        </span>
+      ),
+    },
     {
       key: 'total',
       title: 'Số phòng',
       align: 'end',
-      render: (row) => row.roomStats?.total ?? 0,
+      render: (row) => (
+        <span className="tabular-nums fw-medium text-body">
+          {row.roomStats?.total ?? 0}{' '}
+          <span className="text-secondary small fw-normal">phòng</span>
+        </span>
+      ),
     },
     {
       key: 'available',
-      title: 'Phòng trống',
-      align: 'end',
-      render: (row) => row.roomStats?.available ?? 0,
+      title: 'Tình trạng phòng',
+      render: (row) => {
+        const stats = row.roomStats ?? {};
+        const total = stats.total ?? 0;
+        const available = stats.available ?? 0;
+        const occupied = stats.occupied ?? 0;
+        const maintenance = stats.maintenance ?? 0;
+
+        return (
+          <div className="flex flex-col gap-0.5">
+            <div>
+              <span
+                className={`badge rounded-pill ${
+                  available > 0
+                    ? 'bg-success-subtle text-success-emphasis'
+                    : 'bg-secondary-subtle text-secondary-emphasis'
+                } px-2.5 py-1 fw-medium`}
+              >
+                <span
+                  className={`inline-block w-1.5 h-1.5 rounded-circle ${
+                    available > 0 ? 'bg-success' : 'bg-secondary'
+                  } me-1.5 align-middle`}
+                />
+                {available > 0 ? `${available} phòng trống` : 'Hết phòng trống'}
+              </span>
+            </div>
+            {total > 0 && (
+              <span className="small text-secondary">
+                {occupied} đang thuê · {maintenance} bảo trì
+              </span>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: 'manager',
       title: 'Manager phụ trách',
       render: (row) => <ManagerLabel manager={row.manager} />,
+    },
+    {
+      key: '_action',
+      title: '',
+      align: 'end',
+      render: () => (
+        <span className="inline-flex items-center text-secondary opacity-40 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all pe-1">
+          <BiChevronRight size={20} />
+        </span>
+      ),
     },
   ];
 
