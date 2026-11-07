@@ -59,7 +59,10 @@ const LockManagerModal = ({ manager, onHide, onDone }) => {
         as="textarea"
         rows={3}
         value={reason}
-        onChange={(event) => setReason(event.target.value)}
+        onChange={(event) => {
+          setReason(event.target.value);
+          if (errors.reason) setErrors((prev) => ({ ...prev, reason: '' }));
+        }}
         error={errors.reason}
         helpText="Lý do được gửi qua email cho Manager."
         className="mb-0"

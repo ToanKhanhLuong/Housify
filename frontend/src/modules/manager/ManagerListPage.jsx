@@ -1,8 +1,8 @@
 // UC-09: danh sách Manager (Admin) theo mockup docs/mock/Managers.dc.html. UC-08: nút "Thêm Manager"
 // Thanh ControlBar: tìm theo họ tên / email / SĐT, bộ lọc Trạng thái (chọn nhiều) + Phân công, nhóm theo Trạng thái,
 // đổi Thẻ / Bảng. Dạng thẻ nhóm theo trạng thái thành 3 cột (Đang hoạt động, Chưa kích hoạt, Bị khóa)
-// BE trả mảng trực tiếp, không phân trang (quy ước api.md 30/10)
-import { useEffect, useState } from 'react';
+// BE trả mảng trực tiếp, FE tự phân trang client-side 10 dòng/trang (quy ước api.md)
+import { useEffect, useMemo, useState } from 'react';
 import { Button, Card } from 'react-bootstrap';
 import { BiBuildings, BiChevronRight, BiPlus } from 'react-icons/bi';
 import { useNavigate } from 'react-router-dom';
@@ -13,12 +13,15 @@ import StatusBadge from '../../components/StatusBadge';
 import EmptyState from '../../components/EmptyState';
 import ErrorState from '../../components/ErrorState';
 import SkeletonRows from '../../components/SkeletonRows';
+import Pager from '../../components/Pager';
 import { USER_STATUS } from '../../constants/enums';
 import { USER_STATUS_LABEL } from '../../constants/statusLabels';
 import { formatFilterQuery } from '../../utils/filter';
 import managerApi from './manager.api';
 import ManagerCreateModal from './components/ManagerCreateModal';
 import ManagerAvatar from './components/ManagerAvatar';
+
+const PAGE_SIZE = 10;
 
 // thứ tự cột khi nhóm theo trạng thái (theo mockup)
 const STATUS_ORDER = [USER_STATUS.ACTIVE, USER_STATUS.PENDING, USER_STATUS.LOCKED];
@@ -94,6 +97,7 @@ const ManagerListPage = () => {
   const [filters, setFilters] = useState({ status: [], assigned: [] });
   const [groupBy, setGroupBy] = useState('status'); // mặc định nhóm theo trạng thái như mockup
   const [view, setView] = useState('cards');
+  const [page, setPage] = useState(1);
   const [reloadKey, setReloadKey] = useState(0); // tăng lên để tải lại (Thử lại, sau khi thêm)
   const [creating, setCreating] = useState(false);
 
@@ -124,24 +128,41 @@ const ManagerListPage = () => {
     };
   }, [query, statusKey, assigned, reloadKey]);
 
-  // đổi bộ lọc / từ khóa: làm mờ danh sách đang có để người dùng biết đang lọc
+  // đổi bộ lọc / từ khóa: đưa về trang 1 và làm mờ danh sách để báo hiệu đang lọc
   const handleSearchChange = (value) => {
     setQuery(value);
+    setPage(1);
     setRefreshing(true);
   };
 
   const handleFilterChange = (next) => {
     setFilters({ status: next.status ?? [], assigned: next.assigned ?? [] });
+    setPage(1);
     setRefreshing(true);
+  };
+
+  const handleViewChange = (nextView) => {
+    setView(nextView);
+    setPage(1);
   };
 
   const reload = () => {
     setLoading(true);
+    setPage(1);
     setReloadKey((key) => key + 1);
   };
 
   const isFiltering = Boolean(query.trim() || filters.status.length || filters.assigned.length);
   const emptyMessage = isFiltering ? 'Không tìm thấy Manager phù hợp' : 'Chưa có Manager nào';
+
+  // Phân trang danh sách client-side
+  const total = managers.length;
+  const maxPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const safePage = Math.min(page, maxPage);
+  const paginatedManagers = useMemo(() => {
+    const start = (safePage - 1) * PAGE_SIZE;
+    return managers.slice(start, start + PAGE_SIZE);
+  }, [managers, safePage]);
 
   const columns = [
     {
@@ -223,12 +244,24 @@ const ManagerListPage = () => {
 
     if (view === 'table') {
       return (
-        <DataTable
-          columns={columns}
-          data={managers}
-          emptyMessage={emptyMessage}
-          onRowClick={(row) => navigate(`/managers/${row._id}`)}
-        />
+        <div className="flex flex-col gap-2">
+          <DataTable
+            columns={columns}
+            data={paginatedManagers}
+            emptyMessage={emptyMessage}
+            onRowClick={(row) => navigate(`/managers/${row._id}`)}
+          />
+          {total > PAGE_SIZE && (
+            <div className="flex justify-end mt-2">
+              <Pager
+                page={safePage}
+                limit={PAGE_SIZE}
+                total={total}
+                onChange={setPage}
+              />
+            </div>
+          )}
+        </div>
       );
     }
 
@@ -263,10 +296,22 @@ const ManagerListPage = () => {
 
     // dạng thẻ, không nhóm: lưới thẻ, mỗi thẻ có badge trạng thái
     return (
-      <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
-        {managers.map((manager) => (
-          <ManagerCard key={manager._id} manager={manager} showStatus />
-        ))}
+      <div className="flex flex-col gap-3">
+        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+          {paginatedManagers.map((manager) => (
+            <ManagerCard key={manager._id} manager={manager} showStatus />
+          ))}
+        </div>
+        {total > PAGE_SIZE && (
+          <div className="flex justify-end mt-2">
+            <Pager
+              page={safePage}
+              limit={PAGE_SIZE}
+              total={total}
+              onChange={setPage}
+            />
+          </div>
+        )}
       </div>
     );
   };
@@ -297,7 +342,7 @@ const ManagerListPage = () => {
           onGroupByChange={setGroupBy}
           count={loading || loadError ? null : `${managers.length} Manager`}
           view={view}
-          onViewChange={setView}
+          onViewChange={handleViewChange}
         />
       </Card>
 

@@ -22,9 +22,21 @@ const ManagerEditModal = ({ manager, onHide, onSaved }) => {
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
-  const handleChange = (event) => setForm({ ...form, [event.target.name]: event.target.value });
-  // ảnh tải lên xong mới gọi về nên dùng prev để không ghi đè ô vừa nhập
-  const handleImage = (field) => (publicId) => setForm((prev) => ({ ...prev, [field]: publicId }));
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: '' }));
+    }
+  };
+
+  // ảnh tải lên xong mới gọi về nên dùng prev để không ghi đè ô vừa nhập; xóa lỗi khi đã chọn ảnh
+  const handleImage = (field) => (publicId) => {
+    setForm((prev) => ({ ...prev, [field]: publicId }));
+    if (errors[field]) {
+      setErrors((prev) => ({ ...prev, [field]: '' }));
+    }
+  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
