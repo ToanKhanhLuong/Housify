@@ -10,7 +10,7 @@ const START_SERVER = () => {
   app.listen(env.PORT, () => {
     console.log(`Server running at http://localhost:${env.PORT}`);
   });
-  startJobs();
+  // startJobs();
 };
 
 CONNECT_DB()
