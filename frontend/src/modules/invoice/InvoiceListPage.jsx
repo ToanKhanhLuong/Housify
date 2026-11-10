@@ -19,6 +19,7 @@ import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
 import { INVOICE_STATUS, ROLE } from '../../constants/enums';
 import { INVOICE_STATUS_LABEL } from '../../constants/statusLabels';
+import { useSavedState } from '../../utils/filter';
 import { formatDate } from '../../utils/format';
 import invoiceApi from './invoice.api';
 import { dueStatus, monthLabel, roomOf } from './invoiceFormat';
@@ -44,23 +45,23 @@ const InvoiceListPage = () => {
   const [loading, setLoading] = useState(true); // lần tải đầu (và Thử lại): khung xương
   const [refreshing, setRefreshing] = useState(false); // đổi lọc / trang: làm mờ danh sách cũ
   const [loadError, setLoadError] = useState('');
-  const [query, setQuery] = useState('');
-  const [filters, setFilters] = useState(EMPTY_FILTERS);
-  const [page, setPage] = useState(1);
-  const [view, setView] = useState('table');
+  const [query, setQuery] = useSavedState(`${basePath}:query`, '');
+  const [filters, setFilters] = useSavedState(`${basePath}:filters`, EMPTY_FILTERS);
+  const [page, setPage] = useSavedState(`${basePath}:page`, 1);
+  const [view, setView] = useSavedState(`${basePath}:view`, 'table');
   const [reloadKey, setReloadKey] = useState(0);
   const [showBulk, setShowBulk] = useState(false);
-  const [rooms, setRooms] = useState([]); // phòng của tòa (Manager) để đổi mã phòng → roomId
+  const buildingId = user.building?._id;
+  const [rooms, setRooms] = useSavedState(`${basePath}:rooms:${buildingId ?? ''}`, []); // phòng của tòa (Manager) để đổi mã phòng → roomId
 
   // Manager: tải phòng của tòa mình một lần để tìm hóa đơn theo mã phòng (API lọc theo roomId)
-  const buildingId = user.building?._id;
   useEffect(() => {
     if (!isManager || !buildingId) return;
     invoiceApi
       .rooms(buildingId)
       .then((response) => setRooms(Array.isArray(response.data) ? response.data : []))
       .catch(() => setRooms([]));
-  }, [isManager, buildingId]);
+  }, [isManager, buildingId, setRooms]);
 
   // Customer không thấy hóa đơn nháp nên bỏ lựa chọn "Nháp"
   const filterGroups = useMemo(

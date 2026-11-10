@@ -13,7 +13,7 @@ import ErrorState from '../../components/ErrorState';
 import SkeletonRows from '../../components/SkeletonRows';
 import { ROOM_STATUS } from '../../constants/enums';
 import { ROOM_STATUS_LABEL } from '../../constants/statusLabels';
-import { formatFilterQuery } from '../../utils/filter';
+import { formatFilterQuery, useSavedState } from '../../utils/filter';
 import buildingApi from './building.api';
 import BuildingFormModal from './components/BuildingFormModal';
 
@@ -81,9 +81,9 @@ const BuildingListPage = () => {
   const [loading, setLoading] = useState(true); // lần tải đầu (và Thử lại): khung xương
   const [refreshing, setRefreshing] = useState(false); // tìm / lọc lại: làm mờ danh sách cũ
   const [loadError, setLoadError] = useState('');
-  const [query, setQuery] = useState('');
-  const [filters, setFilters] = useState({ hasManager: [] });
-  const [view, setView] = useState('cards');
+  const [query, setQuery] = useSavedState('buildings:query', '');
+  const [filters, setFilters] = useSavedState('buildings:filters', { hasManager: [] });
+  const [view, setView] = useSavedState('buildings:view', 'cards');
   const [reloadKey, setReloadKey] = useState(0); // tăng lên để tải lại (Thử lại, sau khi thêm)
   const [showForm, setShowForm] = useState(false);
 

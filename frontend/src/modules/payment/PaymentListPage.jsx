@@ -15,6 +15,7 @@ import Pager from '../../components/Pager';
 import SkeletonRows from '../../components/SkeletonRows';
 import { useAuth } from '../../context/AuthContext';
 import { ROLE } from '../../constants/enums';
+import { useSavedState } from '../../utils/filter';
 import { formatDateTime } from '../../utils/format';
 import paymentApi from './payment.api';
 import { monthLabel, searchToRange } from './paymentFormat';
@@ -33,15 +34,16 @@ const PaymentListPage = () => {
   const { user } = useAuth();
   const isManager = user.role === ROLE.MANAGER;
   const invoiceBasePath = isManager ? '/invoices' : '/my-invoices';
+  const basePath = isManager ? '/payments' : '/my-payments';
 
   const [data, setData] = useState({ items: [], total: 0, page: 1, limit: LIMIT });
   const [loading, setLoading] = useState(true); // lần tải đầu (và Thử lại): khung xương
   const [refreshing, setRefreshing] = useState(false); // đổi lọc / trang: làm mờ danh sách cũ
   const [loadError, setLoadError] = useState('');
-  const [query, setQuery] = useState('');
-  const [filters, setFilters] = useState(EMPTY_FILTERS);
-  const [page, setPage] = useState(1);
-  const [view, setView] = useState('cards'); // mặc định xem dạng biên lai
+  const [query, setQuery] = useSavedState(`${basePath}:query`, '');
+  const [filters, setFilters] = useSavedState(`${basePath}:filters`, EMPTY_FILTERS);
+  const [page, setPage] = useSavedState(`${basePath}:page`, 1);
+  const [view, setView] = useSavedState(`${basePath}:view`, 'cards'); // mặc định xem dạng biên lai
   const [reloadKey, setReloadKey] = useState(0);
   const [selected, setSelected] = useState(null); // giao dịch đang mở popup
 

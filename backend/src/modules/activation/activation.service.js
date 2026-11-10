@@ -15,6 +15,8 @@ import {
     CONTRACT_TYPE,
     ROOM_STATUS,
     OCCUPANT_STATUS,
+    TERMINATION_TYPE,
+    TERMINATION_STATUS,
     AUDIT_ACTION,
     NOTIFICATION_TYPE,
 } from '../../constants/enums.js';
@@ -26,6 +28,7 @@ import Room from '../../models/Room.js';
 import RoomType from '../../models/RoomType.js';
 import Building from '../../models/Building.js';
 import Occupant from '../../models/Occupant.js';
+import TerminationRequest from '../../models/TerminationRequest.js';
 
 const LINK_NOT_FOUND = 'Link kích hoạt không tồn tại';
 const LINK_EXPIRED_OR_USED = 'Link kích hoạt đã hết hạn hoặc đã được sử dụng';
@@ -369,17 +372,44 @@ export const activateCustomerContract = async ({
             if (user.status === USER_STATUS.LOCKED) {
                 throw new AppError('Tài khoản của bạn đã bị khóa do vi phạm trước đó, không thể kích hoạt hợp đồng', 403);
             }
-            if (user.status === USER_STATUS.ACTIVE) {
+
+            // Kiểm tra lịch sử chấm dứt đơn phương ngay cả khi chưa qua mốc 24h
+            const pastRepOccupants = await Occupant.find({
+                userId: user._id,
+                isRepresentative: true,
+            })
+                .select('contractId status')
+                .session(session)
+                .lean();
+
+            if (pastRepOccupants.length > 0) {
+                const pastContractIds = pastRepOccupants.map((o) => o.contractId);
+                const hasConfirmedUnilateral = await TerminationRequest.exists({
+                    contractId: { $in: pastContractIds },
+                    type: TERMINATION_TYPE.UNILATERAL,
+                    status: TERMINATION_STATUS.CONFIRMED,
+                }).session(session);
+
+                if (hasConfirmedUnilateral) {
+                    throw new AppError('Tài khoản của bạn đã bị khóa do vi phạm trước đó, không thể kích hoạt hợp đồng', 403);
+                }
+            }
+
+            const isStayingOtherRoom = pastRepOccupants.some(
+                (o) => o.status === OCCUPANT_STATUS.STAYED && String(o.contractId) !== String(contract._id),
+            );
+            if (user.status === USER_STATUS.ACTIVE && isStayingOtherRoom) {
                 throw new AppError('Tài khoản của bạn đang hoạt động ở phòng khác', 400);
             }
 
-            // Khách cũ INACTIVE thuê lại: mở lại tài khoản và đặt mật khẩu mới
-            if (user.status === USER_STATUS.INACTIVE) {
-                user.password = await bcrypt.hash(password, 10);
-                user.status = USER_STATUS.ACTIVE;
-                user.email = contract.representativeEmail;
-                await user.save({ session });
+            // Khách cũ thuê lại (INACTIVE hoặc vừa kết thúc hợp đồng chưa qua 24h): cập nhật mật khẩu và mở lại tài khoản
+            const wasInactive = user.status === USER_STATUS.INACTIVE;
+            user.password = await bcrypt.hash(password, 10);
+            user.status = USER_STATUS.ACTIVE;
+            user.email = contract.representativeEmail;
+            await user.save({ session });
 
+            if (wasInactive) {
                 await audit(
                     {
                         actorId: user._id,

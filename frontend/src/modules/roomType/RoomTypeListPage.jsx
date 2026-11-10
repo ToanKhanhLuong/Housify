@@ -13,6 +13,7 @@ import BlockedBox from '../../components/BlockedBox';
 import EmptyState from '../../components/EmptyState';
 import ErrorState from '../../components/ErrorState';
 import SkeletonRows from '../../components/SkeletonRows';
+import { useSavedState } from '../../utils/filter';
 import { formatDate } from '../../utils/format';
 import roomTypeApi from './roomType.api';
 import RoomTypeFormModal from './components/RoomTypeFormModal';
@@ -53,10 +54,10 @@ const RoomTypeListPage = () => {
   const [roomTypes, setRoomTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
-  const [query, setQuery] = useState('');
-  const [filters, setFilters] = useState({ usage: [] });
-  const [view, setView] = useState('cards');
-  const [page, setPage] = useState(1);
+  const [query, setQuery] = useSavedState('roomTypes:query', '');
+  const [filters, setFilters] = useSavedState('roomTypes:filters', { usage: [] });
+  const [view, setView] = useSavedState('roomTypes:view', 'cards');
+  const [page, setPage] = useSavedState('roomTypes:page', 1);
   const [editing, setEditing] = useState(null); // null: đóng form · {}: thêm mới · loại phòng: sửa
   const [deleting, setDeleting] = useState(null); // loại phòng đang chờ xác nhận xóa
   const [submitting, setSubmitting] = useState(false);

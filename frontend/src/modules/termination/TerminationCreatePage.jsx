@@ -72,7 +72,7 @@ const TerminationCreatePage = () => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    const clientErrors = validateCreateTermination(form);
+    const clientErrors = validateCreateTermination(form, contract);
     setErrors(clientErrors);
     if (hasErrors(clientErrors)) return;
 
@@ -236,6 +236,12 @@ const TerminationCreatePage = () => {
                 value={form.effectiveDate}
                 onChange={handleChange}
                 error={errors.effectiveDate}
+                min={
+                  toDateInput(contract.startDate) > toDateInput(new Date())
+                    ? toDateInput(contract.startDate)
+                    : toDateInput(new Date())
+                }
+                max={toDateInput(contract.endDate)}
                 helpText={`Hợp đồng hiện kết thúc ngày ${formatDate(contract.endDate)}. Tới ngày hiệu lực, phòng chuyển về Trống và cư dân chuyển đi.`}
                 disabled={submitting}
                 required

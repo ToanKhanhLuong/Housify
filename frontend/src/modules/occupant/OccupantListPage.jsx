@@ -17,6 +17,7 @@ import SkeletonRows from '../../components/SkeletonRows';
 import { useAuth } from '../../context/AuthContext';
 import { OCCUPANT_STATUS } from '../../constants/enums';
 import { OCCUPANT_STATUS_LABEL } from '../../constants/statusLabels';
+import { useSavedState } from '../../utils/filter';
 import occupantApi from './occupant.api';
 import { groupByRoom } from './occupantFormat';
 import AddOccupantModal from './components/AddOccupantModal';
@@ -50,30 +51,30 @@ const OccupantListPage = () => {
   const location = useLocation();
   const { user } = useAuth();
 
+  const buildingId = user.building?._id;
   const [data, setData] = useState(EMPTY_DATA);
   const [loading, setLoading] = useState(true); // lần tải đầu (và Thử lại): khung xương
   const [refreshing, setRefreshing] = useState(false); // đổi lọc / trang: làm mờ danh sách cũ
   const [loadError, setLoadError] = useState('');
-  const [query, setQuery] = useState('');
-  const [filters, setFilters] = useState(DEFAULT_FILTERS);
-  const [page, setPage] = useState(1);
-  const [view, setView] = useState('rooms');
+  const [query, setQuery] = useSavedState('occupants:query', '');
+  const [filters, setFilters] = useSavedState('occupants:filters', DEFAULT_FILTERS);
+  const [page, setPage] = useSavedState('occupants:page', 1);
+  const [view, setView] = useSavedState('occupants:view', 'rooms');
   const [reloadKey, setReloadKey] = useState(0);
-  const [rooms, setRooms] = useState([]); // phòng của tòa: đổi mã phòng → roomId, sức chứa
+  const [rooms, setRooms] = useSavedState(`occupants:rooms:${buildingId ?? ''}`, []); // phòng của tòa: đổi mã phòng → roomId, sức chứa
   const [expanded, setExpanded] = useState(() => new Set()); // chế độ Bảng: phòng đang sổ người ở cùng
   // popup thêm: true = tự chọn phòng; { _id, roomNumber } = phòng chọn sẵn
   const [adding, setAdding] = useState(() => location.state?.addTo ?? null);
   const returnTo = location.state?.returnTo ?? null;
 
   // phòng tải lại mỗi khi danh sách tải lại (thêm / rời phòng làm đổi số người)
-  const buildingId = user.building?._id;
   useEffect(() => {
     if (!buildingId) return;
     occupantApi
       .rooms(buildingId)
       .then((response) => setRooms(Array.isArray(response.data) ? response.data : []))
       .catch(() => setRooms([]));
-  }, [buildingId, reloadKey]);
+  }, [buildingId, reloadKey, setRooms]);
   const roomsById = useMemo(
     () => Object.fromEntries(rooms.map((room) => [room._id, room])),
     [rooms],

@@ -17,6 +17,7 @@ import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
 import { CONTRACT_STATUS } from '../../constants/enums';
 import { CONTRACT_STATUS_LABEL, CONTRACT_TYPE_LABEL } from '../../constants/statusLabels';
+import { useSavedState } from '../../utils/filter';
 import contractApi from './contract.api';
 import buildingApi from '../building/building.api';
 import { ContractCard, Representative, Term } from './components/ContractListParts';
@@ -31,20 +32,19 @@ const VIEW_OPTIONS = [
 const ContractListPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const buildingId = user.building?._id;
   const [data, setData] = useState({ items: [], total: 0, page: 1, limit: LIMIT });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState('');
-  const [query, setQuery] = useState('');
-  const [filters, setFilters] = useState({ status: [], floor: [] });
-  const [page, setPage] = useState(1);
-  const [view, setView] = useState('cards');
+  const [query, setQuery] = useSavedState('contracts:query', '');
+  const [filters, setFilters] = useSavedState('contracts:filters', { status: [], floor: [] });
+  const [page, setPage] = useSavedState('contracts:page', 1);
+  const [view, setView] = useSavedState('contracts:view', 'cards');
   const [reloadKey, setReloadKey] = useState(0);
-  const [floorCount, setFloorCount] = useState(0);
+  const [floorCount, setFloorCount] = useSavedState(`contracts:floorCount:${buildingId ?? ''}`, 0);
   // mốc thời gian để tính "còn X ngày" – lấy 1 lần khi mở trang (render phải thuần)
   const [now] = useState(() => Date.now());
-
-  const buildingId = user.building?._id;
 
   // Lấy thông tin tòa nhà để có số tầng (phục vụ lọc theo tầng)
   useEffect(() => {
@@ -57,7 +57,7 @@ const ContractListPage = () => {
         }
       })
       .catch(() => {});
-  }, [buildingId]);
+  }, [buildingId, setFloorCount]);
 
   const totalFloors = floorCount || user.building?.floorCount || 0;
 

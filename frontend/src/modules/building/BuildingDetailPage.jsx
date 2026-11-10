@@ -18,6 +18,7 @@ import BlockedBox from '../../components/BlockedBox';
 import { useAuth } from '../../context/AuthContext';
 import { ROLE, ROOM_STATUS } from '../../constants/enums';
 import { ROOM_STATUS_LABEL } from '../../constants/statusLabels';
+import { useSavedState } from '../../utils/filter';
 import { formatDate } from '../../utils/format';
 import buildingApi from './building.api';
 import BuildingFormModal from './components/BuildingFormModal';
@@ -58,6 +59,7 @@ const BuildingDetailPage = ({ buildingId }) => {
 
   // trạng thái tải tòa: loading → ok | notFound | error
   const [state, setState] = useState({ status: 'loading', building: null, error: '' });
+  const [activeTab, setActiveTab] = useSavedState(`buildingDetail:${id ?? ''}:tab`, 'rooms');
   const [showForm, setShowForm] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -283,7 +285,12 @@ const BuildingDetailPage = ({ buildingId }) => {
           </div>
         )}
 
-        <Tabs defaultActiveKey="rooms" className="mb-0" mountOnEnter>
+        <Tabs
+          activeKey={activeTab}
+          onSelect={(key) => setActiveTab(key || 'rooms')}
+          className="mb-0"
+          mountOnEnter
+        >
           <Tab eventKey="rooms" title="Phòng" className="pt-3">
             <BuildingRoomsTab
               building={building}

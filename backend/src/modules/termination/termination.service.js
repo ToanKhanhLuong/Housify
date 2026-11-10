@@ -270,6 +270,28 @@ export const createTermination = async ({ managerId, contractId, data }) => {
     const effectiveDate = new Date(data.effectiveDate);
     const cleanNote = data.note?.trim() || undefined;
 
+    // Kiểm tra ngày hiệu lực không được ở quá khứ và phải nằm trong thời hạn hợp đồng
+    const effectiveDay = startOfVietnamDay(effectiveDate);
+    const todayStart = startOfVietnamDay(new Date());
+    const contractStartDay = startOfVietnamDay(contract.startDate);
+    const contractEndDay = startOfVietnamDay(contract.endDate);
+
+    if (effectiveDay < todayStart) {
+        throw new AppError('Ngày hiệu lực không được ở quá khứ', 422, [
+            { field: 'effectiveDate', message: 'Ngày hiệu lực không được ở quá khứ' },
+        ]);
+    }
+    if (effectiveDay < contractStartDay) {
+        throw new AppError('Ngày hiệu lực không được trước ngày bắt đầu hợp đồng', 422, [
+            { field: 'effectiveDate', message: 'Ngày hiệu lực không được trước ngày bắt đầu hợp đồng' },
+        ]);
+    }
+    if (effectiveDay > contractEndDay) {
+        throw new AppError('Ngày hiệu lực không được vượt quá ngày kết thúc hợp đồng', 422, [
+            { field: 'effectiveDate', message: 'Ngày hiệu lực không được vượt quá ngày kết thúc hợp đồng' },
+        ]);
+    }
+
     const repOccupant = await Occupant.findOne({
         contractId: contract._id,
         isRepresentative: true,

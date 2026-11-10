@@ -10,6 +10,7 @@ import MoneyText from '../../components/MoneyText';
 import SkeletonRows from '../../components/SkeletonRows';
 import { useAuth } from '../../context/AuthContext';
 import { ROLE } from '../../constants/enums';
+import { useSavedState } from '../../utils/filter';
 import { formatDate } from '../../utils/format';
 import dashboardApi from './dashboard.api';
 import BuildingSidePanel from './components/BuildingSidePanel';
@@ -34,7 +35,7 @@ const ReportPage = () => {
 
   const [state, setState] = useState({ status: 'loading', data: null, error: '' });
   const [buildings, setBuildings] = useState([]);
-  const [buildingId, setBuildingId] = useState('');
+  const [buildingId, setBuildingId] = useSavedState('reports:buildingId', '');
   const [reportData, setReportData] = useState(null);
 
   useEffect(() => {

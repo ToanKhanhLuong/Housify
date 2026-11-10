@@ -47,6 +47,7 @@ export const AuthProvider = ({ children }) => {
     // UC-02: BE không lưu phiên nên đăng xuất chỉ cần xóa token
     const logout = useCallback(() => {
         clearToken();
+        window.dispatchEvent(new Event('auth:logout'));
         setUser(null);
     }, []);
 

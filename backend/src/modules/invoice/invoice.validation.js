@@ -65,9 +65,9 @@ const invoiceItemSchema = Joi.object({
 export const createInvoiceSchema = Joi.object({
   contractId: objectIdField("Mã hợp đồng").required(),
   month: monthField.required(),
-  items: Joi.array().items(invoiceItemSchema).min(1).required().messages({
-    "array.min": "Hóa đơn phải có ít nhất một dòng thu tiền",
-    "any.required": "Vui lòng cung cấp danh sách các khoản thu",
+  // Server luôn tự thêm dòng RENT (tiền phòng), nên cho phép mảng items phụ (dịch vụ/phát sinh) rỗng
+  items: Joi.array().items(invoiceItemSchema).default([]).messages({
+    "array.base": "Danh sách các khoản thu không hợp lệ",
   }),
   confirmDuplicate: Joi.boolean().default(false), // Manager bấm đồng ý tạo thêm khi đã có hóa đơn cùng kỳ
 });
@@ -87,9 +87,8 @@ export const bulkCreateInvoiceSchema = Joi.object({
 
 // 4. Schema cập nhật hóa đơn nháp: PUT /api/invoices/:id (UC-34)
 export const updateInvoiceSchema = Joi.object({
-  items: Joi.array().items(invoiceItemSchema).min(1).required().messages({
-    "array.min": "Hóa đơn phải có ít nhất một dòng thu tiền",
-    "any.required": "Vui lòng cung cấp danh sách các khoản thu",
+  items: Joi.array().items(invoiceItemSchema).default([]).messages({
+    "array.base": "Danh sách các khoản thu không hợp lệ",
   }),
 });
 

@@ -24,6 +24,7 @@ import EmptyState from '../../components/EmptyState';
 import ErrorState from '../../components/ErrorState';
 import Pager from '../../components/Pager';
 import SkeletonRows from '../../components/SkeletonRows';
+import { useSavedState } from '../../utils/filter';
 import serviceApi from './service.api';
 import ServiceFormModal from './components/ServiceFormModal';
 
@@ -159,10 +160,10 @@ const ServiceListPage = () => {
     const [services, setServices] = useState([]);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState('');
-    const [query, setQuery] = useState('');
-    const [filters, setFilters] = useState({ mode: [] });
-    const [groupBy, setGroupBy] = useState('mode');
-    const [page, setPage] = useState(1);
+    const [query, setQuery] = useSavedState('services:query', '');
+    const [filters, setFilters] = useSavedState('services:filters', { mode: [] });
+    const [groupBy, setGroupBy] = useSavedState('services:groupBy', 'mode');
+    const [page, setPage] = useSavedState('services:page', 1);
     const [editing, setEditing] = useState(null);
     const [deleting, setDeleting] = useState(null);
     const [submitting, setSubmitting] = useState(false);

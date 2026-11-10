@@ -16,7 +16,7 @@ import SkeletonRows from '../../components/SkeletonRows';
 import Pager from '../../components/Pager';
 import { USER_STATUS } from '../../constants/enums';
 import { USER_STATUS_LABEL } from '../../constants/statusLabels';
-import { formatFilterQuery } from '../../utils/filter';
+import { formatFilterQuery, useSavedState } from '../../utils/filter';
 import managerApi from './manager.api';
 import ManagerCreateModal from './components/ManagerCreateModal';
 import ManagerAvatar from './components/ManagerAvatar';
@@ -93,11 +93,11 @@ const ManagerListPage = () => {
   // tìm / lọc lại: giữ nguyên danh sách cũ, chỉ làm mờ cho tới khi có kết quả mới (không nháy khung xương)
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState('');
-  const [query, setQuery] = useState('');
-  const [filters, setFilters] = useState({ status: [], assigned: [] });
-  const [groupBy, setGroupBy] = useState('status'); // mặc định nhóm theo trạng thái như mockup
-  const [view, setView] = useState('cards');
-  const [page, setPage] = useState(1);
+  const [query, setQuery] = useSavedState('managers:query', '');
+  const [filters, setFilters] = useSavedState('managers:filters', { status: [], assigned: [] });
+  const [groupBy, setGroupBy] = useSavedState('managers:groupBy', 'status'); // mặc định nhóm theo trạng thái như mockup
+  const [view, setView] = useSavedState('managers:view', 'cards');
+  const [page, setPage] = useSavedState('managers:page', 1);
   const [reloadKey, setReloadKey] = useState(0); // tăng lên để tải lại (Thử lại, sau khi thêm)
   const [creating, setCreating] = useState(false);
 

@@ -16,6 +16,7 @@ import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
 import { INCIDENT_STATUS, INCIDENT_TYPE, ROLE } from '../../constants/enums';
 import { INCIDENT_STATUS_LABEL, INCIDENT_TYPE_LABEL } from '../../constants/statusLabels';
+import { useSavedState } from '../../utils/filter';
 import { formatDate, formatDateTime } from '../../utils/format';
 import incidentApi from './incident.api';
 import CreateIncidentModal from './components/CreateIncidentModal';
@@ -53,26 +54,26 @@ const IncidentListPage = () => {
   const isManager = user.role === ROLE.MANAGER;
   const basePath = isManager ? '/incidents' : '/my-incidents';
 
+  const buildingId = user.building?._id;
   const [data, setData] = useState(EMPTY_DATA);
   const [loading, setLoading] = useState(true); // lần tải đầu (và Thử lại): khung xương
   const [refreshing, setRefreshing] = useState(false); // đổi lọc / trang: làm mờ danh sách cũ
   const [loadError, setLoadError] = useState('');
-  const [query, setQuery] = useState('');
-  const [filters, setFilters] = useState(EMPTY_FILTERS);
-  const [page, setPage] = useState(1);
-  const [view, setView] = useState(isManager ? 'table' : 'cards');
+  const [query, setQuery] = useSavedState(`${basePath}:query`, '');
+  const [filters, setFilters] = useSavedState(`${basePath}:filters`, EMPTY_FILTERS);
+  const [page, setPage] = useSavedState(`${basePath}:page`, 1);
+  const [view, setView] = useSavedState(`${basePath}:view`, isManager ? 'table' : 'cards');
   const [reloadKey, setReloadKey] = useState(0);
-  const [rooms, setRooms] = useState([]); // phòng của tòa (Manager) để đổi mã phòng → roomId
+  const [rooms, setRooms] = useSavedState(`${basePath}:rooms:${buildingId ?? ''}`, []); // phòng của tòa (Manager) để đổi mã phòng → roomId
   const [creating, setCreating] = useState(false);
 
-  const buildingId = user.building?._id;
   useEffect(() => {
     if (!isManager || !buildingId) return;
     incidentApi
       .rooms(buildingId)
       .then((response) => setRooms(Array.isArray(response.data) ? response.data : []))
       .catch(() => setRooms([]));
-  }, [isManager, buildingId]);
+  }, [isManager, buildingId, setRooms]);
 
   // ô tìm chỉ dùng cho Manager: mã phòng → roomId. Gõ phòng không có trong tòa thì không gọi API, báo không có
   const keyword = isManager ? query.trim() : '';

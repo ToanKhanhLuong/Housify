@@ -110,11 +110,23 @@ const validateRepresentativeCccdAndEmail = async (cleanRepCccd, cleanRepEmail, e
         throw new AppError('Khách hàng này hiện đang thuê phòng khác', 400);
     }
 
-    // 2. Chặn nếu tài khoản gắn với CCCD đã bị khóa do vi phạm (LOCKED)
-    const occupantRep = await Occupant.findOne({ cccd: cleanRepCccd, isRepresentative: true });
+    // 2. Chặn nếu tài khoản gắn với CCCD đã bị khóa do vi phạm (LOCKED) hoặc từng bị chấm dứt đơn phương đã duyệt
+    const repOccupants = await Occupant.find({ cccd: cleanRepCccd, isRepresentative: true }).lean();
+    const occupantRep = repOccupants.find((o) => o.userId) || repOccupants[0] || null;
     if (occupantRep?.userId) {
         const user = await User.findById(occupantRep.userId);
         if (user?.status === USER_STATUS.LOCKED) {
+            throw new AppError('Tài khoản khách hàng này đã bị khóa do vi phạm, không thể tạo hợp đồng mới', 400);
+        }
+    }
+    if (repOccupants.length > 0) {
+        const repContractIds = repOccupants.map((o) => o.contractId);
+        const hasConfirmedUnilateral = await TerminationRequest.exists({
+            contractId: { $in: repContractIds },
+            type: TERMINATION_TYPE.UNILATERAL,
+            status: TERMINATION_STATUS.CONFIRMED,
+        });
+        if (hasConfirmedUnilateral) {
             throw new AppError('Tài khoản khách hàng này đã bị khóa do vi phạm, không thể tạo hợp đồng mới', 400);
         }
     }

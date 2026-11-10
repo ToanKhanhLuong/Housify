@@ -15,6 +15,7 @@ import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
 import { ROLE, TERMINATION_STATUS, TERMINATION_TYPE } from '../../constants/enums';
 import { TERMINATION_STATUS_LABEL, TERMINATION_TYPE_LABEL } from '../../constants/statusLabels';
+import { useSavedState } from '../../utils/filter';
 import { formatDate } from '../../utils/format';
 import terminationApi from './termination.api';
 
@@ -38,8 +39,8 @@ const TerminationListPage = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState('');
-  const [filters, setFilters] = useState(defaultFilters);
-  const [page, setPage] = useState(1);
+  const [filters, setFilters] = useSavedState(`terminations:filters:${user.role}`, defaultFilters);
+  const [page, setPage] = useSavedState(`terminations:page:${user.role}`, 1);
   const [reloadKey, setReloadKey] = useState(0);
 
   const filterGroups = useMemo(

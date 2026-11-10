@@ -1,4 +1,47 @@
-// Tiện ích xử lý bộ lọc và gom nhóm mảng cho ControlBar và trang danh sách
+// Tiện ích xử lý bộ lọc, gom nhóm mảng và lưu trạng thái danh sách cho ControlBar và trang danh sách
+import { useCallback, useEffect, useState } from 'react';
+
+// Lưu state bộ lọc / tìm kiếm / trang / chế độ xem trong bộ nhớ JS khi chuyển trang SPA.
+// Khi tải lại trình duyệt (F5) hoặc đăng xuất, bộ nhớ này tự động về mặc định.
+const savedStateStore = new Map();
+
+if (typeof window !== 'undefined') {
+    window.addEventListener('auth:logout', () => savedStateStore.clear());
+}
+
+export const clearSavedFilterStates = () => {
+    savedStateStore.clear();
+};
+
+/**
+ * Giữ state trong bộ nhớ JS khi điều hướng qua lại giữa danh sách và chi tiết (SPA),
+ * tự động reset về initialValue khi người dùng ấn F5 tải lại trang.
+ */
+export const useSavedState = (key, initialValue) => {
+    const [state, setState] = useState(() => {
+        if (savedStateStore.has(key)) {
+            return savedStateStore.get(key);
+        }
+        return typeof initialValue === 'function' ? initialValue() : initialValue;
+    });
+
+    useEffect(() => {
+        savedStateStore.set(key, state);
+    }, [key, state]);
+
+    const setSavedState = useCallback(
+        (nextValue) => {
+            setState((prev) => {
+                const resolved = typeof nextValue === 'function' ? nextValue(prev) : nextValue;
+                savedStateStore.set(key, resolved);
+                return resolved;
+            });
+        },
+        [key],
+    );
+
+    return [state, setSavedState];
+};
 
 /**
  * Chuyển filters object thành query params chuẩn docs/api.md

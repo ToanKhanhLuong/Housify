@@ -16,7 +16,7 @@ import StatusBadge from '../../../components/StatusBadge';
 import MoneyText from '../../../components/MoneyText';
 import { ROOM_STATUS } from '../../../constants/enums';
 import { ROOM_STATUS_LABEL } from '../../../constants/statusLabels';
-import { formatFilterQuery } from '../../../utils/filter';
+import { formatFilterQuery, useSavedState } from '../../../utils/filter';
 import roomApi from '../../room/room.api';
 import roomTypeApi from '../../roomType/roomType.api';
 import RoomFormModal from '../../room/components/RoomFormModal';
@@ -87,15 +87,16 @@ const RoomTile = ({ room }) => (
 
 const BuildingRoomsTab = ({ building, canEdit, onRoomChanged, onBuildingChanged }) => {
   const navigate = useNavigate();
+  const stateKey = `buildingRooms:${building._id}`;
   const [rooms, setRooms] = useState([]);
-  const [roomTypes, setRoomTypes] = useState([]);
+  const [roomTypes, setRoomTypes] = useSavedState('buildingRooms:roomTypes', []);
   const [loading, setLoading] = useState(true); // lần tải đầu: khung xương
   const [refreshing, setRefreshing] = useState(false); // tìm / lọc lại: làm mờ danh sách cũ
   const [loadError, setLoadError] = useState('');
-  const [query, setQuery] = useState('');
-  const [filters, setFilters] = useState(EMPTY_FILTERS);
-  const [view, setView] = useState('floors');
-  const [page, setPage] = useState(1);
+  const [query, setQuery] = useSavedState(`${stateKey}:query`, '');
+  const [filters, setFilters] = useSavedState(`${stateKey}:filters`, EMPTY_FILTERS);
+  const [view, setView] = useSavedState(`${stateKey}:view`, 'floors');
+  const [page, setPage] = useSavedState(`${stateKey}:page`, 1);
   const [reloadKey, setReloadKey] = useState(0);
   const [showCreate, setShowCreate] = useState(false);
   const [showFloors, setShowFloors] = useState(false);
@@ -106,7 +107,7 @@ const BuildingRoomsTab = ({ building, canEdit, onRoomChanged, onBuildingChanged 
       .list()
       .then((response) => setRoomTypes(Array.isArray(response.data) ? response.data : []))
       .catch(() => setRoomTypes([]));
-  }, []);
+  }, [setRoomTypes]);
 
   // khoảng giá sai thì không gọi BE (BE cũng chặn bằng 422)
   const priceError =

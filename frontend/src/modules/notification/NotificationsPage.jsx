@@ -14,6 +14,7 @@ import SkeletonRows from '../../components/SkeletonRows';
 import StatusBadge from '../../components/StatusBadge';
 import { NOTIFICATION_TYPE_LABEL } from '../../constants/statusLabels';
 import { useAuth } from '../../context/AuthContext';
+import { useSavedState } from '../../utils/filter';
 import notificationApi from './notification.api';
 import {
     NOTIFICATIONS_CHANGED,
@@ -32,8 +33,8 @@ const NotificationsPage = () => {
     const fromBell = location.state?.notification ?? null; // thông báo chuông gửi sang để hiện sẵn
     const [data, setData] = useState(null); // { items, total, page, limit }; null: đang tải
     const [unreadCount, setUnreadCount] = useState(0);
-    const [page, setPage] = useState(1);
-    const [unreadOnly, setUnreadOnly] = useState(false);
+    const [page, setPage] = useSavedState('notifications:page', 1);
+    const [unreadOnly, setUnreadOnly] = useSavedState('notifications:unreadOnly', false);
     const [loadError, setLoadError] = useState('');
     const [viewing, setViewing] = useState(null); // thông báo đang xem nội dung đầy đủ
     const [submitting, setSubmitting] = useState(false);
