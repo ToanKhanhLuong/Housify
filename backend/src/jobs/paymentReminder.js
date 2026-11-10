@@ -2,8 +2,25 @@
 import cron from 'node-cron';
 import { runPaymentReminderJob } from '../modules/payment/paymentReminder.service.js';
 
+let isRunning = false;
+
 export const run = async () => {
-    return runPaymentReminderJob(new Date());
+    if (isRunning) {
+        console.log('[Job paymentReminder] Đang chạy, bỏ qua lượt kích hoạt trùng.');
+        return { skipped: true };
+    }
+
+    isRunning = true;
+    const startedAt = Date.now();
+    try {
+        const result = await runPaymentReminderJob(new Date());
+        console.log(
+            `[Job paymentReminder] Hoàn tất sau ${Date.now() - startedAt}ms (quét: ${result?.scannedCount ?? 0}, nhắc: ${result?.remindedCount ?? 0})`,
+        );
+        return result;
+    } finally {
+        isRunning = false;
+    }
 };
 
 export const registerPaymentReminderJob = () => {
@@ -16,6 +33,6 @@ export const registerPaymentReminderJob = () => {
                 console.error('[Job paymentReminder] Error:', error.message);
             }
         },
-        { timezone: 'Asia/Ho_Chi_Minh' },
+        { timezone: 'Asia/Ho_Chi_Minh', noOverlap: true },
     );
 };

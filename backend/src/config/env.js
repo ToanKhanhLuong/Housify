@@ -13,7 +13,7 @@ if (missing.length > 0) {
 export const env = Object.freeze({
   NODE_ENV: process.env.NODE_ENV || 'development',
   PORT: Number(process.env.PORT) || 8686,
-  CLIENT_URL: process.env.CLIENT_URL || 'http://localhost:5173',
+  CLIENT_URL: (process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/+$/, ''),
 
   MONGO_URI: process.env.MONGO_URI,
 

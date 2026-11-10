@@ -1378,23 +1378,58 @@ export const runAccountAfterEndJob = async (now = new Date()) => {
     const activeCustomers = await User.find({
         roleId: ROLE.CUSTOMER,
         status: USER_STATUS.ACTIVE,
-    });
+    })
+        .select('_id')
+        .lean();
 
     const deactivatedUserIds = [];
     const lockedUserIds = [];
 
-    for (const user of activeCustomers) {
-        const repOccupants = await Occupant.find({
-            userId: user._id,
-            isRepresentative: true,
-        }).lean();
+    if (activeCustomers.length === 0) {
+        return {
+            processedCount: 0,
+            deactivatedUserIds,
+            lockedUserIds,
+        };
+    }
 
-        if (repOccupants.length === 0) {
+    // Gom truy vấn Occupant và Contract một lần thay vì lặp N+1 query cho từng user
+    const userIds = activeCustomers.map((u) => u._id);
+    const allRepOccupants = await Occupant.find({
+        userId: { $in: userIds },
+        isRepresentative: true,
+    })
+        .select('userId contractId')
+        .lean();
+
+    if (allRepOccupants.length === 0) {
+        return {
+            processedCount: 0,
+            deactivatedUserIds,
+            lockedUserIds,
+        };
+    }
+
+    const allContractIds = allRepOccupants.map((o) => o.contractId);
+    const allContracts = await Contract.find({ _id: { $in: allContractIds } }).lean();
+    const contractById = new Map(allContracts.map((c) => [String(c._id), c]));
+
+    const contractsByUserId = new Map();
+    for (const occ of allRepOccupants) {
+        const uid = String(occ.userId);
+        const contract = contractById.get(String(occ.contractId));
+        if (!contract) continue;
+        if (!contractsByUserId.has(uid)) {
+            contractsByUserId.set(uid, []);
+        }
+        contractsByUserId.get(uid).push(contract);
+    }
+
+    for (const user of activeCustomers) {
+        const contracts = contractsByUserId.get(String(user._id)) || [];
+        if (contracts.length === 0) {
             continue;
         }
-
-        const contractIds = repOccupants.map((o) => o.contractId);
-        const contracts = await Contract.find({ _id: { $in: contractIds } }).lean();
 
         // Nếu khách vẫn còn hợp đồng ACTIVE khác thì không khóa / ngưng hoạt động
         const hasActiveContract = contracts.some((c) => c.status === CONTRACT_STATUS.ACTIVE);

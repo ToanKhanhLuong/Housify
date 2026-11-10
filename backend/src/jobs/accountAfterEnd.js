@@ -2,8 +2,25 @@
 import cron from 'node-cron';
 import { runAccountAfterEndJob } from '../modules/contract/contract.service.js';
 
+let isRunning = false;
+
 export const run = async () => {
-    return runAccountAfterEndJob(new Date());
+    if (isRunning) {
+        console.log('[Job accountAfterEnd] Đang chạy, bỏ qua lượt kích hoạt trùng.');
+        return { skipped: true };
+    }
+
+    isRunning = true;
+    const startedAt = Date.now();
+    try {
+        const result = await runAccountAfterEndJob(new Date());
+        console.log(
+            `[Job accountAfterEnd] Hoàn tất sau ${Date.now() - startedAt}ms (xử lý: ${result?.processedCount ?? 0})`,
+        );
+        return result;
+    } finally {
+        isRunning = false;
+    }
 };
 
 export const registerAccountAfterEndJob = () => {
@@ -16,6 +33,6 @@ export const registerAccountAfterEndJob = () => {
                 console.error('[Job accountAfterEnd] Error:', error.message);
             }
         },
-        { timezone: 'Asia/Ho_Chi_Minh' },
+        { timezone: 'Asia/Ho_Chi_Minh', noOverlap: true },
     );
 };

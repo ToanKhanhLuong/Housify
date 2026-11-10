@@ -2,8 +2,25 @@
 import cron from 'node-cron';
 import { runContractExpiryJob } from '../modules/contract/contract.service.js';
 
+let isRunning = false;
+
 export const run = async () => {
-    return runContractExpiryJob(new Date());
+    if (isRunning) {
+        console.log('[Job contractExpiry] Đang chạy, bỏ qua lượt kích hoạt trùng.');
+        return { skipped: true };
+    }
+
+    isRunning = true;
+    const startedAt = Date.now();
+    try {
+        const result = await runContractExpiryJob(new Date());
+        console.log(
+            `[Job contractExpiry] Hoàn tất sau ${Date.now() - startedAt}ms (xử lý: ${result?.processedCount ?? 0})`,
+        );
+        return result;
+    } finally {
+        isRunning = false;
+    }
 };
 
 export const registerContractExpiryJob = () => {
@@ -16,6 +33,6 @@ export const registerContractExpiryJob = () => {
                 console.error('[Job contractExpiry] Error:', error.message);
             }
         },
-        { timezone: 'Asia/Ho_Chi_Minh' },
+        { timezone: 'Asia/Ho_Chi_Minh', noOverlap: true },
     );
 };

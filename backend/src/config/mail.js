@@ -1,4 +1,7 @@
+// Cấu hình gửi email qua Brevo HTTP API kèm timeout tránh treo kết nối
 import { env } from './env.js';
+
+const MAIL_TIMEOUT_MS = 10000;
 
 /**
  * Gửi email qua Brevo HTTP API
@@ -31,6 +34,7 @@ export const sendMail = async (to, subject, html) => {
                 subject,
                 htmlContent: html,
             }),
+            signal: AbortSignal.timeout(MAIL_TIMEOUT_MS),
         });
 
         if (!response.ok) {
