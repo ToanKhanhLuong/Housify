@@ -12,6 +12,7 @@ import Input from '../../components/Input';
 import MoneyText from '../../components/MoneyText';
 import PageHeader from '../../components/PageHeader';
 import SkeletonRows from '../../components/SkeletonRows';
+import ConfirmModal from '../../components/ConfirmModal';
 import { CONTRACT_STATUS, TERMINATION_TYPE } from '../../constants/enums';
 import { toDateInput, formatDate } from '../../utils/format';
 import { hasErrors, toFieldErrors } from '../../utils/formErrors';
@@ -52,6 +53,7 @@ const TerminationCreatePage = () => {
   const [contractState, setContractState] = useState({ status: contractId ? 'loading' : 'missing', contract: null, error: '' });
   const [form, setForm] = useState(() => ({ ...EMPTY_FORM, effectiveDate: toDateInput(new Date()) }));
   const [errors, setErrors] = useState({});
+  const [confirming, setConfirming] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -70,12 +72,15 @@ const TerminationCreatePage = () => {
     setErrors((prev) => ({ ...prev, [event.target.name]: undefined }));
   };
 
-  const handleSubmit = async (event) => {
+  const handleSubmit = (event) => {
     event.preventDefault();
     const clientErrors = validateCreateTermination(form, contract);
     setErrors(clientErrors);
     if (hasErrors(clientErrors)) return;
+    setConfirming(true);
+  };
 
+  const handleConfirmSubmit = async () => {
     const note = form.note.trim();
     setSubmitting(true);
     try {
@@ -85,10 +90,12 @@ const TerminationCreatePage = () => {
         effectiveDate: form.effectiveDate,
         ...(note && { note }),
       });
+      setConfirming(false);
       if (response.data?.warning) toast.warning(response.data.warning);
       else toast.success(response.message || 'Đã gửi đơn chấm dứt hợp đồng');
       navigate(`/terminations/${response.data?._id}`, { replace: true });
     } catch (error) {
+      setConfirming(false);
       setErrors(toFieldErrors(error.errors)); // 422: lỗi hiện dưới từng ô
       if (!error.errors) toast.error(error.message); // vd "Hợp đồng đã có đơn chấm dứt đang xử lý"
       setSubmitting(false);
@@ -284,6 +291,22 @@ const TerminationCreatePage = () => {
           </div>
         </Card>
       </Form>
+
+      <ConfirmModal
+        show={confirming}
+        title={isMutual ? 'Xác nhận gửi đơn chấm dứt thỏa thuận' : 'Xác nhận gửi đơn chấm dứt đơn phương'}
+        message={
+          isMutual
+            ? `Bạn có chắc chắn muốn gửi đơn chấm dứt thỏa thuận cho phòng ${roomNumber}? Đơn sẽ được gửi tới người đại diện để xác nhận điện tử.`
+            : `Bạn có chắc chắn muốn gửi đơn chấm dứt đơn phương cho phòng ${roomNumber}? Đơn sẽ được chuyển tới Admin để xem xét phê duyệt.`
+        }
+        confirmText="Đồng ý gửi"
+        cancelText="Xem lại"
+        variant={isMutual ? 'primary' : 'danger'}
+        loading={submitting}
+        onConfirm={handleConfirmSubmit}
+        onCancel={() => setConfirming(false)}
+      />
     </>
   );
 };

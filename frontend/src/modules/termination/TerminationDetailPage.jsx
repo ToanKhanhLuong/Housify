@@ -214,13 +214,13 @@ const TerminationDetailPage = () => {
             <h2 className="h6 fw-bold mb-1">Hợp đồng</h2>
             <div className="grid lg:grid-cols-2 column-gap-5">
               <div>
-                <FieldRow label="Thời hạn">
+                <FieldRow label="Thời hạn" required>
                   {contract ? `${formatDate(contract.startDate)} – ${formatDate(contract.endDate)}` : '—'}
                 </FieldRow>
-                <FieldRow label="Giá thuê">
+                <FieldRow label="Giá thuê" required>
                   <MoneyText value={contract?.rentPrice} /> / tháng
                 </FieldRow>
-                <FieldRow label="Tiền cọc">
+                <FieldRow label="Tiền cọc" required>
                   <MoneyText value={contract?.deposit} />
                 </FieldRow>
                 {role !== ROLE.CUSTOMER && contract?._id && (
@@ -230,10 +230,10 @@ const TerminationDetailPage = () => {
                 )}
               </div>
               <div>
-                <FieldRow label="Người đại diện">{representative?.name ?? '—'}</FieldRow>
-                <FieldRow label="Số CCCD">{representative?.cccd ?? '—'}</FieldRow>
-                <FieldRow label="Số điện thoại">{representative?.phone ?? '—'}</FieldRow>
-                <FieldRow label="Email">{representative?.email ?? contract?.representativeEmail ?? '—'}</FieldRow>
+                <FieldRow label="Người đại diện" required>{representative?.name ?? '—'}</FieldRow>
+                <FieldRow label="Số CCCD" required>{representative?.cccd ?? '—'}</FieldRow>
+                <FieldRow label="Số điện thoại" required>{representative?.phone ?? '—'}</FieldRow>
+                <FieldRow label="Email" required>{representative?.email ?? contract?.representativeEmail ?? '—'}</FieldRow>
               </div>
             </div>
           </section>
