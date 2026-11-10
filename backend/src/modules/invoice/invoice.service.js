@@ -111,16 +111,28 @@ const getInvoiceForManager = async (id, user, forbiddenMessage) => {
   return invoice;
 };
 
-// Hóa đơn DRAFT/PENDING cùng kỳ của hợp đồng (nếu có)
-const findOpenInvoiceInMonth = (contractId, month) =>
+// Hóa đơn chưa hủy cùng kỳ của hợp đồng (DRAFT, PENDING, PAID) - chặn trùng kỳ
+const findExistingInvoiceInMonth = (contractId, month) =>
   Invoice.findOne({
     contractId,
     month,
-    status: { $in: [INVOICE_STATUS.DRAFT, INVOICE_STATUS.PENDING] },
+    status: { $ne: INVOICE_STATUS.CANCELLED },
   });
 
-const statusLabel = (status) =>
-  status === INVOICE_STATUS.DRAFT ? "Nháp" : "Chờ thanh toán";
+const statusLabel = (status) => {
+  switch (status) {
+    case INVOICE_STATUS.DRAFT:
+      return "Nháp";
+    case INVOICE_STATUS.PENDING:
+      return "Chờ thanh toán";
+    case INVOICE_STATUS.PAID:
+      return "Đã thanh toán";
+    case INVOICE_STATUS.CANCELLED:
+      return "Đã hủy";
+    default:
+      return status;
+  }
+};
 
 /**
  * Quá hạn / nộp muộn là giá trị tính ra khi trả về, không lưu DB (UC-36)
@@ -458,10 +470,10 @@ export const getPrefill = async (query, user) => {
     fillNewReading: false,
   });
 
-  const existingInvoice = await findOpenInvoiceInMonth(contractId, month);
+  const existingInvoice = await findExistingInvoiceInMonth(contractId, month);
   if (existingInvoice) {
     warnings.unshift(
-      `Phòng này đã có hóa đơn [${statusLabel(existingInvoice.status)}] trong tháng ${month}. Bạn có thể chỉnh sửa hóa đơn cũ hoặc chọn tiếp tục tạo thêm.`,
+      `Phòng này đã có hóa đơn [${statusLabel(existingInvoice.status)}] trong tháng ${month}. Vui lòng mở hóa đơn đã có để chỉnh sửa hoặc hủy hóa đơn cũ nếu muốn tạo mới.`,
     );
   }
 
@@ -475,6 +487,8 @@ export const getPrefill = async (query, user) => {
     month,
     hasExistingInvoice: Boolean(existingInvoice),
     existingInvoiceId: existingInvoice ? existingInvoice._id : null,
+    existingInvoiceStatus: existingInvoice ? existingInvoice.status : null,
+    existingInvoiceCode: existingInvoice ? existingInvoice.invoiceCode : null,
     items,
     warnings,
   };
@@ -485,15 +499,15 @@ export const getPrefill = async (query, user) => {
  * POST /api/invoices
  */
 export const createInvoice = async (data, user) => {
-  const { contractId, month, items, confirmDuplicate } = data;
+  const { contractId, month, items } = data;
   const contract = await getActiveContractForManager(contractId, user);
 
-  // Đã có hóa đơn DRAFT/PENDING cùng kỳ → hỏi Manager có tạo thêm không
-  const existing = await findOpenInvoiceInMonth(contractId, month);
-  if (existing && !confirmDuplicate) {
+  // Chặn trùng kỳ tuyệt đối: mỗi phòng trong một tháng chỉ có 1 hóa đơn hiệu lực (Nháp / Chờ thanh toán / Đã thanh toán)
+  const existing = await findExistingInvoiceInMonth(contractId, month);
+  if (existing) {
     throw new AppError(
-      `Phòng này đã có hóa đơn [${statusLabel(existing.status)}] trong tháng ${month}. Bạn có chắc chắn muốn tạo thêm hóa đơn mới không?`,
-      409,
+      `Phòng này đã có hóa đơn [${statusLabel(existing.status)}] trong tháng ${month}. Vui lòng mở hóa đơn đã có để chỉnh sửa hoặc hủy hóa đơn cũ nếu muốn tạo mới.`,
+      400,
     );
   }
 
@@ -544,8 +558,8 @@ export const createBulkInvoices = async (data, user) => {
         continue;
       }
 
-      // Không tạo trùng kỳ khi lập hàng loạt – Manager tạo thêm từng phòng nếu thật sự cần
-      const existing = await findOpenInvoiceInMonth(contractId, month);
+      // Không tạo trùng kỳ khi lập hàng loạt
+      const existing = await findExistingInvoiceInMonth(contractId, month);
       if (existing) {
         errors.push({
           contractId,

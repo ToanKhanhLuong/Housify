@@ -356,21 +356,21 @@ const InvoiceDetailPage = () => {
 
         <div className="grid lg:grid-cols-2 column-gap-5">
           <div>
-            <FieldRow label="Phòng">
+            <FieldRow label="Phòng" required>
               {room ? `Phòng ${room.roomNumber} · Tầng ${room.floorNumber}` : '—'}
             </FieldRow>
-            {building?.name && <FieldRow label="Tòa nhà">{building.name}</FieldRow>}
+            {building?.name && <FieldRow label="Tòa nhà" required>{building.name}</FieldRow>}
             {isManager && (
-              <FieldRow label="Gửi tới">{invoice.contractId?.representativeEmail}</FieldRow>
+              <FieldRow label="Gửi tới" required>{invoice.contractId?.representativeEmail}</FieldRow>
             )}
-            <FieldRow label="Kỳ hóa đơn">Tháng {monthLabel(invoice.month)}</FieldRow>
+            <FieldRow label="Kỳ hóa đơn" required>Tháng {monthLabel(invoice.month)}</FieldRow>
           </div>
           <div>
-            {isManager && <FieldRow label="Ngày lập">{formatDateTime(invoice.createdAt)}</FieldRow>}
-            <FieldRow label="Ngày gửi">
+            {isManager && <FieldRow label="Ngày lập" required>{formatDateTime(invoice.createdAt)}</FieldRow>}
+            <FieldRow label="Ngày gửi" required>
               {invoice.sentAt ? formatDateTime(invoice.sentAt) : 'Chưa gửi'}
             </FieldRow>
-            <FieldRow label="Hạn thanh toán">
+            <FieldRow label="Hạn thanh toán" required>
               {invoice.dueDate ? formatDate(invoice.dueDate) : '—'}
             </FieldRow>
             {isPaid && (
