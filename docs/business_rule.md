@@ -71,10 +71,10 @@ Ai bị ảnh hưởng thì phải được báo (chuông, kèm mail khi UC yêu
 
 1. **Dựng hệ thống** (Admin): tạo tòa, số tầng, phòng → loại phòng, dịch vụ → giá dịch vụ theo tòa → nội quy → tạo Manager (Manager tự kích hoạt qua link) → phân công Manager vào tòa.
 2. **Cho thuê** (Manager → Customer): chọn phòng AVAILABLE → tạo hợp đồng DRAFT, kèm người ở cùng nếu là hợp đồng nhóm → hệ thống gửi link mời 24h → khách mở link, điền thông tin, đặt mật khẩu, tích đồng ý → 1 transaction: tạo hoặc mở lại tài khoản, tạo cư dân đại diện, hợp đồng ACTIVE, phòng OCCUPIED. Khách không kích hoạt thì Manager gửi lại link hoặc hủy hợp đồng nháp.
-3. **Trong thời gian thuê** (lặp hằng tháng): Manager lập hóa đơn DRAFT → gửi (PENDING, sinh QR, hạn = lúc gửi + 7 ngày) → khách quét QR → SePay webhook → PAID, báo Customer + Manager + Admin. Song song: thêm / bớt người ở cùng, sửa và gia hạn hợp đồng, báo và xử lý sự cố, Manager gửi thông báo.
+3. **Trong thời gian thuê** (lặp hằng tháng): Manager lập hóa đơn DRAFT → gửi (PENDING, sinh QR, hạn = lúc gửi + 7 ngày) → khách quét QR → SePay webhook → PAID, báo Customer + Manager + Admin. Quá hạn thanh toán: hệ thống tự động nhắc nhở mỗi ngày qua chuông và email (`paymentReminder`). Nếu khách quá hạn kéo dài (thường từ 5-7 ngày) không đóng tiền dù đã nhắc nhở, Manager có quyền lập đơn chấm dứt đơn phương (`UNILATERAL`) do vi phạm thanh toán để trình Admin phê duyệt. Song song: thêm / bớt người ở cùng, sửa và gia hạn hợp đồng, báo và xử lý sự cố, Manager gửi thông báo.
 4. **Kết thúc** – 1 trong 3 đường, đường nào cũng kết thúc bằng 1 transaction: hợp đồng ENDED, phòng AVAILABLE, cư dân LEFT.
    - **MUTUAL**: Manager lập đơn → Customer xác nhận (hoặc tự xác nhận sau 7 ngày) → đến ngày hiệu lực thì ENDED → 24h sau tài khoản INACTIVE. **Mất cọc.**
-   - **UNILATERAL**: Manager lập đơn → Admin duyệt → đến ngày hiệu lực thì ENDED → 24h sau tài khoản LOCKED. **Mất cọc.**
+   - **UNILATERAL** (Đơn phương / "Xử trảm" do vi phạm như nợ tiền nhà, vi phạm nội quy nặng): Manager lập đơn kèm lý do vi phạm → Admin duyệt → đến ngày hiệu lực thì ENDED → **Mất toàn bộ tiền cọc** → 24h sau tài khoản đại diện chuyển **LOCKED** (bị khóa vĩnh viễn, đưa vào danh sách đen, không bao giờ được tạo hợp đồng mới trên Housify).
    - **Hết hạn**: không có đơn CONFIRMED, cuối ngày `endDate` thì ENDED → 24h sau tài khoản INACTIVE → Manager ghi nhận hoàn cọc (1 lần, bắt buộc gửi email).
 5. **Thuê lại**: khách INACTIVE quay lại → Manager tạo hợp đồng mới bằng CCCD cũ → lúc kích hoạt mở lại chính tài khoản cũ. Khách LOCKED bị chặn từ bước tạo hợp đồng.
 
@@ -86,6 +86,6 @@ Ai bị ảnh hưởng thì phải được báo (chuông, kèm mail khi UC yêu
 | `terminationEffective` | Đơn CONFIRMED đã đến `effectiveDate` → kết thúc hợp đồng                                                | UC-28, 29     | termination |
 | `contractExpiry`       | Hợp đồng ACTIVE hết `endDate`, không có đơn CONFIRMED → kết thúc hợp đồng, báo đại diện + Manager | UC-45         | contract    |
 | `accountAfterEnd`      | Hợp đồng ENDED quá 24h → tài khoản đại diện INACTIVE (MUTUAL, hết hạn) hoặc LOCKED (UNILATERAL)          | UC-28, 29, 45 | contract    |
-| `paymentReminder`      | Hóa đơn PENDING: nhắc trước hạn 3 ngày, 1 ngày, đúng ngày hạn, sau đó mỗi 3 ngày                     | UC-49         | invoice     |
+| `paymentReminder`      | Hóa đơn PENDING: nhắc trước hạn 3 ngày, 1 ngày, đúng ngày hạn, sau đó mỗi ngày 1 lần                     | UC-49         | invoice     |
 
 Test không cần đợi: `POST /api/dev/jobs/:name/run`. Job lỗi giữa chừng thì lần quét sau chạy lại, nên mọi job phải **chạy lại nhiều lần vẫn không sinh trùng**: kiểm trạng thái trước khi đổi, kiểm đã nhắc mốc đó chưa trước khi gửi.

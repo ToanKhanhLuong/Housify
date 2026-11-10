@@ -6,6 +6,7 @@ import Building from "../../models/Building.js";
 import Service from "../../models/Service.js";
 import ServicePrice from "../../models/ServicePrice.js";
 import Occupant from "../../models/Occupant.js";
+import User from "../../models/User.js";
 import { getCurrentPrice } from "../../helpers/getCurrentPrice.js";
 import { notify } from "../../helpers/notify.js";
 import { sendMail } from "../../config/mail.js";
@@ -420,6 +421,7 @@ const deliverInvoiceNotice = async ({
   const prefix = isReminder ? "[Nhắc lại] " : "";
   let delivered = true;
 
+  let repUserId = null;
   try {
     const representative = await Occupant.findOne({
       contractId: contract._id,
@@ -428,6 +430,7 @@ const deliverInvoiceNotice = async ({
     if (!representative?.userId) {
       delivered = false;
     } else {
+      repUserId = representative.userId;
       await notify({
         userIds: [representative.userId],
         type: NOTIFICATION_TYPE.INVOICE_SENT,
@@ -442,11 +445,21 @@ const deliverInvoiceNotice = async ({
     delivered = false;
   }
 
-  if (!contract.representativeEmail) {
+  let recipientEmail = contract.representativeEmail;
+  if (repUserId) {
+    try {
+      const repUser = await User.findById(repUserId).select("email").lean();
+      if (repUser?.email) recipientEmail = repUser.email;
+    } catch {
+      // fallback
+    }
+  }
+
+  if (!recipientEmail) {
     delivered = false;
   } else {
     const mailSent = await sendMail(
-      contract.representativeEmail,
+      recipientEmail,
       `[Housify] ${prefix}Hóa đơn ${invoice.invoiceCode} tháng ${invoice.month}`,
       buildInvoiceMail(invoice, isReminder),
     );

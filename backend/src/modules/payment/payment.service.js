@@ -198,7 +198,11 @@ export const processSepayWebhook = async (payload) => {
   }
 
   // 8. Gửi email xác nhận thanh toán cho Customer (UC-42)
-  const customerEmail = invoice.contractId?.representativeEmail;
+  let customerEmail = invoice.contractId?.representativeEmail;
+  if (representative?.userId) {
+    const repUser = await User.findById(representative.userId).select('email').lean();
+    if (repUser?.email) customerEmail = repUser.email;
+  }
   if (customerEmail) {
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
@@ -240,7 +244,7 @@ export const processSepayWebhook = async (payload) => {
  * GET /api/payments?from=&to=&page=&limit=
  */
 export const getPayments = async (query, user) => {
-  const { from, to, page = 1, limit = 10 } = query;
+  const { from, to, roomId, page = 1, limit = 10 } = query;
   const userRole = user.role ?? user.roleId;
   const emptyResult = {
     items: [],
@@ -272,9 +276,10 @@ export const getPayments = async (query, user) => {
     if (!managerBuilding) {
       return emptyResult;
     }
-    const rooms = await Room.find({ buildingId: managerBuilding._id }).select(
-      "_id",
-    );
+    // Lọc theo 1 phòng (roomId) – chỉ trong tòa mình, phòng tòa khác trả rỗng
+    const roomFilter = { buildingId: managerBuilding._id };
+    if (roomId) roomFilter._id = roomId;
+    const rooms = await Room.find(roomFilter).select("_id");
     const contracts = await Contract.find({
       roomId: { $in: rooms.map((r) => r._id) },
     }).select("_id");

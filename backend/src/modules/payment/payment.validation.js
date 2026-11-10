@@ -25,8 +25,12 @@ export const sepayWebhookSchema = Joi.object({
   description: Joi.string().allow("", null).optional(),
 }).unknown(true); // Cho phép các field phụ khác của SePay mà không báo lỗi
 
-// 2. Schema lọc lịch sử thanh toán (UC-39): ?from=&to=&page=&limit=
+// 2. Schema lọc lịch sử thanh toán (UC-39): ?from=&to=&roomId=&page=&limit= (roomId chỉ Manager dùng)
 export const paymentHistoryQuerySchema = Joi.object({
+  roomId: Joi.string().hex().length(24).optional().messages({
+    "string.hex": "Mã phòng (roomId) không hợp lệ",
+    "string.length": "Mã phòng (roomId) không hợp lệ",
+  }),
   from: Joi.date().iso().optional().messages({
     "date.format": "Ngày bắt đầu (from) phải có định dạng YYYY-MM-DD",
   }),

@@ -33,6 +33,7 @@ import SendInvoiceModal from './components/SendInvoiceModal';
 // Customer không thấy nháp nên thanh trạng thái bắt đầu từ Chờ thanh toán. Đã hủy tự hiện ở cuối (StatusSteps)
 const MANAGER_STEPS = [INVOICE_STATUS.DRAFT, INVOICE_STATUS.PENDING, INVOICE_STATUS.PAID];
 const CUSTOMER_STEPS = [INVOICE_STATUS.PENDING, INVOICE_STATUS.PAID];
+const PAYMENT_POLL_MS = 5000; // chu kỳ hỏi lại trạng thái khi hóa đơn đang Chờ thanh toán
 
 // ô "Đã thanh toán": nền xanh lá nhạt, dấu ✓ lớn chìm sau chữ (cùng kiểu ô xác nhận điện tử của hợp đồng)
 // children: dòng mã giao dịch + link "Xem biên lai" (UC-36 bước 3)
@@ -118,6 +119,33 @@ const InvoiceDetailPage = () => {
   useEffect(() => {
     loadInvoice();
   }, [loadInvoice]);
+
+  // Đang Chờ thanh toán: cứ 5 giây hỏi lại trạng thái (chỉ khi tab đang mở) để SePay báo tiền về là trang tự
+  // chuyển sang "Đã thanh toán", không cần F5. Không dùng socket cho gọn (AGENTS.md)
+  const currentStatus = state.invoice?.status;
+  useEffect(() => {
+    if (currentStatus !== INVOICE_STATUS.PENDING || editing) return undefined;
+    const checkStatus = () => {
+      if (document.hidden) return;
+      invoiceApi
+        .detail(id)
+        .then((response) => {
+          const latest = response.data;
+          if (latest?.status === INVOICE_STATUS.PENDING) return;
+          setState({ status: 'ok', invoice: latest, error: '' });
+          if (latest?.status === INVOICE_STATUS.PAID) {
+            toast.success(`Hóa đơn ${latest.invoiceCode} đã được thanh toán`);
+          }
+        })
+        .catch(() => {}); // lỗi mạng tạm thời: lần sau hỏi lại
+    };
+    const timer = setInterval(checkStatus, PAYMENT_POLL_MS);
+    document.addEventListener('visibilitychange', checkStatus);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', checkStatus);
+    };
+  }, [currentStatus, editing, id]);
 
   const handleRetry = () => {
     setState({ status: 'loading', invoice: null, error: '' });

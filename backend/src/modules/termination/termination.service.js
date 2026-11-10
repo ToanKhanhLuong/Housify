@@ -130,6 +130,20 @@ const endContractByTerminationInSession = async ({ contractId, effectiveDate, se
 
 // ===== Email Helpers =====
 
+// Ưu tiên email tài khoản Customer hiện tại, nếu không có mới dùng snapshot contract.representativeEmail
+const getRepresentativeRecipientEmail = async (contractId, fallbackEmail) => {
+    if (!contractId) return fallbackEmail;
+    const repOccupant = await Occupant.findOne({
+        contractId,
+        isRepresentative: true,
+    }).select('userId').lean();
+    if (repOccupant?.userId) {
+        const user = await User.findById(repOccupant.userId).select('email').lean();
+        if (user?.email) return user.email;
+    }
+    return fallbackEmail;
+};
+
 const sendMutualRequestEmail = (to, roomNumber, buildingName, effectiveDate, reason, note) => sendMail(
     to,
     `[Housify] Yêu cầu xác nhận chấm dứt hợp đồng phòng ${roomNumber} - ${buildingName}`,
@@ -360,8 +374,9 @@ export const createTermination = async ({ managerId, contractId, data }) => {
 
     let warning;
     if (type === TERMINATION_TYPE.MUTUAL) {
+        const recipientEmail = await getRepresentativeRecipientEmail(contract._id, contract.representativeEmail);
         const mailSent = await sendMutualRequestEmail(
-            contract.representativeEmail,
+            recipientEmail,
             room.roomNumber,
             building.name,
             effectiveDate,
@@ -685,8 +700,9 @@ export const confirmTermination = async ({ customerId, terminationId, clientIp }
         );
     });
 
+    const recipientEmail = await getRepresentativeRecipientEmail(contract._id, contract.representativeEmail);
     const mailSent = await sendMutualConfirmedEmail(
-        contract.representativeEmail,
+        recipientEmail,
         room?.roomNumber || '',
         building?.name || '',
         termination.effectiveDate,
@@ -782,8 +798,9 @@ export const approveTermination = async ({ adminId, terminationId }) => {
         }
     });
 
+    const recipientEmail = await getRepresentativeRecipientEmail(contract._id, contract.representativeEmail);
     const mailSent = await sendUnilateralApprovedEmail(
-        contract.representativeEmail,
+        recipientEmail,
         room?.roomNumber || '',
         building?.name || '',
         termination.effectiveDate,
@@ -985,8 +1002,9 @@ export const runTerminationReminderJob = async (now = new Date()) => {
 
             if (didAutoConfirm) {
                 autoConfirmedIds.push(termination._id);
+                const recipientEmail = await getRepresentativeRecipientEmail(contract._id, contract.representativeEmail);
                 await sendMutualConfirmedEmail(
-                    contract.representativeEmail,
+                    recipientEmail,
                     room?.roomNumber || '',
                     building?.name || '',
                     termination.effectiveDate,
@@ -1025,8 +1043,9 @@ export const runTerminationReminderJob = async (now = new Date()) => {
                 refId: termination._id,
             });
 
+            const recipientEmail = await getRepresentativeRecipientEmail(contract._id, contract.representativeEmail);
             await sendReminderEmail(
-                contract.representativeEmail,
+                recipientEmail,
                 room?.roomNumber || '',
                 building?.name || '',
                 termination.effectiveDate,

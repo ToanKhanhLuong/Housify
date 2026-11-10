@@ -127,7 +127,7 @@ Khách quét QR ──▶ App ngân hàng chuyển khoản ──▶ Tài khoả
 | Trước hạn 3 ngày | Hạn − 3 ngày                                                    |
 | Trước hạn 1 ngày | Hạn − 1 ngày                                                    |
 | Đúng hạn          | Ngày hết hạn                                                    |
-| Sau hạn             | **Cứ mỗi 3 ngày** một lần, cho tới khi trả hoặc hủy |
+| Sau hạn             | **Mỗi ngày 1 lần**, cho tới khi thanh toán, hủy hoặc bị xử lý chấm dứt đơn phương |
 
 **Các trường hợp**
 

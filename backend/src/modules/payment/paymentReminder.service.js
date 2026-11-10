@@ -8,6 +8,7 @@ import Contract from '../../models/Contract.js';
 import Invoice from '../../models/Invoice.js';
 import Notification from '../../models/Notification.js';
 import Occupant from '../../models/Occupant.js';
+import User from '../../models/User.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -17,7 +18,7 @@ const daysFromDue = (dueDate, now) =>
 
 /**
  * Mốc gần nhất đã tới, tính theo số ngày so với hạn (null nếu chưa tới mốc đầu tiên).
- * Trước và đúng hạn: theo PAYMENT_REMINDER_BEFORE_DAYS. Quá hạn: cứ PAYMENT_REMINDER_OVERDUE_EVERY ngày một mốc.
+ * Trước và đúng hạn: theo PAYMENT_REMINDER_BEFORE_DAYS. Quá hạn: cứ PAYMENT_REMINDER_OVERDUE_EVERY ngày một mốc (mặc định 1 ngày/lần).
  */
 export const latestMilestone = (days) => {
     const every = env.PAYMENT_REMINDER_OVERDUE_EVERY;
@@ -92,9 +93,11 @@ export const runPaymentReminderJob = async (now = new Date()) => {
         });
 
         const contract = await Contract.findById(invoice.contractId).select('representativeEmail').lean();
-        const sent = contract?.representativeEmail
+        const repUser = await User.findById(representative.userId).select('email').lean();
+        const recipientEmail = repUser?.email || contract?.representativeEmail;
+        const sent = recipientEmail
             ? await sendMail(
-                contract.representativeEmail,
+                recipientEmail,
                 `[Housify] Nhắc thanh toán hóa đơn ${invoice.invoiceCode}`,
                 reminderEmailHtml(invoice, label),
             )

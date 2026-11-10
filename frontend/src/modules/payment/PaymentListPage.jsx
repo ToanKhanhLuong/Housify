@@ -1,9 +1,9 @@
 // UC-39: lịch sử thanh toán. Manager (/payments) xem biên lai cả tòa mình; Customer (/my-payments) xem phòng mình
 // Payment = biên lai đã chuyển tiền (như ảnh chụp chuyển khoản), khác hóa đơn = khoản phải trả. Mỗi thẻ là 1 giao dịch
 // SePay đã khớp hóa đơn (hóa đơn chờ / đã hủy xem ở trang Hóa đơn). Mặc định xem dạng biên lai, đổi được sang Bảng
-// ControlBar (lọc khoảng ngày trả), Pager. Bấm một biên lai → popup "Biên lai thanh toán"
-// Ô tìm: gõ "11/2026" (cả tháng) hoặc "3/11/2026" (1 ngày) – API không có ?q nên FE đổi sang from / to
-import { useEffect, useState } from 'react';
+// ControlBar (lọc khoảng ngày trả, Manager lọc thêm theo phòng), Pager. Bấm một biên lai → popup "Biên lai thanh toán"
+// Ô tìm: gõ "11/2026" (cả tháng), "3/11/2026" (1 ngày) hoặc mã phòng "201" (Manager) – API không có ?q nên FE đổi sang from / to / roomId
+import { useEffect, useMemo, useState } from 'react';
 import { Button, Card } from 'react-bootstrap';
 import { BiReset } from 'react-icons/bi';
 import ControlBar from '../../components/ControlBar';
@@ -24,17 +24,16 @@ import PaymentDetailModal from './components/PaymentDetailModal';
 import ReceiptCard from './components/ReceiptCard';
 
 const LIMIT = 12; // 12 thẻ = 3 hàng × 4 cột
-const EMPTY_FILTERS = { from: '', to: '' };
+const EMPTY_FILTERS = { from: '', to: '', roomId: '' };
 // lọc theo ngày trả tiền (paidAt): 2 ô ngày "Từ – Đến" trong Bộ lọc (kiểu 'dateRange' của ControlBar)
-const FILTER_GROUPS = [
-  { id: 'paidAt', label: 'Ngày trả', type: 'dateRange', minField: 'from', maxField: 'to' },
-];
+const DATE_FILTER = { id: 'paidAt', label: 'Ngày trả', type: 'dateRange', minField: 'from', maxField: 'to' };
 
 const PaymentListPage = () => {
   const { user } = useAuth();
   const isManager = user.role === ROLE.MANAGER;
   const invoiceBasePath = isManager ? '/invoices' : '/my-invoices';
   const basePath = isManager ? '/payments' : '/my-payments';
+  const buildingId = user.building?._id;
 
   const [data, setData] = useState({ items: [], total: 0, page: 1, limit: LIMIT });
   const [loading, setLoading] = useState(true); // lần tải đầu (và Thử lại): khung xương
@@ -46,13 +45,53 @@ const PaymentListPage = () => {
   const [view, setView] = useSavedState(`${basePath}:view`, 'cards'); // mặc định xem dạng biên lai
   const [reloadKey, setReloadKey] = useState(0);
   const [selected, setSelected] = useState(null); // giao dịch đang mở popup
+  const [rooms, setRooms] = useSavedState(`${basePath}:rooms:${buildingId ?? ''}`, []); // phòng của tòa (Manager)
 
-  // ô tìm (tháng / ngày) được ưu tiên hơn khoảng ngày trong Bộ lọc. Gõ sai dạng thì không gọi API, hiện gợi ý
+  // Manager: tải phòng của tòa mình một lần để lọc theo phòng (API lọc theo roomId)
+  useEffect(() => {
+    if (!isManager || !buildingId) return;
+    paymentApi
+      .rooms(buildingId)
+      .then((response) => {
+        const list = Array.isArray(response.data) ? [...response.data] : [];
+        list.sort((a, b) =>
+          String(a.roomNumber).localeCompare(String(b.roomNumber), 'vi', { numeric: true }),
+        );
+        setRooms(list);
+      })
+      .catch(() => setRooms([]));
+  }, [isManager, buildingId, setRooms]);
+
+  // Manager có thêm nhóm "Phòng" (chọn 1) trong Bộ lọc
+  const filterGroups = useMemo(
+    () =>
+      isManager && rooms.length > 0
+        ? [
+            DATE_FILTER,
+            {
+              id: 'roomId',
+              label: 'Phòng',
+              type: 'radio',
+              maxVisible: 5,
+              options: rooms.map((room) => ({ value: room._id, label: `Phòng ${room.roomNumber}` })),
+            },
+          ]
+        : [DATE_FILTER],
+    [isManager, rooms],
+  );
+
+  // ô tìm: tháng / ngày → from, to; Manager gõ mã phòng → roomId. Ô tìm được ưu tiên hơn Bộ lọc.
+  // Gõ sai dạng thì không gọi API, hiện gợi ý
   const keyword = query.trim();
   const searchRange = keyword ? searchToRange(keyword) : null;
-  const noMatch = Boolean(keyword && !searchRange);
+  const matchedRoom =
+    isManager && keyword && !searchRange
+      ? rooms.find((room) => String(room.roomNumber) === keyword)
+      : null;
+  const noMatch = Boolean(keyword && !searchRange && !matchedRoom);
   const fromParam = searchRange?.from ?? filters.from;
   const toParam = searchRange?.to ?? filters.to;
+  const roomParam = matchedRoom?._id ?? (isManager ? filters.roomId || '' : '');
 
   // ignore: bỏ kết quả lần gọi cũ khi bộ lọc đã đổi tiếp (gõ / bấm nhanh)
   useEffect(() => {
@@ -61,6 +100,7 @@ const PaymentListPage = () => {
     const params = { page, limit: LIMIT };
     if (fromParam) params.from = fromParam;
     if (toParam) params.to = toParam;
+    if (roomParam) params.roomId = roomParam;
 
     paymentApi
       .list(params)
@@ -78,7 +118,7 @@ const PaymentListPage = () => {
     return () => {
       ignore = true;
     };
-  }, [page, fromParam, toParam, noMatch, reloadKey]);
+  }, [page, fromParam, toParam, roomParam, noMatch, reloadKey]);
 
   // đổi lọc / tìm thì về trang 1
   const handleSearchChange = (value) => {
@@ -91,7 +131,7 @@ const PaymentListPage = () => {
     let to = next.to || '';
     // chọn ngược (Từ sau Đến) thì đảo lại, BE báo lỗi nếu from > to
     if (from && to && from > to) [from, to] = [to, from];
-    setFilters({ from, to });
+    setFilters({ from, to, roomId: next.roomId || '' });
     setPage(1);
     setRefreshing(true);
   };
@@ -110,7 +150,7 @@ const PaymentListPage = () => {
     setReloadKey((key) => key + 1);
   };
 
-  const isFiltering = Boolean(keyword || filters.from || filters.to);
+  const isFiltering = Boolean(keyword || filters.from || filters.to || filters.roomId);
   const items = noMatch ? [] : data.items;
   const total = noMatch ? 0 : data.total;
 
@@ -163,8 +203,10 @@ const PaymentListPage = () => {
               <EmptyState
                 message={
                   noMatch
-                    ? 'Gõ tháng dạng 11/2026 hoặc ngày dạng 3/11/2026.'
-                    : 'Không có giao dịch nào trong khoảng thời gian này.'
+                    ? isManager
+                      ? 'Không có phòng này. Gõ mã phòng (vd 201), tháng dạng 11/2026 hoặc ngày dạng 3/11/2026.'
+                      : 'Gõ tháng dạng 11/2026 hoặc ngày dạng 3/11/2026.'
+                    : 'Không có giao dịch nào khớp bộ lọc.'
                 }
               >
                 <Button
@@ -209,8 +251,12 @@ const PaymentListPage = () => {
         <ControlBar
           searchValue={query}
           onSearchChange={handleSearchChange}
-          searchPlaceholder="Tìm theo tháng (vd 11/2026) hoặc ngày trả (vd 3/11/2026)..."
-          filterGroups={FILTER_GROUPS}
+          searchPlaceholder={
+            isManager
+              ? 'Tìm theo phòng (vd 201), tháng (vd 11/2026) hoặc ngày trả (vd 3/11/2026)...'
+              : 'Tìm theo tháng (vd 11/2026) hoặc ngày trả (vd 3/11/2026)...'
+          }
+          filterGroups={filterGroups}
           selectedFilters={filters}
           onFilterChange={handleFilterChange}
           count={loading || loadError ? null : `${total} biên lai`}

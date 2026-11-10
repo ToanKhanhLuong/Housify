@@ -35,9 +35,9 @@ export const env = Object.freeze({
   BANK_ACCOUNT_NO: process.env.BANK_ACCOUNT_NO || '',
   BANK_ACCOUNT_NAME: process.env.BANK_ACCOUNT_NAME || '',
 
-  // UC-49: mốc nhắc thanh toán. BEFORE_DAYS: số ngày trước hạn cần nhắc (0 = đúng ngày hạn); OVERDUE_EVERY: quá hạn cứ mấy ngày nhắc 1 lần
+  // UC-49: mốc nhắc thanh toán. BEFORE_DAYS: số ngày trước hạn cần nhắc (0 = đúng ngày hạn); OVERDUE_EVERY: quá hạn cứ mấy ngày nhắc 1 lần (mặc định 1 = mỗi ngày 1 lần)
   PAYMENT_REMINDER_BEFORE_DAYS: (process.env.PAYMENT_REMINDER_BEFORE_DAYS || '3,1,0').split(',').map(Number),
-  PAYMENT_REMINDER_OVERDUE_EVERY: Number(process.env.PAYMENT_REMINDER_OVERDUE_EVERY) || 3,
+  PAYMENT_REMINDER_OVERDUE_EVERY: Number(process.env.PAYMENT_REMINDER_OVERDUE_EVERY) || 1,
 
   ADMIN_EMAIL: process.env.ADMIN_EMAIL || '',
   ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || '',

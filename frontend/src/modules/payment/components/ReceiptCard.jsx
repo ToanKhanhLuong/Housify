@@ -21,8 +21,20 @@ const ReceiptCard = ({ payment, showRoom, onClick }) => {
       tabIndex={0}
       onClick={onClick}
       onKeyDown={(event) => (event.key === 'Enter' || event.key === ' ') && onClick()}
-      className="hf-tcard p-0 overflow-hidden flex flex-col"
+      className="hf-tcard p-0 overflow-hidden flex flex-col relative"
     >
+      {/* Manager: số phòng to đậm ở góc trái trên để nhìn nhanh biên lai của phòng nào */}
+      {showRoom && (
+        <div className="absolute top-2 left-3 flex flex-col leading-none text-start">
+          <span className="text-secondary" style={{ fontSize: '0.7rem' }}>
+            Phòng
+          </span>
+          <span className="fs-4 fw-bold text-primary tabular-nums">
+            {invoice?.roomNumber || '—'}
+          </span>
+        </div>
+      )}
+
       {/* đầu biên lai: đã nhận tiền + số tiền */}
       <div className="flex flex-col items-center gap-1 px-3 pt-3 pb-2 text-center">
         <span className="flex items-center gap-1 small fw-semibold text-success-emphasis">
