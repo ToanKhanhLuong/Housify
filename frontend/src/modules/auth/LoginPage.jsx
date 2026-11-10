@@ -86,7 +86,7 @@ const LoginPage = () => {
               className="text-nowrap"
               id="remember"
               name="remember"
-              label="Ghi nhớ đăng nhập (7 ngày)"
+              label="Ghi nhớ đăng nhập"
               checked={form.remember}
               onChange={handleChange}
             />
