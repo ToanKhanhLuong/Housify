@@ -210,7 +210,8 @@ const HousifyAiWidget = () => {
         <button
           type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className="w-14 h-14 rounded-full bg-[#714b67] hover:bg-[#5a3851] text-white shadow-xl flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none cursor-pointer"
+          className="w-14 h-14 rounded-full bg-[#714b67] hover:bg-[#5a3851] text-white flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none cursor-pointer shadow-lg"
+          style={{ border: '3px solid #ffffff', outline: 'none' }}
           title="Trợ lý AI Housify"
         >
           {isOpen ? <BiX size={26} /> : <BsStars size={22} />}
@@ -232,6 +233,7 @@ const HousifyAiWidget = () => {
                 type="button"
                 onClick={handleResetChat}
                 className="flex items-center gap-1 text-xs text-slate-600 hover:text-slate-900 font-medium px-2 py-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                style={{ border: 'none', background: 'transparent' }}
                 title="Bắt đầu phiên trò chuyện mới"
               >
                 <BiRefresh size={16} />
@@ -241,6 +243,7 @@ const HousifyAiWidget = () => {
                 type="button"
                 onClick={() => setIsOpen(false)}
                 className="w-7 h-7 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
+                style={{ border: 'none', background: 'transparent' }}
                 title="Đóng"
               >
                 <BiX size={20} />
@@ -326,6 +329,7 @@ const HousifyAiWidget = () => {
                 type="submit"
                 disabled={!inputMessage.trim() || loading}
                 className="w-10 h-10 rounded-xl bg-[#714b67] hover:bg-[#5a3851] text-white flex items-center justify-center shrink-0 transition-all active:scale-95 disabled:opacity-40 disabled:pointer-events-none shadow-xs cursor-pointer"
+                style={{ border: 'none' }}
                 title="Gửi câu hỏi"
               >
                 <BiSend size={18} />
