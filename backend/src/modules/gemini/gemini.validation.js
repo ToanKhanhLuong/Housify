@@ -18,3 +18,4 @@ export const geminiChatSchema = Joi.object({
         .max(20)
         .default([]),
 });
+

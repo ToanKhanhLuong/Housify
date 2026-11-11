@@ -67,3 +67,4 @@ Khi gọi API, nếu gặp mã lỗi `429` (Rate limit / Too many requests), `50
   - `400`: Nội dung tin nhắn rỗng hoặc vượt quá 2000 ký tự.
   - `401`: Chưa đăng nhập hoặc token hết hạn.
   - `503`: Toàn bộ các model Gemini đều đang quá tải hoặc gặp sự cố.
+

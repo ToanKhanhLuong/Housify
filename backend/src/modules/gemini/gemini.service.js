@@ -394,3 +394,4 @@ export const chatWithGemini = async ({ user, message, history = [] }) => {
         roleId: user.roleId,
     };
 };
+

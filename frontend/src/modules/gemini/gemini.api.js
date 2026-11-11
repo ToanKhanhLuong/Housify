@@ -7,3 +7,4 @@ const geminiApi = {
 };
 
 export default geminiApi;
+
