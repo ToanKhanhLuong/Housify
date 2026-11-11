@@ -47,10 +47,14 @@ const formatDateVn = (date) => {
  * Ràng buộc an toàn: Chỉ đọc dữ liệu phòng, hợp đồng, hóa đơn và sự cố của CHÍNH KHÁCH NÀY.
  */
 const buildCustomerContext = async (user) => {
+    const userId = user._id || user.id;
+    // Tìm cư dân đại diện theo userId
     const occupant = await Occupant.findOne({
-        userId: user._id,
-        status: OCCUPANT_STATUS.STAYED,
-    }).lean();
+        userId,
+        $or: [{ status: OCCUPANT_STATUS.STAYED }, { isRepresentative: true }],
+    })
+        .sort({ createdAt: -1 })
+        .lean();
 
     if (!occupant) {
         return `Bạn là Housify AI Assistant.
@@ -139,8 +143,9 @@ RÀO CHẮN BẢO MẬT & QUY TẮC PHẢN HỒI:
  * Ràng buộc an toàn: Chỉ đọc dữ liệu trong TÒA NHÀ ĐƯỢC PHÂN CÔNG của Manager này.
  */
 const buildManagerContext = async (user) => {
+    const userId = user._id || user.id;
     const building = await Building.findOne({
-        managerId: user._id,
+        managerId: userId,
         isDeleted: false,
     }).lean();
 
@@ -357,14 +362,15 @@ const executeGeminiWithFallback = async ({ systemInstruction, contents }) => {
  * Xử lý yêu cầu trò chuyện AI
  */
 export const chatWithGemini = async ({ user, message, history = [] }) => {
-    // 1. Trích xuất ngữ cảnh nghiệp vụ phân quyền theo Role
+    // 1. Trích xuất ngữ cảnh nghiệp vụ phân quyền theo Role (user.role từ auth middleware hoặc user.roleId)
     let systemInstruction = '';
+    const userRole = Number(user?.role !== undefined ? user.role : user?.roleId);
 
-    if (user.roleId === ROLE.CUSTOMER) {
+    if (userRole === ROLE.CUSTOMER) {
         systemInstruction = await buildCustomerContext(user);
-    } else if (user.roleId === ROLE.MANAGER) {
+    } else if (userRole === ROLE.MANAGER) {
         systemInstruction = await buildManagerContext(user);
-    } else if (user.roleId === ROLE.ADMIN) {
+    } else if (userRole === ROLE.ADMIN) {
         systemInstruction = await buildAdminContext(user);
     } else {
         throw new AppError('Vai trò của bạn không được phép sử dụng tính năng này', 403);
@@ -391,6 +397,6 @@ export const chatWithGemini = async ({ user, message, history = [] }) => {
     return {
         reply,
         modelUsed,
-        roleId: user.roleId,
+        roleId: userRole,
     };
 };
