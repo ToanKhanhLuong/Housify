@@ -41,22 +41,20 @@ const longDate = (value) => {
 const monthsBetween = (start, end) =>
   Math.round((new Date(end) - new Date(start)) / (1000 * 60 * 60 * 24 * 30.44));
 
-// ô xác nhận điện tử: dấu ✓ lớn chìm phía sau chữ, không khung bao quanh
+// ô xác nhận điện tử: khung xanh nhạt bo góc, dấu ✓ lớn chìm mờ phía sau chữ
 const ConfirmationStamp = ({ name, activatedAt }) => {
   const time = new Date(activatedAt).toLocaleTimeString('vi-VN', {
     hour: '2-digit',
     minute: '2-digit',
   });
   return (
-    <div className="relative px-4 py-2 text-center min-w-[200px] [print-color-adjust:exact]">
+    <div className="relative overflow-hidden px-4 py-3 text-center min-w-[200px] rounded-3 border border-success border-opacity-50 bg-success bg-opacity-10 [print-color-adjust:exact]">
       <BiCheck
         aria-hidden="true"
-        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 size-28 text-success opacity-60 pointer-events-none"
+        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 size-28 text-success opacity-25 pointer-events-none"
       />
       <div className="relative flex flex-col gap-1">
-        <span className="small fw-semibold text-success">
-          Đã xác nhận điện tử
-        </span>
+        <span className="small fw-semibold text-success">Đã xác nhận điện tử bởi</span>
         <span className="fw-bold text-uppercase">{name}</span>
         <span className="small text-secondary">
           Lúc {time} · {formatDate(activatedAt)}
