@@ -76,16 +76,56 @@ const RefundDepositSection = ({ contractId }) => {
     }
 
     const { preview } = state;
+    const deposit = Number(preview.deposit || 0);
+    const debt = Number(preview.pendingInvoiceTotal || 0);
+    const deducted = Math.min(deposit, debt);
+    const netRefund = Math.max(0, deposit - debt);
+    const extraCollect = Math.max(0, debt - deposit);
+    const isDebtExceedingDeposit = debt > deposit;
+
     return (
       <>
-        <div className="flex flex-wrap items-baseline gap-2">
-          <span className="text-secondary">Tiền cọc cần trả lại khách:</span>
-          <span className="fs-4 fw-bold">
-            <MoneyText value={preview.deposit} />
-          </span>
+        {/* Bảng tính quyết toán tiền cọc & cấn trừ công nợ */}
+        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 flex flex-col gap-2 text-sm">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-secondary">Tiền đặt cọc gốc lúc ký:</span>
+            <span className="fw-semibold text-slate-800">
+              <MoneyText value={deposit} />
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-secondary">
+              Công nợ hóa đơn chưa thanh toán ({preview.pendingInvoiceCount || 0} hóa đơn):
+            </span>
+            <span className={`fw-semibold ${debt > 0 ? 'text-rose-600' : 'text-slate-600'}`}>
+              {debt > 0 ? <>- <MoneyText value={debt} /></> : '0 đ'}
+            </span>
+          </div>
+
+          <div className="border-t border-slate-200 pt-2 mt-0.5 flex flex-wrap items-center justify-between gap-2">
+            <span className="fw-bold text-slate-800">
+              {debt > 0 ? 'Số tiền thực hoàn trả khách (sau cấn trừ):' : 'Số tiền cọc hoàn trả khách:'}
+            </span>
+            <span className={`fs-5 fw-bold ${netRefund > 0 ? 'text-emerald-600' : 'text-slate-700'}`}>
+              <MoneyText value={netRefund} />
+            </span>
+          </div>
+
+          {isDebtExceedingDeposit && (
+            <div className="rounded-lg bg-rose-50 border border-rose-200 p-2.5 flex items-center justify-between gap-2 text-rose-700">
+              <span className="fw-bold text-xs">
+                ⚠️ Công nợ vượt quá tiền cọc! Cần thu thêm từ khách:
+              </span>
+              <span className="fs-6 fw-bold">
+                + <MoneyText value={extraCollect} />
+              </span>
+            </div>
+          )}
         </div>
+
         {preview.hasPendingInvoices && (
-          <Alert variant="warning" className="mb-0 small">
+          <Alert variant={isDebtExceedingDeposit ? 'danger' : 'warning'} className="mb-0 small">
             <div className="fw-semibold mb-1">{preview.warning}</div>
             <ul className="mb-0 ps-3">
               {preview.pendingInvoices.map((invoice) => (
@@ -95,12 +135,25 @@ const RefundDepositSection = ({ contractId }) => {
                 </li>
               ))}
             </ul>
-            <div className="mt-1">Vẫn hoàn cọc được; hãy thu các hóa đơn này với khách.</div>
+            <div className="mt-1">
+              {isDebtExceedingDeposit ? (
+                <>
+                  Đã khấu trừ toàn bộ <strong>{formatMoney(deducted)}</strong> tiền cọc nhưng vẫn còn thiếu{' '}
+                  <strong>{formatMoney(extraCollect)}</strong>. Vui lòng yêu cầu khách thanh toán thêm số tiền còn thiếu trước khi xác nhận!
+                </>
+              ) : (
+                <>
+                  Gợi ý khấu trừ <strong>{formatMoney(deducted)}</strong> vào tiền cọc và hoàn trả khách{' '}
+                  <strong>{formatMoney(netRefund)}</strong> (hoặc yêu cầu khách thanh toán hết hóa đơn để nhận đủ{' '}
+                  {formatMoney(deposit)}).
+                </>
+              )}
+            </div>
           </Alert>
         )}
         <Button variant="primary" className="self-start flex items-center gap-2" onClick={() => setShowConfirm(true)}>
           <BiWallet />
-          Hoàn cọc
+          Xác nhận hoàn cọc
         </Button>
       </>
     );
@@ -108,12 +161,27 @@ const RefundDepositSection = ({ contractId }) => {
 
   if (state.status === 'unavailable') return null;
 
+  const confirmMessage = (() => {
+    if (!state.preview) return '';
+    const deposit = Number(state.preview.deposit || 0);
+    const debt = Number(state.preview.pendingInvoiceTotal || 0);
+    const netRefund = Math.max(0, deposit - debt);
+    const extraCollect = Math.max(0, debt - deposit);
+    if (debt === 0) {
+      return `Xác nhận bạn đã trả lại khách ${formatMoney(deposit)} tiền cọc bằng tiền mặt. Mỗi hợp đồng chỉ hoàn một lần; hệ thống gửi thông báo và email cho người đại diện.`;
+    }
+    if (extraCollect > 0) {
+      return `Khách nợ ${formatMoney(debt)} (vượt tiền cọc ${formatMoney(deposit)}). Sau khi cấn trừ toàn bộ cọc (hoàn 0 đ), khách cần đóng thêm ${formatMoney(extraCollect)}. Xác nhận đã tất toán bàn giao cọc cho hợp đồng này?`;
+    }
+    return `Tiền cọc gốc ${formatMoney(deposit)}, khấu trừ nợ hóa đơn ${formatMoney(debt)} → Số tiền thực trả lại khách là ${formatMoney(netRefund)}. Xác nhận hoàn tất thủ tục hoàn cọc?`;
+  })();
+
   return (
     <Card className="print:hidden">
       <Card.Body className="flex flex-col gap-2">
         <h2 className="h6 fw-bold mb-0 flex items-center gap-2">
           <BiWallet className="text-secondary" />
-          Hoàn cọc
+          Quyết toán & Hoàn trả tiền đặt cọc
         </h2>
         {renderBody()}
       </Card.Body>
@@ -121,9 +189,9 @@ const RefundDepositSection = ({ contractId }) => {
       {showConfirm && state.preview && (
         <ConfirmModal
           show
-          title="Xác nhận đã hoàn cọc?"
-          message={`Xác nhận bạn đã trả lại khách ${formatMoney(state.preview.deposit)} tiền cọc bằng tiền mặt. Mỗi hợp đồng chỉ hoàn một lần; hệ thống gửi thông báo và email cho người đại diện.`}
-          confirmText="Đã hoàn cọc"
+          title="Xác nhận quyết toán & hoàn cọc?"
+          message={confirmMessage}
+          confirmText="Đã hoàn tất"
           cancelText="Đóng"
           loading={busy}
           onConfirm={handleRefund}

@@ -155,7 +155,7 @@ const loadScope = async (buildingId) => {
         .lean();
 
     const contracts = await Contract.find({ roomId: { $in: rooms.map((room) => room._id) } })
-        .select('_id roomId status endDate activatedAt representativeEmail createdBy createdAt')
+        .select('_id roomId status endDate activatedAt representativeEmail createdBy deposit depositRefundedAt createdAt')
         .lean();
 
     return {
@@ -644,7 +644,7 @@ export const getAdminDashboard = async ({ query = {} }) => {
         };
     });
 
-    const [monthlyRevenue, openIncidents, users, residents, movedIn, movedOut, extras] = await Promise.all([
+    const [monthlyRevenue, openIncidents, users, residents, movedIn, movedOut, totalLeft, extras] = await Promise.all([
         sumRevenue(scope.contractIds, start, end),
         countOpenIncidents(scope.roomIds),
         countUsers(scope, buildingId),
@@ -661,8 +661,27 @@ export const getAdminDashboard = async ({ query = {} }) => {
             status: OCCUPANT_STATUS.LEFT,
             exitDate: { $gte: start, $lte: end },
         }),
+        Occupant.countDocuments({
+            contractId: { $in: scope.contractIds },
+            status: OCCUPANT_STATUS.LEFT,
+        }),
         loadDashboardExtras(scope, Boolean(buildingId)),
     ]);
+
+    const endedUnrefunded = scope.contracts.filter(
+        (c) => c.status === CONTRACT_STATUS.ENDED && !c.depositRefundedAt,
+    );
+    const confirmedTermIds = endedUnrefunded.length > 0
+        ? await TerminationRequest.distinct('contractId', {
+              contractId: { $in: endedUnrefunded.map((c) => c._id) },
+              status: TERMINATION_STATUS.CONFIRMED,
+          })
+        : [];
+    const confirmedTermSet = new Set(confirmedTermIds.map(String));
+    const pendingRefundContracts = endedUnrefunded.filter(
+        (c) => !confirmedTermSet.has(String(c._id)),
+    ).length;
+    const draftContracts = scope.contracts.filter((c) => c.status === CONTRACT_STATUS.DRAFT).length;
 
     return {
         buildings: scope.buildings.length,
@@ -670,7 +689,9 @@ export const getAdminDashboard = async ({ query = {} }) => {
         rooms: roomStats(scope.rooms),
         monthlyRevenue,
         activeContracts: scope.activeContractIds.length,
+        draftContracts,
         expiringContracts,
+        pendingRefundContracts,
         pendingInvoices: {
             count: pendingInvoices.length,
             totalAmount: pendingInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0),
@@ -682,6 +703,7 @@ export const getAdminDashboard = async ({ query = {} }) => {
         residents,
         movedIn,
         movedOut,
+        totalLeft,
         ...extras,
     };
 };
@@ -715,14 +737,49 @@ export const getManagerDashboard = async ({ managerId }) => {
             new Date(contract.endDate) <= in30Days,
     ).length;
 
-    const [monthlyRevenue, openIncidents, extras] = await Promise.all([
+    const endedUnrefunded = scope.contracts.filter(
+        (c) => c.status === CONTRACT_STATUS.ENDED && !c.depositRefundedAt,
+    );
+    const confirmedTermIds = endedUnrefunded.length > 0
+        ? await TerminationRequest.distinct('contractId', {
+              contractId: { $in: endedUnrefunded.map((c) => c._id) },
+              status: TERMINATION_STATUS.CONFIRMED,
+          })
+        : [];
+    const confirmedTermSet = new Set(confirmedTermIds.map(String));
+    const pendingRefundContracts = endedUnrefunded.filter(
+        (c) => !confirmedTermSet.has(String(c._id)),
+    ).length;
+    const draftContracts = scope.contracts.filter((c) => c.status === CONTRACT_STATUS.DRAFT).length;
+
+    const [monthlyRevenue, openIncidents, residents, movedIn, movedOut, totalLeft, extras] = await Promise.all([
         sumRevenue(scope.contractIds, start, end),
         countOpenIncidents(scope.roomIds),
+        Occupant.countDocuments({
+            contractId: { $in: scope.activeContractIds },
+            status: OCCUPANT_STATUS.STAYED,
+        }),
+        Occupant.countDocuments({
+            contractId: { $in: scope.contractIds },
+            joinDate: { $gte: start, $lte: end },
+        }),
+        Occupant.countDocuments({
+            contractId: { $in: scope.contractIds },
+            status: OCCUPANT_STATUS.LEFT,
+            exitDate: { $gte: start, $lte: end },
+        }),
+        Occupant.countDocuments({
+            contractId: { $in: scope.contractIds },
+            status: OCCUPANT_STATUS.LEFT,
+        }),
         loadDashboardExtras(scope, true),
     ]);
 
     return {
         rooms: roomStats(scope.rooms),
+        activeContracts: scope.activeContractIds.length,
+        draftContracts,
+        pendingRefundContracts,
         pendingInvoices: {
             count: pendingInvoices.length,
             totalAmount: pendingInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0),
@@ -732,6 +789,10 @@ export const getManagerDashboard = async ({ managerId }) => {
         openIncidents,
         expiringContracts,
         monthlyRevenue,
+        residents,
+        movedIn,
+        movedOut,
+        totalLeft,
         ...extras,
     };
 };

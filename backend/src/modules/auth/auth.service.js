@@ -338,7 +338,7 @@ export const updateProfile = async (userId, body) => {
         // BR-010: số điện thoại không trùng người khác
         if (changes.phone !== undefined) {
             const phoneUsed = await Manager.findOne({ phone: changes.phone, userId: { $ne: user._id } })
-                || await Occupant.findOne({ phone: changes.phone });
+                || await Occupant.findOne({ phone: changes.phone, status: OCCUPANT_STATUS.STAYED });
             if (phoneUsed) {
                 throw new AppError('Số điện thoại đã tồn tại trong hệ thống', 409);
             }
@@ -358,7 +358,11 @@ export const updateProfile = async (userId, body) => {
         if (changes.phone !== undefined) {
             // Cùng CCCD là cùng một người (thuê lại) nên được dùng lại số cũ
             const phoneUsed = await Manager.findOne({ phone: changes.phone })
-                || await Occupant.findOne({ phone: changes.phone, cccd: { $ne: profile.cccd } });
+                || await Occupant.findOne({
+                    phone: changes.phone,
+                    status: OCCUPANT_STATUS.STAYED,
+                    cccd: { $ne: profile.cccd },
+                });
             if (phoneUsed) {
                 throw new AppError('Số điện thoại đã tồn tại trong hệ thống', 409);
             }

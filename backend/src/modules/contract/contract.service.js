@@ -286,9 +286,13 @@ export const createContract = async ({ managerId, data }) => {
             throw new AppError(`Số điện thoại ${coPhone} đã thuộc tài khoản quản lý`, 409);
         }
 
-        const phoneInOccupant = await Occupant.findOne({ phone: coPhone, cccd: { $ne: coCccd } });
+        const phoneInOccupant = await Occupant.findOne({
+            phone: coPhone,
+            status: OCCUPANT_STATUS.STAYED,
+            cccd: { $ne: coCccd },
+        });
         if (phoneInOccupant) {
-            throw new AppError(`Số điện thoại ${coPhone} đã tồn tại trong hệ thống`, 409);
+            throw new AppError(`Số điện thoại ${coPhone} đang được sử dụng bởi cư dân khác`, 409);
         }
     }
 
@@ -1180,6 +1184,10 @@ export const getRefundPreview = async ({ managerId, contractId }) => {
         invoiceWarning,
     } = await validateAndInspectRefund(managerId, contractId);
 
+    const deductedAmount = Math.min(contract.deposit || 0, pendingInvoiceTotal || 0);
+    const netRefundAmount = Math.max(0, (contract.deposit || 0) - (pendingInvoiceTotal || 0));
+    const extraCollectAmount = Math.max(0, (pendingInvoiceTotal || 0) - (contract.deposit || 0));
+
     return {
         contractId: contract._id,
         room: {
@@ -1189,6 +1197,9 @@ export const getRefundPreview = async ({ managerId, contractId }) => {
             buildingName: building.name,
         },
         deposit: contract.deposit,
+        deductedAmount,
+        netRefundAmount,
+        extraCollectAmount,
         canRefund: true,
         hasPendingInvoices,
         pendingInvoiceCount,

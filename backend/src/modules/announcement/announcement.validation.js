@@ -41,3 +41,19 @@ export const sendAnnouncementSchema = Joi.object({
             'any.required': 'Vui lòng chọn đối tượng nhận',
         }),
 });
+
+export const listAnnouncementsSchema = Joi.object({
+    q: Joi.string().trim().allow('').optional(),
+    category: Joi.string()
+        .valid('ALL', 'MAINTENANCE', 'RULE', 'REMINDER', 'GENERAL')
+        .default('ALL'),
+    from: Joi.date().iso().optional().messages({
+        'date.format': 'Ngày bắt đầu không hợp lệ',
+    }),
+    to: Joi.date().iso().optional().messages({
+        'date.format': 'Ngày kết thúc không hợp lệ',
+    }),
+    page: Joi.number().integer().min(1).default(1),
+    limit: Joi.number().integer().min(1).max(50).default(10),
+});
+

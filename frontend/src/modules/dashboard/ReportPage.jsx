@@ -81,7 +81,6 @@ const ReportPage = () => {
     [buildings, buildingId],
   );
 
-  const showRoomsSection = !isAdmin || Boolean(buildingId);
 
   const latePayments = useMemo(
     () => (Array.isArray(reportData?.latePayments) ? reportData.latePayments : []),
@@ -172,7 +171,6 @@ const ReportPage = () => {
           <RecentActivitiesSection
             data={data}
             reportData={reportData}
-            showRooms={showRoomsSection}
           />
 
           {/* Bảng đối soát phòng chậm thanh toán chi tiết */}

@@ -15,6 +15,7 @@ import { ROOM_STATUS } from '../../constants/enums';
 import { hasErrors, toFieldErrors } from '../../utils/formErrors';
 import announcementApi from './announcement.api';
 import { validateAnnouncement } from './announcement.validate';
+import AnnouncementHistoryCard from './components/AnnouncementHistoryCard';
 import RoomPicker from './components/RoomPicker';
 
 // mẫu nhanh: bấm để điền sẵn, Manager sửa lại cho đúng
@@ -50,6 +51,7 @@ const AnnouncementPage = () => {
   const [confirming, setConfirming] = useState(false);
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState(null); // { message, warning } của lần gửi vừa xong
+  const [historyKey, setHistoryKey] = useState(0);
 
   useEffect(() => {
     if (!buildingId) return;
@@ -93,6 +95,7 @@ const AnnouncementPage = () => {
       else toast.success(response.message || 'Đã gửi thông báo');
       setForm(EMPTY_FORM);
       setConfirming(false);
+      setHistoryKey((prev) => prev + 1);
     } catch (error) {
       setErrors(toFieldErrors(error.errors)); // 422: lỗi hiện dưới từng ô
       if (!error.errors) toast.error(error.message); // vd "Không có tài khoản Customer nào để gửi thông báo"
@@ -247,13 +250,21 @@ const AnnouncementPage = () => {
         <Card>
           <Card.Body className="flex flex-col gap-1">
             <h2 className="h6 fw-bold mb-1">Người nhận</h2>
-            <span className="fs-4 fw-bold">{rooms === null ? '…' : recipientRooms} phòng</span>
+            <span className="fs-5 fw-bold">{rooms === null ? '…' : recipientRooms} phòng</span>
             <span className="small text-secondary">
-              Mỗi phòng gửi tới người đại diện (có tài khoản). Người ở cùng không có tài khoản nên không nhận.
-              Phòng không có khách đang hoạt động sẽ không nhận được.
+              Mỗi phòng đang hoạt động sẽ nhận được bởi người đại diện. Người ở cùng không có tài khoản nên không nhận.
             </span>
           </Card.Body>
         </Card>
+
+        {/* Bảng lịch sử gửi thông báo chung */}
+        <AnnouncementHistoryCard
+          refreshKey={historyKey}
+          onReuse={({ title, message }) => {
+            update({ title, message });
+            toast.info('Đã điền lại nội dung thông báo vào biểu mẫu');
+          }}
+        />
       </div>
 
       {confirming && (

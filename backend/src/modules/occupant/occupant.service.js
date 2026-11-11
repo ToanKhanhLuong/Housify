@@ -438,6 +438,7 @@ export const updateOccupant = async ({ userId, roleId, occupantId, data }) => {
         const phoneInManager = await Manager.findOne({ phone: targetPhone });
         const phoneInOccupant = await Occupant.findOne({
             phone: targetPhone,
+            status: OCCUPANT_STATUS.STAYED,
             _id: { $ne: occupant._id },
             cccd: { $nin: [occupant.cccd, targetCccd] },
         });
@@ -579,6 +580,7 @@ export const addOccupant = async ({ managerId, contractId, data }) => {
     const phoneInManager = await Manager.findOne({ phone: cleanPhone });
     const phoneInOccupant = await Occupant.findOne({
         phone: cleanPhone,
+        status: OCCUPANT_STATUS.STAYED,
         cccd: { $ne: cleanCccd },
     });
     if (phoneInManager || phoneInOccupant) {

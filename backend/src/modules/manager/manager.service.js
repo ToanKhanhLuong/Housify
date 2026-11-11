@@ -8,6 +8,7 @@ import {
     TOKEN_STATUS,
     ACTIVATION_TYPE,
     CONTRACT_STATUS,
+    OCCUPANT_STATUS,
     NOTIFICATION_TYPE,
     AUDIT_ACTION,
 } from '../../constants/enums.js';
@@ -120,7 +121,7 @@ const ensurePhoneAvailable = async (phone, exceptUserId) => {
     if (exceptUserId) {
         managerFilter.userId = { $ne: exceptUserId };
     }
-    const phoneUsed = await Manager.exists(managerFilter) || await Occupant.exists({ phone });
+    const phoneUsed = await Manager.exists(managerFilter) || await Occupant.exists({ phone, status: OCCUPANT_STATUS.STAYED });
     if (phoneUsed) {
         throw new AppError('Số điện thoại đã tồn tại trong hệ thống', 409);
     }

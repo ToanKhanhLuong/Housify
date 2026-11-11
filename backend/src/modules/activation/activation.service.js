@@ -284,6 +284,7 @@ export const activateCustomerContract = async ({
 
     const phoneInOccupant = await Occupant.findOne({
         phone: cleanPhone,
+        status: OCCUPANT_STATUS.STAYED,
         cccd: { $ne: contract.representativeCccd },
     });
     if (phoneInOccupant) {
@@ -344,7 +345,7 @@ export const activateCustomerContract = async ({
         if (await Manager.findOne({ phone: co.phone })) {
             throw new AppError(`Số điện thoại ${co.phone} đã thuộc tài khoản quản lý`, 409);
         }
-        if (await Occupant.findOne({ phone: co.phone, cccd: { $ne: co.cccd } })) {
+        if (await Occupant.findOne({ phone: co.phone, status: OCCUPANT_STATUS.STAYED, cccd: { $ne: co.cccd } })) {
             throw new AppError(`Số điện thoại ${co.phone} đã tồn tại trong hệ thống`, 409);
         }
     }

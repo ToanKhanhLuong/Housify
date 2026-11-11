@@ -6,11 +6,17 @@ import {
   BiBarChartAlt2,
   BiBell,
   BiBuildings,
+  BiCalendarExclamation,
   BiCreditCard,
+  BiErrorCircle,
   BiFile,
   BiGroup,
   BiMoney,
   BiPieChartAlt2,
+  BiUserCheck,
+  BiUserMinus,
+  BiUserPlus,
+  BiWallet,
   BiWrench,
 } from 'react-icons/bi';
 import {
@@ -36,7 +42,18 @@ const AdminDashboard = ({ data }) => {
     () => data?.rooms ?? { total: 0, available: 0, occupied: 0, maintenance: 0 },
     [data?.rooms],
   );
+  const occupancyRate = rooms.total > 0 ? Math.round((rooms.occupied / rooms.total) * 100) : 0;
   const openIncidents = data?.openIncidents ?? 0;
+  const residents = data?.residents ?? 0;
+  const movedIn = data?.movedIn ?? 0;
+  const movedOut = data?.movedOut ?? 0;
+  const totalLeft = data?.totalLeft ?? 0;
+  const activeContracts = data?.activeContracts ?? 0;
+  const expiringContracts = data?.expiringContracts ?? 0;
+  const pendingRefundContracts = data?.pendingRefundContracts ?? 0;
+  const pendingAmount = data?.pendingInvoices?.totalAmount ?? 0;
+  const overdueCount = data?.pendingInvoices?.overdueCount ?? 0;
+  const overdueAmount = data?.pendingInvoices?.overdueAmount ?? 0;
   const recentActivities = Array.isArray(data?.recentActivities) ? data.recentActivities : [];
 
   // Dữ liệu biểu đồ hoạt động 7 ngày qua (đọc đúng trường name / date từ backend)
@@ -101,55 +118,73 @@ const AdminDashboard = ({ data }) => {
 
       {/* 4 Thẻ KPI ngang trên cùng (Dữ liệu thật, KHÔNG viết cứng phần trăm/chỉ số) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {/* Card 1: Tòa nhà đang hoạt động */}
+        {/* Card 1: Tòa nhà & Công suất */}
         <div className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-xs flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+          <div className="hf-av w-11 h-11 shrink-0 text-xl">
             <BiBuildings size={22} />
           </div>
-          <div>
+          <div className="min-w-0">
+            <span className="text-[11px] text-slate-400 font-medium block">Quy mô cơ sở</span>
             <div className="text-xl fw-bold text-slate-800 leading-tight">
-              {data?.buildings ?? data?.buildingSummaries?.length ?? 0}
+              {data?.buildings ?? data?.buildingSummaries?.length ?? 0} tòa nhà
             </div>
-            <div className="text-xs text-slate-500 mt-0.5">Tòa nhà đang hoạt động</div>
+            <div className="text-[11px] text-slate-500 mt-0.5 text-truncate">
+              {rooms.occupied}/{rooms.total} phòng thuê ({occupancyRate}%)
+            </div>
           </div>
         </div>
 
-        {/* Card 2: Cư dân mới tháng này */}
+        {/* Card 2: Nhân khẩu cư dân */}
         <div className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-xs flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+          <div className="hf-av w-11 h-11 shrink-0 text-xl">
             <BiGroup size={22} />
           </div>
-          <div>
+          <div className="min-w-0">
+            <span className="text-[11px] text-slate-400 font-medium block">Nhân khẩu cư dân</span>
             <div className="text-xl fw-bold text-slate-800 leading-tight">
-              {data?.movedIn ?? data?.residents ?? 0}
+              {residents} đang ở
             </div>
-            <div className="text-xs text-slate-500 mt-0.5">Cư dân mới tháng này</div>
+            <div className="text-[11px] text-slate-500 mt-0.5 text-truncate">
+              +{movedIn} mới tháng này · {totalLeft} đã rời đi
+            </div>
           </div>
         </div>
 
         {/* Card 3: Hợp đồng đang hiệu lực */}
         <div className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-xs flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+          <div className="hf-av w-11 h-11 shrink-0 text-xl">
             <BiFile size={22} />
           </div>
-          <div>
+          <div className="min-w-0">
+            <span className="text-[11px] text-slate-400 font-medium block">Hợp đồng thuê</span>
             <div className="text-xl fw-bold text-slate-800 leading-tight">
-              {data?.activeContracts ?? 0}
+              {activeContracts} hiệu lực
             </div>
-            <div className="text-xs text-slate-500 mt-0.5">Hợp đồng đang hiệu lực</div>
+            <div className="text-[11px] text-slate-500 mt-0.5 text-truncate">
+              {expiringContracts} sắp hết hạn · {pendingRefundContracts} chờ hoàn cọc
+            </div>
           </div>
         </div>
 
-        {/* Card 4: Doanh thu tháng này (Tiền thực thu trong tháng, không hardcode %) */}
+        {/* Card 4: Doanh thu tháng này */}
         <div className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-xs flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+          <div className="hf-av w-11 h-11 shrink-0 text-xl">
             <BiMoney size={22} />
           </div>
-          <div>
-            <div className="text-xl fw-bold text-slate-800 leading-tight">
+          <div className="min-w-0">
+            <span className="text-[11px] text-slate-400 font-medium block">Thực thu tháng này</span>
+            <div className="text-xl fw-bold text-slate-800 leading-tight text-truncate">
               <MoneyText value={data?.monthlyRevenue ?? 0} />
             </div>
-            <div className="text-xs text-slate-500 mt-0.5">Doanh thu tháng này</div>
+            <div className="text-[11px] text-slate-500 mt-0.5 text-truncate">
+              {pendingAmount > 0 ? (
+                <>
+                  Chờ thu: <MoneyText value={pendingAmount} /> ({overdueCount} quá hạn)
+                </>
+              ) : (
+                'Không có hóa đơn tồn đọng'
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -163,7 +198,7 @@ const AdminDashboard = ({ data }) => {
             <Card.Body className="p-3.5">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <span className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
+                  <span className="hf-av w-8 h-8 shrink-0">
                     <BiBarChartAlt2 size={18} />
                   </span>
                   <span className="text-sm fw-bold text-slate-800">Hoạt động trong 7 ngày qua</span>
@@ -380,6 +415,69 @@ const AdminDashboard = ({ data }) => {
                     </div>
                     <span className="font-semibold text-slate-800">{openIncidents}</span>
                   </div>
+                </div>
+              </div>
+            </Card.Body>
+          </Card>
+
+          {/* Card Biến động Cư dân & Cảnh báo vận hành toàn hệ thống */}
+          <Card className="border-slate-100 shadow-xs rounded-2xl">
+            <Card.Body className="p-4 flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <span className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <BiGroup size={18} />
+                </span>
+                <span className="text-sm fw-bold text-slate-800">
+                  Biến động Cư dân & Cảnh báo
+                </span>
+              </div>
+
+              {/* 3 Ô biến động nhân khẩu */}
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="p-2 rounded-xl bg-blue-50/50 border border-blue-100">
+                  <div className="text-[11px] text-slate-500 flex items-center justify-center gap-1">
+                    <BiUserCheck className="text-blue-600" /> Đang ở
+                  </div>
+                  <div className="text-base fw-bold text-slate-800 mt-0.5">{residents}</div>
+                </div>
+                <div className="p-2 rounded-xl bg-emerald-50/50 border border-emerald-100">
+                  <div className="text-[11px] text-slate-500 flex items-center justify-center gap-1">
+                    <BiUserPlus className="text-emerald-600" /> Mới vào
+                  </div>
+                  <div className="text-base fw-bold text-emerald-700 mt-0.5">+{movedIn}</div>
+                </div>
+                <div className="p-2 rounded-xl bg-slate-50 border border-slate-200/80">
+                  <div className="text-[11px] text-slate-500 flex items-center justify-center gap-1">
+                    <BiUserMinus className="text-rose-500" /> Rời đi
+                  </div>
+                  <div className="text-base fw-bold text-slate-800 mt-0.5">{totalLeft}</div>
+                  <div className="text-[10px] text-slate-400">Tháng này: {movedOut}</div>
+                </div>
+              </div>
+
+              {/* Các chỉ số cảnh báo vận hành */}
+              <div className="flex flex-col gap-2 pt-1 border-t border-slate-100 text-xs">
+                <div className="flex items-center justify-between p-2 rounded-xl bg-rose-50/50 border border-rose-100">
+                  <span className="flex items-center gap-1.5 text-slate-700">
+                    <BiErrorCircle className="text-rose-600" size={15} /> Hóa đơn quá hạn
+                  </span>
+                  <strong className="text-rose-600">
+                    {overdueCount} HĐ (<MoneyText value={overdueAmount} />)
+                  </strong>
+                </div>
+
+                <div className="flex items-center justify-between p-2 rounded-xl bg-purple-50/50 border border-purple-100">
+                  <span className="flex items-center gap-1.5 text-slate-700">
+                    <BiCalendarExclamation className="text-purple-600" size={15} /> Sắp hết hạn (30 ngày)
+                  </span>
+                  <strong className="text-purple-700">{expiringContracts} hợp đồng</strong>
+                </div>
+
+                <div className="flex items-center justify-between p-2 rounded-xl bg-teal-50/50 border border-teal-100">
+                  <span className="flex items-center gap-1.5 text-slate-700">
+                    <BiWallet className="text-teal-600" size={15} /> Hợp đồng chờ hoàn cọc
+                  </span>
+                  <strong className="text-teal-700">{pendingRefundContracts} hợp đồng</strong>
                 </div>
               </div>
             </Card.Body>
