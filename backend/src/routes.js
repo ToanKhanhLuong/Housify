@@ -26,6 +26,7 @@ import incidentRoutes from './modules/incident/incident.routes.js';         // H
 // --- Iteration 3 ---
 import terminationRoutes from './modules/termination/termination.routes.js'; // An   | UC-28, 29
 import dashboardRoutes from './modules/dashboard/dashboard.routes.js';      // Hiếu  | UC-07, 47, 48
+import geminiRoutes from './modules/gemini/gemini.routes.js';                // Housify AI Assistant (Gemini Flash Cascade)
 // import ocrRoutes from './modules/ocr/ocr.routes.js';                        // Toàn  | làm nếu kịp
 
 const router = Router();
@@ -53,6 +54,7 @@ router.use(incidentRoutes);
 // --- Iteration 3 ---
 router.use(terminationRoutes);
 router.use(dashboardRoutes);
+router.use(geminiRoutes);
 // router.use(ocrRoutes);
 
 export default router;
