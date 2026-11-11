@@ -7,7 +7,8 @@ import { OCCUPANT_STATUS } from '../../../constants/enums';
 import CapacityDots from './CapacityDots';
 import MemberRow from './MemberRow';
 
-const RoomGroupCard = ({ group, onOpenMember, onAdd }) => {
+// highlightIds: Set _id người khớp ô tìm ở danh sách → tô nền dòng đó
+const RoomGroupCard = ({ group, onOpenMember, onAdd, highlightIds }) => {
   const { room, members, contractId } = group;
   const capacity = room.roomType?.capacity;
   const stayed = members.filter((member) => member.status === OCCUPANT_STATUS.STAYED).length;
@@ -28,7 +29,12 @@ const RoomGroupCard = ({ group, onOpenMember, onAdd }) => {
 
       <div className="flex flex-col gap-1 p-2 flex-1">
         {members.map((member) => (
-          <MemberRow key={member._id} member={member} onClick={() => onOpenMember(member)} />
+          <MemberRow
+            key={member._id}
+            member={member}
+            highlighted={Boolean(highlightIds?.has(member._id))}
+            onClick={() => onOpenMember(member)}
+          />
         ))}
       </div>
 

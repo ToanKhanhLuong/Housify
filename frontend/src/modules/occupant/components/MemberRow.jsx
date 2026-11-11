@@ -1,19 +1,19 @@
 // Một dòng thành viên trong thẻ phòng: avatar, họ tên, vai trò (Đại diện nổi bật / quan hệ của người ở cùng), SĐT
-// Người đã chuyển đi hiện mờ kèm ngày ra. Bấm cả dòng để mở hồ sơ
+// Người đã chuyển đi hiện mờ kèm ngày ra. Bấm cả dòng để mở hồ sơ. highlighted: khớp ô tìm → nền nhạt
 import { Button } from 'react-bootstrap';
 import { BiChevronRight } from 'react-icons/bi';
 import { OCCUPANT_STATUS } from '../../../constants/enums';
 import { formatDate } from '../../../utils/format';
 import OccupantAvatar from './OccupantAvatar';
 
-const MemberRow = ({ member, onClick }) => {
+const MemberRow = ({ member, onClick, highlighted = false }) => {
   const left = member.status === OCCUPANT_STATUS.LEFT;
   return (
     // nút không nền (hf-btn-ghost): chỉ hiện xám khi rê chuột
     <Button
       variant="secondary"
       onClick={onClick}
-      className={`hf-btn-ghost w-full flex items-center gap-3 px-2 py-2 text-start ${left ? 'opacity-60' : ''}`}
+      className={`hf-btn-ghost w-full flex items-center gap-3 px-2 py-2 text-start ${left ? 'opacity-60' : ''} ${highlighted ? 'bg-primary-subtle' : ''}`}
     >
       <OccupantAvatar name={member.name} isRepresentative={member.isRepresentative} />
       <span className="flex flex-col min-w-0 flex-1">

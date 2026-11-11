@@ -2,7 +2,9 @@
 // "Theo phòng": mỗi phòng một thẻ (sức chứa dạng chấm, thành viên có avatar, nút Thêm người khi còn chỗ)
 // "Bảng": mỗi dòng là người đại diện, sổ xuống xem người ở cùng
 // Cả 2 chế độ chia trang theo phòng (12 phòng / trang) để không tách người cùng phòng; vượt 1 trang mới hiện phân trang
-// Lọc Đang ở / Đã chuyển đi (mặc định Đang ở như BE), tìm theo mã phòng
+// Lọc Đang ở / Đã chuyển đi (mặc định Đang ở như BE). Ô tìm lọc ngay trên dữ liệu đã tải (API không có ?q):
+// họ tên (cả đại diện lẫn người ở cùng, gõ không dấu được), CCCD, số điện thoại, mã phòng; Bộ lọc "Tìm theo" chọn 1 trường.
+// Giữ cả phòng có người khớp, tô nền người khớp; chế độ Bảng tự sổ phòng có người ở cùng khớp
 // UC-32: "Thêm người ở cùng". Từ chi tiết hợp đồng mở sang với location.state.addTo = { _id, roomNumber } → popup mở sẵn
 // đúng phòng, thêm xong quay lại hợp đồng (location.state.returnTo)
 import { useEffect, useMemo, useState } from 'react';
@@ -19,7 +21,7 @@ import { OCCUPANT_STATUS } from '../../constants/enums';
 import { OCCUPANT_STATUS_LABEL } from '../../constants/statusLabels';
 import { useSavedState } from '../../utils/filter';
 import occupantApi from './occupant.api';
-import { groupByRoom } from './occupantFormat';
+import { SEARCH_FIELD_OPTIONS, groupByRoom, matchOccupant } from './occupantFormat';
 import AddOccupantModal from './components/AddOccupantModal';
 import RepresentativeTable from './components/RepresentativeTable';
 import RoomGroupCard from './components/RoomGroupCard';
@@ -33,6 +35,14 @@ const VIEW_OPTIONS = [
   { id: 'table', icon: BiListUl, title: 'Bảng' },
 ];
 const EMPTY_DATA = { items: [], total: 0 };
+const SEARCH_PLACEHOLDER = {
+  '': 'Tìm theo tên, CCCD, SĐT hoặc phòng...',
+  name: 'Tìm theo họ tên...',
+  cccd: 'Tìm theo số CCCD...',
+  phone: 'Tìm theo số điện thoại...',
+  room: 'Tìm theo mã phòng, vd 101...',
+};
+const roomKey = (group) => group.room._id ?? 'none';
 
 // gọi lần lượt từng trang 50 người tới hết
 const fetchAll = async (params) => {
@@ -61,8 +71,9 @@ const OccupantListPage = () => {
   const [page, setPage] = useSavedState('occupants:page', 1);
   const [view, setView] = useSavedState('occupants:view', 'rooms');
   const [reloadKey, setReloadKey] = useState(0);
-  const [rooms, setRooms] = useSavedState(`occupants:rooms:${buildingId ?? ''}`, []); // phòng của tòa: đổi mã phòng → roomId, sức chứa
+  const [rooms, setRooms] = useSavedState(`occupants:rooms:${buildingId ?? ''}`, []); // phòng của tòa: sức chứa, loại phòng
   const [expanded, setExpanded] = useState(() => new Set()); // chế độ Bảng: phòng đang sổ người ở cùng
+  const [autoOpenSignature, setAutoOpenSignature] = useState(''); // các phòng đã tự sổ theo lần tìm gần nhất
   // popup thêm: true = tự chọn phòng; { _id, roomNumber } = phòng chọn sẵn
   const [adding, setAdding] = useState(() => location.state?.addTo ?? null);
   const returnTo = location.state?.returnTo ?? null;
@@ -91,24 +102,29 @@ const OccupantListPage = () => {
           label: OCCUPANT_STATUS_LABEL[status].label,
         })),
       },
+      // không chọn = ô tìm khớp mọi trường
+      {
+        id: 'searchField',
+        label: 'Tìm theo',
+        type: 'radio',
+        options: SEARCH_FIELD_OPTIONS,
+        beside: true,
+      },
     ],
     [],
   );
 
-  // ô tìm: mã phòng → roomId (API không có ?q). Gõ phòng không có trong tòa thì không gọi API, báo không có
   const keyword = query.trim();
-  const matchedRoom = keyword ? rooms.find((room) => room.roomNumber === keyword) : null;
-  const noMatch = Boolean(keyword && !matchedRoom && rooms.length > 0);
-  const roomId = matchedRoom?._id ?? '';
+  const searchField = filters.searchField ?? '';
   // bỏ hết ô trạng thái = xem cả hai (BE không truyền status thì chỉ trả Đang ở)
-  const statusParam = filters.status.length ? filters.status.join(',') : ALL_STATUS;
+  const statusParam = filters.status?.length ? filters.status.join(',') : ALL_STATUS;
+  const toStatusParam = (status) => (status?.length ? status.join(',') : ALL_STATUS);
 
-  // ignore: bỏ kết quả lần gọi cũ khi bộ lọc đã đổi tiếp (gõ / bấm nhanh)
+  // chỉ trạng thái mới gọi lại API; ô tìm lọc trên dữ liệu đã tải
+  // ignore: bỏ kết quả lần gọi cũ khi bộ lọc đã đổi tiếp (bấm nhanh)
   useEffect(() => {
-    if (noMatch) return undefined;
     let ignore = false;
     const params = { status: statusParam };
-    if (roomId) params.roomId = roomId;
 
     fetchAll(params)
       .then((result) => {
@@ -125,17 +141,16 @@ const OccupantListPage = () => {
     return () => {
       ignore = true;
     };
-  }, [statusParam, roomId, noMatch, reloadKey]);
+  }, [statusParam, reloadKey]);
 
   const handleSearchChange = (value) => {
     setQuery(value);
     setPage(1);
-    setRefreshing(true);
   };
   const handleFilterChange = (next) => {
-    setFilters({ status: next.status ?? [] });
+    setFilters({ status: next.status ?? [], searchField: next.searchField });
     setPage(1);
-    setRefreshing(true);
+    if (toStatusParam(next.status) !== statusParam) setRefreshing(true);
   };
   const handleViewChange = (next) => {
     setView(next);
@@ -152,7 +167,7 @@ const OccupantListPage = () => {
     setQuery('');
     setFilters(DEFAULT_FILTERS);
     setPage(1);
-    setRefreshing(true);
+    if (toStatusParam(DEFAULT_FILTERS.status) !== statusParam) setRefreshing(true);
   };
   const reload = () => {
     setLoading(true);
@@ -175,16 +190,40 @@ const OccupantListPage = () => {
   const openMember = (member) => navigate(`/occupants/${member._id}`);
 
   const isDefaultFilter =
-    filters.status.length === 1 && filters.status[0] === OCCUPANT_STATUS.STAYED;
+    filters.status?.length === 1 && filters.status[0] === OCCUPANT_STATUS.STAYED;
   const isFiltering = Boolean(keyword || !isDefaultFilter);
-  const items = noMatch ? [] : data.items;
-  const total = noMatch ? 0 : data.total;
-  const groups = groupByRoom(items, roomsById);
+  // người khớp ô tìm; giữ nguyên cả phòng có người khớp để thấy họ ở cùng ai
+  const matchedIds = keyword
+    ? new Set(
+        data.items
+          .filter((item) => matchOccupant(item, keyword, searchField))
+          .map((item) => item._id),
+      )
+    : null;
+  const allGroups = groupByRoom(data.items, roomsById);
+  const groups = matchedIds
+    ? allGroups.filter((group) => group.members.some((member) => matchedIds.has(member._id)))
+    : allGroups;
+  const items = matchedIds ? data.items.filter((item) => matchedIds.has(item._id)) : data.items;
+  const total = matchedIds ? matchedIds.size : data.total;
+
+  // chế độ Bảng: phòng có người ở cùng khớp thì tự sổ ra (đổi kết quả tìm mới sổ lại, người dùng vẫn thu gọn được)
+  const autoOpenKeys = matchedIds
+    ? groups
+        .filter((group) => group.members.slice(1).some((member) => matchedIds.has(member._id)))
+        .map(roomKey)
+    : [];
+  const signature = autoOpenKeys.join(',');
+  if (signature !== autoOpenSignature) {
+    setAutoOpenSignature(signature);
+    setExpanded(new Set(autoOpenKeys));
+  }
+
   // chia trang theo phòng (cả 2 chế độ xem)
   const pageGroups = groups.slice((page - 1) * PAGE_ROOMS, page * PAGE_ROOMS);
-  const allOpen = pageGroups.length > 0 && pageGroups.every((group) => expanded.has(group.room._id ?? 'none'));
-  const toggleAll = () =>
-    setExpanded(allOpen ? new Set() : new Set(pageGroups.map((group) => group.room._id ?? 'none')));
+  const allOpen =
+    pageGroups.length > 0 && pageGroups.every((group) => expanded.has(roomKey(group)));
+  const toggleAll = () => setExpanded(allOpen ? new Set() : new Set(pageGroups.map(roomKey)));
 
   const renderContent = () => {
     if (loading) {
@@ -208,9 +247,9 @@ const OccupantListPage = () => {
             {isFiltering ? (
               <EmptyState
                 message={
-                  noMatch
-                    ? `Tòa của bạn không có phòng "${keyword}". Gõ đúng mã phòng, vd 101.`
-                    : 'Không có cư dân nào phù hợp. Thử đổi phòng hoặc bộ lọc trạng thái.'
+                  keyword
+                    ? `Không có cư dân nào khớp "${keyword}". Thử từ khóa khác hoặc đổi bộ lọc trạng thái.`
+                    : 'Không có cư dân nào phù hợp. Thử đổi bộ lọc trạng thái.'
                 }
               >
                 <Button
@@ -241,6 +280,7 @@ const OccupantListPage = () => {
             expanded={expanded}
             onToggle={toggleRoom}
             onOpen={openMember}
+            highlightIds={matchedIds}
           />
         </div>
       );
@@ -250,10 +290,11 @@ const OccupantListPage = () => {
       <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
         {pageGroups.map((group) => (
           <RoomGroupCard
-            key={group.room._id ?? 'none'}
+            key={roomKey(group)}
             group={group}
             onOpenMember={openMember}
             onAdd={setAdding}
+            highlightIds={matchedIds}
           />
         ))}
       </div>
@@ -277,7 +318,7 @@ const OccupantListPage = () => {
           }
           searchValue={query}
           onSearchChange={handleSearchChange}
-          searchPlaceholder="Tìm theo mã phòng, vd 101..."
+          searchPlaceholder={SEARCH_PLACEHOLDER[searchField] ?? SEARCH_PLACEHOLDER['']}
           filterGroups={filterGroups}
           selectedFilters={filters}
           onFilterChange={handleFilterChange}

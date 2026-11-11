@@ -1,6 +1,7 @@
 // Bảng cư dân gom theo phòng (UC-30): mỗi dòng chính là người đại diện (chữ to, đậm), bấm "n người ở cùng" để sổ
 // xuống các người ở cùng (thụt vào, chữ nhỏ, nền nhạt). Bấm vào một người → chi tiết cư dân
 // groups: kết quả groupByRoom (người đại diện đứng đầu members)
+// highlightIds: Set _id người khớp ô tìm → tô nền nhạt dòng đó (đặt biến màu nền của bảng trên dòng)
 import { Button, Card, Table } from 'react-bootstrap';
 import { BiChevronDown, BiChevronRight } from 'react-icons/bi';
 import EmptyState from '../../../components/EmptyState';
@@ -10,8 +11,10 @@ import { formatDate } from '../../../utils/format';
 import OccupantAvatar from './OccupantAvatar';
 
 const roomKey = (group) => group.room._id ?? 'none';
+const HIGHLIGHT_ROW = '[--bs-table-bg:var(--bs-primary-bg-subtle)]';
 
-const RepresentativeTable = ({ groups, expanded, onToggle, onOpen }) => {
+const RepresentativeTable = ({ groups, expanded, onToggle, onOpen, highlightIds }) => {
+  const highlight = (member) => (highlightIds?.has(member._id) ? HIGHLIGHT_ROW : '');
   if (groups.length === 0) {
     return (
       <Card>
@@ -44,7 +47,11 @@ const RepresentativeTable = ({ groups, expanded, onToggle, onOpen }) => {
               const isOpen = expanded.has(key);
               return [
                 // dòng chính: người đại diện
-                <tr key={key} className="cursor-pointer" onClick={() => onOpen(head)}>
+                <tr
+                  key={key}
+                  className={`cursor-pointer ${highlight(head)}`}
+                  onClick={() => onOpen(head)}
+                >
                   <td className="ps-3">
                     {others.length > 0 && (
                       <Button
@@ -103,7 +110,7 @@ const RepresentativeTable = ({ groups, expanded, onToggle, onOpen }) => {
                   ? others.map((member) => (
                       <tr
                         key={member._id}
-                        className="cursor-pointer bg-body-tertiary small"
+                        className={`cursor-pointer bg-body-tertiary small ${highlight(member)}`}
                         onClick={() => onOpen(member)}
                       >
                         <td className="ps-3" />
