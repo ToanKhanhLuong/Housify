@@ -1,9 +1,12 @@
 // Menu bên trái lấy theo role từ constants/menus.js. Màn hình nhỏ thì thành ngăn kéo, mở bằng nút ở header
 // Màn hình lớn có nút 3 gạch cạnh logo để thu gọn còn icon / mở rộng. Thu gọn chỉ áp dụng từ 992px:
 // dùng min-[992px]: và d-lg-* cho khớp điểm đổi của Offcanvas responsive="lg" (lg: của Tailwind là 1024px)
+// Mục có children (vd Đơn chấm dứt của Admin) sổ xuống các mục con kiểu sidebar compact: bấm cả dòng mục cha để mở / thu
+// (mũi tên bên phải chỉ báo trạng thái), mục con thụt vào, mục con đang xem tô nền, mục cha in đậm khi đang ở trang của nhóm
+import { useState } from 'react';
 import { Button, Nav, Offcanvas } from 'react-bootstrap';
-import { NavLink, useLocation } from 'react-router-dom';
-import { BiMenu } from 'react-icons/bi';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { BiChevronDown, BiChevronRight, BiMenu } from 'react-icons/bi';
 import { useAuth } from '../context/AuthContext';
 import { ROLE } from '../constants/enums';
 import { MENUS } from '../constants/menus';
@@ -33,10 +36,21 @@ const isMenuLinkActive = (menuPath, currentPath, role) => {
     return false;
 };
 
+// mục con (vd /terminations?type=MUTUAL) sáng khi đúng pathname và đủ các tham số ?query của nó
+const isChildActive = (childPath, location) => {
+    const [childPathname, childQuery = ''] = childPath.split('?');
+    if (location.pathname !== childPathname) return false;
+    const current = new URLSearchParams(location.search);
+    return [...new URLSearchParams(childQuery)].every(([key, value]) => current.get(key) === value);
+};
+
 const Sidebar = ({ show, onHide, collapsed, onToggleCollapse }) => {
     const { user } = useAuth();
     const location = useLocation();
+    const navigate = useNavigate();
     const items = MENUS[user?.role] || [];
+    // nhóm có mục con đang mở / đóng theo path; chưa bấm thì tự mở khi đang ở trang của nhóm
+    const [openGroups, setOpenGroups] = useState({});
     // Manager chưa được phân công tòa (BR-023): mọi mục menu đều mờ không bấm được
     const isManagerNoBuilding = user?.role === ROLE.MANAGER && !user?.building;
 
@@ -78,7 +92,7 @@ const Sidebar = ({ show, onHide, collapsed, onToggleCollapse }) => {
                     </div>
                 </div>
                 <Nav variant="pills" className="flex-column gap-1 p-2 overflow-x-hidden">
-                    {items.map(({ label, path, icon: Icon, disabled }) => {
+                    {items.map(({ label, path, icon: Icon, disabled, children }) => {
                         const isOff = disabled || isManagerNoBuilding;
 
                         if (isOff) {
@@ -103,6 +117,59 @@ const Sidebar = ({ show, onHide, collapsed, onToggleCollapse }) => {
                         }
 
                         const isActive = isMenuLinkActive(path, location.pathname, user?.role);
+
+                        if (children?.length) {
+                            const activeChild = children.find((child) => isChildActive(child.path, location));
+                            const isOpen = openGroups[path] ?? isActive;
+                            const toggleGroup = () => setOpenGroups((prev) => ({ ...prev, [path]: !isOpen }));
+                            // thu gọn (từ 992px) chỉ còn icon: ẩn mũi tên và mục con
+                            const hideWhenCollapsed = collapsed ? 'min-[992px]:hidden' : '';
+                            return (
+                                <div key={path} className="flex flex-col gap-1">
+                                    {/* cả dòng là nút mở / thu mục con; mũi tên bên phải chỉ để báo đang mở hay đóng.
+                                        Thu gọn còn icon (từ 992px) thì không thấy mục con → bấm icon đi thẳng tới danh sách */}
+                                    <Nav.Link
+                                        as="button"
+                                        type="button"
+                                        onClick={() => {
+                                            if (collapsed && window.matchMedia('(min-width: 992px)').matches) {
+                                                navigate(path);
+                                                return;
+                                            }
+                                            toggleGroup();
+                                        }}
+                                        className={`w-full flex items-center gap-2 text-start ${itemClass} ${
+                                            isActive ? 'fw-semibold text-body' : ''
+                                        }`}
+                                        aria-expanded={isOpen}
+                                        aria-label={label}
+                                        title={collapsed ? label : undefined}
+                                    >
+                                        <Icon size={18} className="shrink-0" />
+                                        <span className={`flex-1 ${labelClass}`}>{label}</span>
+                                        <span className={`flex shrink-0 text-secondary ${labelClass} ${hideWhenCollapsed}`}>
+                                            {isOpen ? <BiChevronDown size={16} /> : <BiChevronRight size={16} />}
+                                        </span>
+                                    </Nav.Link>
+                                    {isOpen && (
+                                        <div className={`flex flex-col gap-1 ms-4 ${hideWhenCollapsed}`}>
+                                            {children.map((child) => (
+                                                <Nav.Link
+                                                    key={child.path}
+                                                    as={Link}
+                                                    to={child.path}
+                                                    active={child === activeChild}
+                                                    onClick={onHide}
+                                                    className={`py-1 ${itemClass}`}
+                                                >
+                                                    {child.label}
+                                                </Nav.Link>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        }
 
                         return (
                             <Nav.Link

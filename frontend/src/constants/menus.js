@@ -3,7 +3,8 @@ import {
     BiBarChartAlt2, BiBook, BiBroadcast, BiBuildings, BiCategory, BiCreditCard, BiDoorOpen, BiErrorCircle,
     BiFile, BiGridAlt, BiGroup, BiIdCard, BiPlug, BiReceipt, BiXCircle,
 } from 'react-icons/bi';
-import { ROLE } from './enums';
+import { ROLE, TERMINATION_TYPE } from './enums';
+import { TERMINATION_TYPE_LABEL } from './statusLabels';
 
 // Trang mở ra ngay sau khi đăng nhập (UC-01 bước 4)
 export const HOME_PATH = {
@@ -17,6 +18,7 @@ export const NO_BUILDING_PATHS = ['/profile', '/change-password', '/notification
 
 // Thông báo (UC-41) không nằm trong menu: vào bằng chuông trên Header → "Xem tất cả" (/notifications)
 // Mục có disabled: true là thuộc Iter 2–3 (chưa làm, hiển thị mờ theo Sidebar.dc.html)
+// Mục có children: [{ label, path }] thì sổ xuống các mục con (path con được kèm ?query) – xem Sidebar.jsx
 export const MENUS = {
     [ROLE.ADMIN]: [
         { label: 'Tổng quan', path: '/dashboard', icon: BiGridAlt, disabled: false }, // UC-07
@@ -24,7 +26,17 @@ export const MENUS = {
         { label: 'Loại phòng', path: '/room-types', icon: BiCategory, disabled: false }, // UC-20
         { label: 'Dịch vụ', path: '/services', icon: BiPlug, disabled: false }, // UC-21, 22 (/services/prices)
         { label: 'Quản lý Manager', path: '/managers', icon: BiIdCard, disabled: false }, // UC-08→11
-        { label: 'Đơn chấm dứt', path: '/terminations', icon: BiXCircle, disabled: false }, // UC-29
+        {
+            label: 'Đơn chấm dứt',
+            path: '/terminations',
+            icon: BiXCircle,
+            disabled: false,
+            // sổ xuống: mở nhanh danh sách đã lọc sẵn theo loại đơn (TerminationListPage đọc ?type=)
+            children: Object.values(TERMINATION_TYPE).map((type) => ({
+                label: TERMINATION_TYPE_LABEL[type].label,
+                path: `/terminations?type=${type}`,
+            })),
+        }, // UC-28, 29
         { label: 'Báo cáo', path: '/reports', icon: BiBarChartAlt2, disabled: false }, // UC-48
     ],
     [ROLE.MANAGER]: [

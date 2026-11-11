@@ -1,10 +1,11 @@
 // UC-29 (Admin, /terminations): danh sách đơn chấm dứt – mặc định lọc đơn Đơn phương đang Chờ xử lý để duyệt / từ chối
 // Lọc trạng thái, loại đơn (bỏ hết = xem tất cả), phân trang (api.md). Bấm một đơn → chi tiết /terminations/:id
 // Manager mở cùng trang thì thấy đơn của tòa mình (BE tự lọc)
+// Sidebar Admin có mục con /terminations?type=MUTUAL | UNILATERAL: trang đọc ?type= và giữ URL khớp bộ lọc Loại đơn
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Card } from 'react-bootstrap';
 import { BiReset } from 'react-icons/bi';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import ControlBar from '../../components/ControlBar';
 import DataTable from '../../components/DataTable';
 import EmptyState from '../../components/EmptyState';
@@ -69,6 +70,31 @@ const TerminationListPage = () => {
 
   const statusParam = filters.status.join(',');
   const typeParam = filters.type.join(',');
+
+  // ?type= trên URL đồng bộ với bộ lọc Loại đơn, để mục con ở sidebar (Hai bên thỏa thuận / Đơn phương) sáng đúng:
+  // - bấm mục con ở sidebar (URL đổi) → lọc đúng loại đó, xem mọi trạng thái
+  // - bấm mục cha (URL bỏ ?type) → bỏ lọc loại
+  // - tự đổi bộ lọc trong trang → URL đổi theo (đúng 1 loại thì có ?type, còn lại bỏ)
+  // chỉ đổi khi 2 bên lệch nhau nên không lặp vòng
+  const [searchParams, setSearchParams] = useSearchParams();
+  const typeQuery = searchParams.get('type') ?? '';
+  const singleType = filters.type.length === 1 ? filters.type[0] : '';
+  const [prevTypeQuery, setPrevTypeQuery] = useState(null); // null: lần đầu mở trang, URL thắng bộ lọc đã lưu
+  if (typeQuery !== prevTypeQuery) {
+    setPrevTypeQuery(typeQuery);
+    if (Object.values(TERMINATION_TYPE).includes(typeQuery) && singleType !== typeQuery) {
+      setFilters({ status: [], type: [typeQuery] });
+      setPage(1);
+    } else if (!typeQuery && prevTypeQuery && singleType) {
+      setFilters((prev) => ({ ...prev, type: [] }));
+      setPage(1);
+    }
+  }
+  useEffect(() => {
+    if (singleType !== typeQuery) {
+      setSearchParams(singleType ? { type: singleType } : {}, { replace: true });
+    }
+  }, [singleType, typeQuery, setSearchParams]);
 
   useEffect(() => {
     let ignore = false;
