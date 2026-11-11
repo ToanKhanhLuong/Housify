@@ -90,19 +90,25 @@ Nếu khách hỏi về hóa đơn hay phòng, hãy thông báo lịch sự rằ
             status: OCCUPANT_STATUS.STAYED,
         }).lean();
 
-        invoices = await Invoice.find({ contractId: contract._id })
+        // CHỈ LẤY HÓA ĐƠN ĐÃ GỬI (sentAt != null) VÀ KHÔNG PHẢI BẢN NHÁP/HỦY
+        // Khách chỉ thấy hóa đơn PENDING hoặc PAID đã được Manager gửi chính thức (UC-36, BR-095)
+        invoices = await Invoice.find({
+            contractId: contract._id,
+            sentAt: { $ne: null },
+            status: { $in: [INVOICE_STATUS.PENDING, INVOICE_STATUS.PAID] },
+        })
             .sort({ month: -1 })
             .limit(6)
             .lean();
     }
 
     const pendingInvoices = invoices.filter((i) => i.status === INVOICE_STATUS.PENDING);
-    const totalDebt = pendingInvoices.reduce((sum, i) => sum + (i.amount || 0), 0);
+    const totalDebt = pendingInvoices.reduce((sum, i) => sum + (i.totalAmount || 0), 0);
 
     const invoiceSummary = invoices.map((inv) => ({
         code: inv.invoiceCode,
         month: inv.month,
-        amount: formatMoneyVn(inv.amount),
+        amount: formatMoneyVn(inv.totalAmount),
         status: inv.status === INVOICE_STATUS.PAID ? 'Đã thanh toán' : 'Chưa thanh toán (Chờ nộp)',
         dueDate: formatDateVn(inv.dueDate),
     }));
@@ -124,18 +130,19 @@ DỮ LIỆU THỰC TẾ CỦA KHÁCH HÀNG TỪ HỆ THỐNG HOUSIFY:
 - Tiền đặt cọc hợp đồng: ${formatMoneyVn(contract?.deposit || 0)}
 - Hạn hợp đồng: Từ ngày ${formatDateVn(contract?.startDate)} đến hết ngày ${formatDateVn(contract?.endDate)}
 - Số người cùng phòng (${coOccupants.length} người): ${coOccupants.map((o) => `${o.name} (${o.relationship || 'Người ở cùng'})`).join(', ')}
-- Tình trạng nợ hóa đơn hiện tại: ${pendingInvoices.length > 0 ? `CÒN NỢ ${pendingInvoices.length} HÓA ĐƠN VỚI TỔNG SỐ TIỀN: ${formatMoneyVn(totalDebt)}` : 'Đã hoàn thành mọi khoản tiền phòng, không có nợ'}
-- Danh sách hóa đơn gần đây: ${JSON.stringify(invoiceSummary)}
-- Lịch sử báo sự cố gần đây: ${JSON.stringify(incidentSummary)}
+- Tình trạng nợ hóa đơn hiện tại: ${pendingInvoices.length > 0 ? `CÒN NỢ ${pendingInvoices.length} HÓA ĐƠN VỚI TỔNG SỐ TIỀN: ${formatMoneyVn(totalDebt)}` : 'Hiện tại phòng chưa có hóa đơn nào phát sinh hoặc chưa có hóa đơn cần thanh toán (0 nợ).'}
+- Danh sách hóa đơn đã gửi đến khách thuê: ${invoices.length > 0 ? JSON.stringify(invoiceSummary) : 'Trống (Hiện tại khách chưa có hóa đơn nào)'}
+- Lịch sử báo sự cố gần đây: ${incidents.length > 0 ? JSON.stringify(incidentSummary) : 'Trống (Chưa có sự cố nào)'}
 - Nội quy tòa nhà:
 ${building?.rules || '• Không gây ồn sau 22:00\n• Để xe đúng nơi quy định\n• Giữ gìn vệ sinh chung'}
 
 RÀO CHẮN BẢO MẬT & QUY TẮC PHẢN HỒI:
 1. Bạn CHỈ ĐƯỢC PHÉP trả lời các vấn đề liên quan đến phòng, hợp đồng, hóa đơn, sự cố và nội quy của chính khách hàng này.
 2. TUYỆT ĐỐI KHÔNG tiết lộ thông tin của các phòng khác, không tiết lộ doanh thu tòa nhà hoặc thông tin cá nhân của người khác.
-3. Khi khách hỏi cách thanh toán: Hướng dẫn khách vào menu "Hóa đơn" trên giao diện để quét mã VietQR tự động thanh toán.
-4. Khi khách hỏi cách báo sự cố: Hướng dẫn khách bấm menu "Sự cố" bên trái, bấm "Báo cáo sự cố mới" và đính kèm ảnh chụp.
-5. Giọng điệu: Thân thiện, tôn trọng, lịch sự, chuẩn tiếng Việt, dùng Markdown định dạng số tiền rõ ràng.`;
+3. Khi khách hỏi về hóa đơn: Nếu danh sách hóa đơn rỗng ("Trống"), hãy trả lời chính xác, rõ ràng rằng: "Hiện tại phòng của bạn chưa có hóa đơn nào phát sinh hoặc chưa có hóa đơn cần thanh toán". Tuyệt đối KHÔNG được tự bịa ra thông tin hóa đơn khi hệ thống báo trống.
+4. Khi khách hỏi cách thanh toán: Hướng dẫn khách vào menu "Hóa đơn" trên giao diện để quét mã VietQR tự động thanh toán.
+5. Khi khách hỏi cách báo sự cố: Hướng dẫn khách bấm menu "Sự cố" bên trái, bấm "Báo cáo sự cố mới" và đính kèm ảnh chụp.
+6. Giọng điệu: Thân thiện, tôn trọng, lịch sự, chuẩn tiếng Việt, dùng Markdown định dạng số tiền rõ ràng.`;
 };
 
 /**
@@ -161,25 +168,30 @@ Tài khoản Quản lý này hiện chưa được Admin phân công phụ trác
     const occupiedRooms = rooms.filter((r) => r.status === ROOM_STATUS.OCCUPIED);
     const maintenanceRooms = rooms.filter((r) => r.status === ROOM_STATUS.MAINTENANCE);
 
-    // Hóa đơn quá hạn / chờ nộp trong tòa
+    // Hóa đơn quá hạn / chờ nộp trong tòa (chỉ tính hóa đơn đã gửi sentAt != null)
+    const activeContracts = await Contract.find({ roomId: { $in: roomIds }, status: CONTRACT_STATUS.ACTIVE }).lean();
+    const activeContractIds = activeContracts.map((c) => c._id);
+    const roomMap = new Map(rooms.map((r) => [String(r._id), r.roomNumber]));
+    const contractRoomMap = new Map();
+    for (const c of activeContracts) {
+        contractRoomMap.set(String(c._id), roomMap.get(String(c.roomId)) || '—');
+    }
+
     const pendingInvoices = await Invoice.find({
-        buildingId: building._id,
-        status: { $in: [INVOICE_STATUS.PENDING] },
+        contractId: { $in: activeContractIds },
+        status: INVOICE_STATUS.PENDING,
+        sentAt: { $ne: null },
     })
         .sort({ dueDate: 1 })
         .lean();
 
     const now = new Date();
-    const overdueInvoices = pendingInvoices.filter((i) => new Date(i.dueDate) < now);
-    const totalOverdueAmount = overdueInvoices.reduce((sum, i) => sum + (i.amount || 0), 0);
+    const overdueInvoices = pendingInvoices.filter((i) => i.dueDate && new Date(i.dueDate) < now);
+    const totalOverdueAmount = overdueInvoices.reduce((sum, i) => sum + (i.totalAmount || 0), 0);
 
     // Hợp đồng sắp hết hạn trong 60 ngày tới
     const in60Days = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000);
-    const expiringContracts = await Contract.find({
-        roomId: { $in: roomIds },
-        status: CONTRACT_STATUS.ACTIVE,
-        endDate: { $gte: now, $lte: in60Days },
-    }).lean();
+    const expiringContracts = activeContracts.filter((c) => c.endDate && new Date(c.endDate) >= now && new Date(c.endDate) <= in60Days);
 
     // Sự cố chưa xử lý
     const openIncidents = await Incident.find({
@@ -189,7 +201,7 @@ Tài khoản Quản lý này hiện chưa được Admin phân công phụ trác
 
     // Thống kê cư dân đang ở
     const totalResidents = await Occupant.countDocuments({
-        contractId: { $in: await Contract.find({ roomId: { $in: roomIds }, status: CONTRACT_STATUS.ACTIVE }).distinct('_id') },
+        contractId: { $in: activeContractIds },
         status: OCCUPANT_STATUS.STAYED,
     });
 
@@ -201,10 +213,10 @@ Tài khoản Quản lý này hiện chưa được Admin phân công phụ trác
     }));
 
     const overdueSummary = overdueInvoices.slice(0, 10).map((i) => ({
-        room: i.roomNumber || '—',
+        room: contractRoomMap.get(String(i.contractId)) || '—',
         code: i.invoiceCode,
         month: i.month,
-        amount: formatMoneyVn(i.amount),
+        amount: formatMoneyVn(i.totalAmount),
         dueDate: formatDateVn(i.dueDate),
     }));
 
@@ -259,12 +271,13 @@ const buildAdminContext = async () => {
         }),
     );
 
-    // Tính tổng nợ toàn chuỗi
+    // Tính tổng nợ toàn chuỗi (chỉ hóa đơn PENDING đã gửi sentAt != null)
     const overdueInvoices = await Invoice.find({
         status: INVOICE_STATUS.PENDING,
+        sentAt: { $ne: null },
         dueDate: { $lt: new Date() },
     }).lean();
-    const totalDebtAll = overdueInvoices.reduce((sum, i) => sum + (i.amount || 0), 0);
+    const totalDebtAll = overdueInvoices.reduce((sum, i) => sum + (i.totalAmount || 0), 0);
 
     // Tính doanh thu các hóa đơn đã thanh toán tháng hiện tại
     const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
@@ -272,7 +285,7 @@ const buildAdminContext = async () => {
         status: INVOICE_STATUS.PAID,
         paidAt: { $gte: startOfMonth },
     }).lean();
-    const totalRevenueThisMonth = paidInvoicesThisMonth.reduce((sum, i) => sum + (i.amount || 0), 0);
+    const totalRevenueThisMonth = paidInvoicesThisMonth.reduce((sum, i) => sum + (i.totalAmount || 0), 0);
 
     return `Bạn là Housify AI Assistant - Cố vấn phân tích chiến lược cấp cao cho Chủ nhà trọ (Admin).
 
