@@ -7,6 +7,7 @@ import { ROLE } from '../constants/enums';
 import { NO_BUILDING_PATHS } from '../constants/menus';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import HousifyAiWidget from '../modules/gemini/components/HousifyAiWidget';
 
 // Nhớ sidebar đang thu gọn hay mở rộng trên trình duyệt này, F5 không mất. Không đọc / ghi được thì coi như mở rộng
 const COLLAPSED_KEY = 'sidebarCollapsed';
@@ -60,6 +61,8 @@ const MainLayout = ({ children }) => {
                     )}
                 </main>
             </div>
+            {/* Trợ lý Gemini AI Assistant góc dưới phải */}
+            <HousifyAiWidget />
         </div>
     );
 };
