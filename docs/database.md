@@ -194,7 +194,7 @@ Lập hóa đơn → lấy bản ghi có `effectiveFrom` gần nhất và ≤ ng
 - `roomId`: ObjectId → rooms
 - `contractType`: Enum `(CONTRACT_TYPE)` – SINGLE | GROUP
 - `representativeCccd`: String – CCCD người đại diện Manager nhập lúc tạo; đối chiếu ở UC-06; khóa sau ACTIVE
-- `representativeEmail`: String – email nhận link mời
+- `representativeEmail`: String – email nhận link mời; sửa được khi DRAFT (UC-26), từ ACTIVE là bản lưu lúc ký, không đổi theo hồ sơ khách. Mail sau kích hoạt gửi `users.email` mới nhất (xem business_rule.md – Thông báo)
 - `startDate`: Date – ngày bắt đầu; khóa sau ACTIVE (BR-067)
 - `endDate`: Date – `startDate` + số tháng; gia hạn chỉ dời ngày này (BR-070)
 - `rentPrice`: Number – **snapshot** giá phòng lúc tạo (BR-062)

@@ -24,6 +24,7 @@ import { audit } from '../../helpers/audit.js';
 import { generateActivationToken, ACTIVATION_TOKEN_TTL_MS } from '../../helpers/activationToken.js';
 import { escapeRegex } from '../../helpers/filter.js';
 import { startOfVietnamDay, endOfVietnamDay } from '../../helpers/date.js';
+import { getRepresentativeRecipientEmail } from '../../helpers/representativeEmail.js';
 import Contract from '../../models/Contract.js';
 import Room from '../../models/Room.js';
 import RoomType from '../../models/RoomType.js';
@@ -966,8 +967,9 @@ export const renewContract = async ({ managerId, contractId, data = {} }) => {
         );
     });
 
+    // gửi email mới nhất của khách; contract.representativeEmail giữ nguyên là bản lưu lúc ký
     const mailSent = await sendRenewalEmail(
-        contract.representativeEmail,
+        await getRepresentativeRecipientEmail(contract._id, contract.representativeEmail),
         room.roomNumber,
         building.name,
         months,
@@ -1257,7 +1259,7 @@ export const refundDeposit = async ({ managerId, contractId }) => {
     });
 
     const mailSent = await sendDepositRefundEmail(
-        contract.representativeEmail,
+        await getRepresentativeRecipientEmail(contract._id, contract.representativeEmail),
         room.roomNumber,
         building.name,
         contract.deposit,
@@ -1365,7 +1367,7 @@ export const runContractExpiryJob = async (now = new Date()) => {
         if (didEnd) {
             expiredContractIds.push(contract._id);
             await sendContractEndedEmail(
-                contract.representativeEmail,
+                await getRepresentativeRecipientEmail(contract._id, contract.representativeEmail),
                 room?.roomNumber || '',
                 building?.name || '',
                 contract.endDate,

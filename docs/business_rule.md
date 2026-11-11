@@ -38,7 +38,7 @@ Bản tóm tắt để code. Chi tiết đầy đủ nằm trong file use case (
 
 - Hợp đồng chụp `rentPrice`, `deposit` từ phòng lúc tạo (BR-062).
 - Hóa đơn chụp `description`, `unitPrice` từng dòng lúc lập. Đổi giá dịch vụ không ảnh hưởng hóa đơn đã lập (BR-058).
-- Hợp đồng giữ nguyên CCCD, email người đại diện lúc tạo. Khách đổi email, SĐT trong hồ sơ thì hợp đồng không đổi.
+- Hợp đồng giữ nguyên CCCD, email người đại diện lúc tạo. Khách đổi email, SĐT trong hồ sơ thì hợp đồng không đổi. `representativeEmail` chỉ Manager sửa khi hợp đồng còn DRAFT (UC-26); từ ACTIVE trở đi là bản lưu lúc ký, không ai sửa.
 
 ## Tiền
 
@@ -60,6 +60,8 @@ Bản tóm tắt để code. Chi tiết đầy đủ nằm trong file use case (
 ## Thông báo
 
 Ai bị ảnh hưởng thì phải được báo (chuông, kèm mail khi UC yêu cầu). Mail gửi qua `sendMail()` (Brevo API). Gửi mail lỗi **không** làm hỏng thao tác chính – chỉ cảnh báo.
+
+**Mail gửi khách đi đâu:** email **mới nhất** của tài khoản Customer (`users.email`, khách tự đổi ở UC-05); chưa có tài khoản thì mới dùng `contracts.representativeEmail`. Dùng chung `getRepresentativeRecipientEmail()` (`helpers/representativeEmail.js`). Áp dụng cho hóa đơn, nhắc thanh toán, biên lai, đơn chấm dứt, gia hạn, hoàn cọc, hết hạn hợp đồng. Riêng link mời kích hoạt, gửi lại lời mời, hủy hợp đồng nháp (khách chưa có tài khoản) và mail xác nhận kích hoạt gửi `representativeEmail`.
 
 ## Xóa
 

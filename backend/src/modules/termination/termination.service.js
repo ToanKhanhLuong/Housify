@@ -16,6 +16,7 @@ import { paginate } from '../../utils/pagination.js';
 import { withTransaction } from '../../helpers/withTransaction.js';
 import { notify } from '../../helpers/notify.js';
 import { startOfVietnamDay } from '../../helpers/date.js';
+import { getRepresentativeRecipientEmail } from '../../helpers/representativeEmail.js';
 import TerminationRequest from '../../models/TerminationRequest.js';
 import Contract from '../../models/Contract.js';
 import Room from '../../models/Room.js';
@@ -129,20 +130,6 @@ const endContractByTerminationInSession = async ({ contractId, effectiveDate, se
 };
 
 // ===== Email Helpers =====
-
-// Ưu tiên email tài khoản Customer hiện tại, nếu không có mới dùng snapshot contract.representativeEmail
-const getRepresentativeRecipientEmail = async (contractId, fallbackEmail) => {
-    if (!contractId) return fallbackEmail;
-    const repOccupant = await Occupant.findOne({
-        contractId,
-        isRepresentative: true,
-    }).select('userId').lean();
-    if (repOccupant?.userId) {
-        const user = await User.findById(repOccupant.userId).select('email').lean();
-        if (user?.email) return user.email;
-    }
-    return fallbackEmail;
-};
 
 const sendMutualRequestEmail = (to, roomNumber, buildingName, effectiveDate, reason, note) => sendMail(
     to,
