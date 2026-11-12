@@ -28,7 +28,6 @@ import TerminationRequest from '../../models/TerminationRequest.js';
 
 // Danh sách các model Gemini ưu tiên từ thế hệ 3.x siêu tốc xuống các model dự phòng 2.5 và Latest
 const GEMINI_MODELS = [
-    // 🌟 Các Model siêu tốc phản hồi tức thì (~0.8s - 1.2s)
     'gemini-3.6-flash',
     'gemini-2.5-flash',
     'gemini-3-flash-preview',
