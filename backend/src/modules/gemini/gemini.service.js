@@ -28,18 +28,15 @@ import TerminationRequest from '../../models/TerminationRequest.js';
 
 // Danh sách các model Gemini ưu tiên từ thế hệ 3.x siêu tốc xuống các model dự phòng 2.5 và Latest
 const GEMINI_MODELS = [
-    // Model thế hệ 3.x
-    'gemini-3.8-flash',
+    // 🌟 Các Model siêu tốc phản hồi tức thì (~0.8s - 1.2s)
     'gemini-3.6-flash',
-    'gemini-3.5-flash',
-    'gemini-3-flash-preview',
-    'gemini-3.5-flash-lite',
-
-    //=Model thế hệ 2.5 & Flash Lite
-    'gemini-2.5-flash-lite',
     'gemini-2.5-flash',
-    'gemini-flash-latest',
+    'gemini-3-flash-preview',
+    'gemini-3.5-flash',
+    'gemini-3.5-flash-lite',
     'gemini-flash-lite-latest',
+    'gemini-flash-latest',
+    'gemini-3.8-flash',
     'gemini-pro-latest',
 ];
 
@@ -875,6 +872,7 @@ const executeGeminiWithFallback = async ({ systemInstruction, contents }) => {
                     temperature: 0.3,
                     topP: 0.95,
                     maxOutputTokens: 4096,
+                    ...(!model.includes('lite') ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
                 },
             };
 
