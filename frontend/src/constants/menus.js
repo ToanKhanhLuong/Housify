@@ -10,7 +10,7 @@ import { TERMINATION_TYPE_LABEL } from './statusLabels';
 export const HOME_PATH = {
     [ROLE.ADMIN]: '/dashboard', // UC-07
     [ROLE.MANAGER]: '/dashboard', // UC-47
-    [ROLE.CUSTOMER]: '/rules',
+    [ROLE.CUSTOMER]: '/my-contract', // UC-25: mục đầu tiên trên menu Customer
 };
 
 // BR-023: Manager chưa được phân công tòa chỉ dùng được các trang này
