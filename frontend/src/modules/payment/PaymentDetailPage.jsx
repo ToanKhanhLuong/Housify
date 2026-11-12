@@ -140,29 +140,55 @@ const PaymentDetailPage = () => {
 
   return (
     <>
-      {/* CSS dành riêng khi in ấn / xuất PDF: Chỉ in vùng biên lai, ẩn toàn bộ UI khác */}
+      {/* CSS chuyên dụng in ấn: Tối ưu khổ giấy A4 dọc, tự động co giãn vừa vặn, không bị cắt trang */}
       <style>{`
+        @page {
+          size: A4 portrait;
+          margin: 10mm 12mm 10mm 12mm;
+        }
         @media print {
-          body * {
-            visibility: hidden !important;
+          html, body {
+            background: #ffffff !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            color: #000000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
-          #housify-receipt-print, #housify-receipt-print * {
-            visibility: visible !important;
+          .no-print, header, aside, nav, footer, .sidebar, .btn, [role="navigation"] {
+            display: none !important;
+          }
+          main {
+            padding: 0 !important;
+            margin: 0 !important;
+            background: #ffffff !important;
           }
           #housify-receipt-print {
-            position: fixed !important;
-            left: 0 !important;
-            top: 0 !important;
             width: 100% !important;
+            max-width: 100% !important;
             margin: 0 !important;
-            padding: 24px !important;
-            background: #ffffff !important;
+            padding: 0 !important;
             border: none !important;
             box-shadow: none !important;
-            z-index: 999999 !important;
+            border-radius: 0 !important;
+            background: transparent !important;
           }
-          header, aside, .page-header, .btn, .no-print {
-            display: none !important;
+          table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            page-break-inside: auto;
+          }
+          thead {
+            display: table-header-group;
+          }
+          tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+          }
+          .receipt-summary-block,
+          .receipt-signature-block {
+            page-break-inside: avoid;
+            break-inside: avoid;
           }
         }
         .stamp-paid {
@@ -175,7 +201,7 @@ const PaymentDetailPage = () => {
       `}</style>
 
       {/* Thanh điều hướng trên cùng: 1 nút quay lại danh sách ở góc trái + 2 nút thao tác bên phải */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <div className="no-print flex flex-wrap items-center justify-between gap-3 mb-4">
         {/* Góc trên bên trái: Chỉ 1 nút duy nhất quay về đúng danh sách Thanh toán */}
         <div className="flex items-center gap-2.5">
           <Button
@@ -215,42 +241,42 @@ const PaymentDetailPage = () => {
         </div>
       </div>
 
-      {/* VĂN BẢN BIÊN LAI THỰC TẾ (Cỡ chữ chuẩn rõ nét) */}
-      <div className="max-w-4xl mx-auto py-2 px-1">
+      {/* VĂN BẢN BIÊN LAI THỰC TẾ (Trên web: to rõ 14-16px; Khi in: tự động chuẩn hóa khít A4 dọc) */}
+      <div className="max-w-4xl mx-auto py-2 px-1 print:max-w-none print:p-0 print:m-0">
         <div
           id="housify-receipt-print"
-          className="relative bg-white border rounded-xl p-8 sm:p-10 shadow-sm [print-color-adjust:exact]"
+          className="relative bg-white border rounded-xl p-8 sm:p-10 shadow-sm print:p-0 print:border-0 print:shadow-none [print-color-adjust:exact]"
         >
           {/* Dấu ĐÃ THANH TOÁN */}
-          <div className="stamp-paid absolute right-8 top-20 px-4 py-1.5 rounded text-sm font-bold uppercase select-none pointer-events-none">
+          <div className="stamp-paid absolute right-8 top-16 sm:top-20 px-3.5 py-1 rounded text-xs sm:text-sm font-bold uppercase select-none pointer-events-none print:right-4 print:top-12 print:text-xs print:px-2.5 print:py-0.5">
             ĐÃ THANH TOÁN
           </div>
 
           {/* Đầu biên lai */}
-          <div className="flex items-start justify-between gap-4 pb-4 border-b border-gray-200">
-            <div className="flex items-center gap-3.5">
-              <div className="w-13 h-13 rounded-xl bg-[#714b67] text-white flex items-center justify-center font-bold text-2xl shadow-xs">
+          <div className="flex items-start justify-between gap-4 pb-4 border-b border-gray-200 print:pb-2.5 print:mb-2">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-[#714b67] text-white flex items-center justify-center font-bold text-2xl shadow-xs print:w-10 print:h-10 print:text-lg">
                 H
               </div>
               <div>
-                <div className="font-bold text-xl text-[#714b67] tracking-tight">Housify</div>
-                <div className="text-sm text-gray-600 font-medium">
+                <div className="font-bold text-xl text-[#714b67] tracking-tight print:text-lg">Housify</div>
+                <div className="text-sm text-gray-600 font-medium print:text-xs">
                   {building?.name || 'Tòa nhà cho thuê'} · {building?.address || 'Hệ thống Housify'}
                 </div>
               </div>
             </div>
-            <div className="text-right text-sm text-gray-600 leading-relaxed">
+            <div className="text-right text-sm text-gray-600 leading-relaxed print:text-xs print:leading-tight">
               <div>Quản lý: <span className="font-semibold text-gray-800">{building?.managerName || 'Quản lý tòa nhà'}</span></div>
               <div>Điện thoại: <span className="font-semibold text-gray-800">{building?.managerPhone || '—'}</span></div>
             </div>
           </div>
 
           {/* Tiêu đề biên lai */}
-          <div className="text-center my-6">
-            <h1 className="text-2xl font-bold uppercase tracking-wider text-gray-900 mb-2">
+          <div className="text-center my-5 print:my-2.5">
+            <h1 className="text-2xl font-bold uppercase tracking-wider text-gray-900 mb-1.5 print:text-lg print:mb-1">
               BIÊN LAI THANH TOÁN TIỀN PHÒNG
             </h1>
-            <div className="flex justify-between items-center text-sm text-gray-600 px-1 font-medium">
+            <div className="flex justify-between items-center text-sm text-gray-600 px-1 font-medium print:text-xs">
               <span className="italic">{formatVietnameseDate(payment.paidAt)}</span>
               <span>
                 Số biên lai: <span className="font-mono font-semibold text-gray-900">{receiptCode}</span>
@@ -258,84 +284,84 @@ const PaymentDetailPage = () => {
             </div>
           </div>
 
-          {/* Thông tin 2 cột (Cỡ chữ 14px rõ ràng, thoáng mắt) */}
-          <div className="bg-gray-50/70 rounded-lg p-5 border border-gray-200/90 mb-6 text-sm leading-relaxed">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2.5">
+          {/* Thông tin 2 cột */}
+          <div className="bg-gray-50/70 rounded-lg p-4 sm:p-5 border border-gray-200/90 mb-5 text-sm leading-relaxed print:p-3 print:mb-2.5 print:text-xs print:bg-gray-50/50">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 print:gap-y-1.5 print:gap-x-6">
               <div className="flex items-center">
-                <span className="w-36 text-gray-500 shrink-0 font-medium">Đại diện:</span>
-                <span className="font-bold text-gray-900 text-base">{repName}</span>
+                <span className="w-32 sm:w-36 text-gray-500 shrink-0 font-medium print:w-28">Đại diện:</span>
+                <span className="font-bold text-gray-900 text-sm sm:text-base print:text-xs">{repName}</span>
               </div>
               <div className="flex items-center">
-                <span className="w-36 text-gray-500 shrink-0 font-medium">Kỳ hóa đơn:</span>
+                <span className="w-32 sm:w-36 text-gray-500 shrink-0 font-medium print:w-28">Kỳ hóa đơn:</span>
                 <span className="font-semibold text-gray-800">Tháng {monthLabel(invoice?.month)}</span>
               </div>
 
               <div className="flex items-center">
-                <span className="w-36 text-gray-500 shrink-0 font-medium">Phòng:</span>
+                <span className="w-32 sm:w-36 text-gray-500 shrink-0 font-medium print:w-28">Phòng:</span>
                 <span className="font-bold text-gray-900">{roomText}</span>
               </div>
               <div className="flex items-center">
-                <span className="w-36 text-gray-500 shrink-0 font-medium">Ngày gửi:</span>
+                <span className="w-32 sm:w-36 text-gray-500 shrink-0 font-medium print:w-28">Ngày gửi:</span>
                 <span className="text-gray-800 font-medium">
                   {invoice?.sentAt ? formatDateTime(invoice.sentAt) : (invoice?.createdAt ? formatDateTime(invoice.createdAt) : '—')}
                 </span>
               </div>
 
               <div className="flex items-center">
-                <span className="w-36 text-gray-500 shrink-0 font-medium">Email:</span>
+                <span className="w-32 sm:w-36 text-gray-500 shrink-0 font-medium print:w-28">Email:</span>
                 <span className="text-gray-800 font-medium break-all">{repEmail}</span>
               </div>
               <div className="flex items-center">
-                <span className="w-36 text-gray-500 shrink-0 font-medium">Hạn thanh toán:</span>
+                <span className="w-32 sm:w-36 text-gray-500 shrink-0 font-medium print:w-28">Hạn thanh toán:</span>
                 <span className="text-gray-800 font-semibold">{invoice?.dueDate ? formatDate(invoice.dueDate) : '—'}</span>
               </div>
 
               <div className="flex items-center">
-                <span className="w-36 text-gray-500 shrink-0 font-medium">Điện thoại:</span>
+                <span className="w-32 sm:w-36 text-gray-500 shrink-0 font-medium print:w-28">Điện thoại:</span>
                 <span className="text-gray-800 font-semibold">{repPhone}</span>
               </div>
               <div className="flex items-center">
-                <span className="w-36 text-gray-500 shrink-0 font-medium">Hình thức:</span>
+                <span className="w-32 sm:w-36 text-gray-500 shrink-0 font-medium print:w-28">Hình thức:</span>
                 <span className="font-semibold text-gray-800">Chuyển khoản</span>
               </div>
 
-              <div className="flex items-center sm:col-span-2 pt-2 border-t border-gray-200/70">
-                <span className="w-36 text-gray-500 shrink-0 font-medium">Thanh toán lúc:</span>
+              <div className="flex items-center sm:col-span-2 pt-1.5 border-t border-gray-200/70 print:pt-1">
+                <span className="w-32 sm:w-36 text-gray-500 shrink-0 font-medium print:w-28">Thanh toán lúc:</span>
                 <span className="font-bold text-emerald-700">{formatDateTime(payment.paidAt)}</span>
               </div>
             </div>
           </div>
 
           {/* Bảng chi tiết khoản thu chuẩn */}
-          <div className="border border-gray-200 rounded-lg overflow-hidden mb-5">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-100/90 text-gray-700 uppercase font-bold tracking-wider text-xs sm:text-sm">
+          <div className="border border-gray-200 rounded-lg overflow-hidden mb-4 print:mb-2.5">
+            <table className="w-full text-sm print:text-xs">
+              <thead className="bg-gray-100/90 text-gray-700 uppercase font-bold tracking-wider text-xs sm:text-sm print:text-[11px]">
                 <tr className="border-b border-gray-200">
-                  <th className="py-3 px-4 text-center w-14">STT</th>
-                  <th className="py-3 px-4 text-left">Khoản thu</th>
-                  <th className="py-3 px-4 text-center w-32">Số lượng</th>
-                  <th className="py-3 px-4 text-right w-36">Đơn giá</th>
-                  <th className="py-3 px-4 text-right w-36">Thành tiền</th>
+                  <th className="py-2.5 px-3.5 text-center w-12 print:py-1.5 print:px-2">STT</th>
+                  <th className="py-2.5 px-3.5 text-left print:py-1.5 print:px-2">Khoản thu</th>
+                  <th className="py-2.5 px-3.5 text-center w-28 print:py-1.5 print:px-2 print:w-24">Số lượng</th>
+                  <th className="py-2.5 px-3.5 text-right w-32 print:py-1.5 print:px-2 print:w-28">Đơn giá</th>
+                  <th className="py-2.5 px-3.5 text-right w-32 print:py-1.5 print:px-2 print:w-28">Thành tiền</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200/80">
                 {items.length > 0 ? (
                   items.map((it, idx) => (
                     <tr key={it._id || idx} className="hover:bg-gray-50/50">
-                      <td className="py-3 px-4 text-center text-gray-500 font-medium">{idx + 1}</td>
-                      <td className="py-3 px-4 font-semibold text-gray-900">{it.description}</td>
-                      <td className="py-3 px-4 text-center text-gray-700 font-medium">{formatItemQuantity(it)}</td>
-                      <td className="py-3 px-4 text-right tabular-nums text-gray-700 font-medium">{formatMoney(it.unitPrice)}</td>
-                      <td className="py-3 px-4 text-right tabular-nums font-bold text-gray-900">{formatMoney(it.amount)}</td>
+                      <td className="py-2.5 px-3.5 text-center text-gray-500 font-medium print:py-1.5 print:px-2">{idx + 1}</td>
+                      <td className="py-2.5 px-3.5 font-semibold text-gray-900 print:py-1.5 print:px-2">{it.description}</td>
+                      <td className="py-2.5 px-3.5 text-center text-gray-700 font-medium print:py-1.5 print:px-2">{formatItemQuantity(it)}</td>
+                      <td className="py-2.5 px-3.5 text-right tabular-nums text-gray-700 font-medium print:py-1.5 print:px-2">{formatMoney(it.unitPrice)}</td>
+                      <td className="py-2.5 px-3.5 text-right tabular-nums font-bold text-gray-900 print:py-1.5 print:px-2">{formatMoney(it.amount)}</td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td className="py-3 px-4 text-center text-gray-500">1</td>
-                    <td className="py-3 px-4 font-semibold text-gray-900">Tiền phòng & dịch vụ kỳ {monthLabel(invoice?.month)}</td>
-                    <td className="py-3 px-4 text-center text-gray-700 font-medium">1 kỳ</td>
-                    <td className="py-3 px-4 text-right tabular-nums text-gray-700 font-medium">{formatMoney(payment.amount)}</td>
-                    <td className="py-3 px-4 text-right tabular-nums font-bold text-gray-900">{formatMoney(payment.amount)}</td>
+                    <td className="py-2.5 px-3.5 text-center text-gray-500 print:py-1.5 print:px-2">1</td>
+                    <td className="py-2.5 px-3.5 font-semibold text-gray-900 print:py-1.5 print:px-2">Tiền phòng & dịch vụ kỳ {monthLabel(invoice?.month)}</td>
+                    <td className="py-2.5 px-3.5 text-center text-gray-700 font-medium print:py-1.5 print:px-2">1 kỳ</td>
+                    <td className="py-2.5 px-3.5 text-right tabular-nums text-gray-700 font-medium print:py-1.5 print:px-2">{formatMoney(payment.amount)}</td>
+                    <td className="py-2.5 px-3.5 text-right tabular-nums font-bold text-gray-900 print:py-1.5 print:px-2">{formatMoney(payment.amount)}</td>
                   </tr>
                 )}
               </tbody>
@@ -343,17 +369,17 @@ const PaymentDetailPage = () => {
           </div>
 
           {/* Tổng kết tiền */}
-          <div className="flex justify-end mb-5">
-            <div className="w-full max-w-96 text-sm bg-gray-50 p-4 rounded-lg border border-gray-200/90 leading-normal">
-              <div className="flex justify-between py-1.5 text-gray-700">
+          <div className="receipt-summary-block flex justify-end mb-4 print:mb-2">
+            <div className="w-full max-w-88 sm:max-w-96 text-sm bg-gray-50 p-3.5 sm:p-4 rounded-lg border border-gray-200/90 leading-normal print:p-2.5 print:max-w-72 print:text-xs">
+              <div className="flex justify-between py-1 text-gray-700 print:py-0.5">
                 <span>Tổng cộng:</span>
-                <span className="font-bold text-gray-900 tabular-nums text-base">{formatMoney(invoice?.totalAmount || payment.amount)}</span>
+                <span className="font-bold text-gray-900 tabular-nums text-sm sm:text-base print:text-xs">{formatMoney(invoice?.totalAmount || payment.amount)}</span>
               </div>
-              <div className="flex justify-between py-1.5 text-emerald-700 font-bold border-t border-gray-200/70">
+              <div className="flex justify-between py-1 text-emerald-700 font-bold border-t border-gray-200/70 print:py-0.5">
                 <span>Đã thanh toán:</span>
-                <span className="tabular-nums text-base">{formatMoney(payment.amount)}</span>
+                <span className="tabular-nums text-sm sm:text-base print:text-xs">{formatMoney(payment.amount)}</span>
               </div>
-              <div className="flex justify-between py-1.5 text-gray-500 border-t border-gray-200/70 font-medium">
+              <div className="flex justify-between py-1 text-gray-500 border-t border-gray-200/70 font-medium print:py-0.5">
                 <span>Còn lại:</span>
                 <span className="tabular-nums font-semibold">{formatMoney(Math.max(0, (invoice?.totalAmount || payment.amount) - payment.amount))}</span>
               </div>
@@ -361,21 +387,21 @@ const PaymentDetailPage = () => {
           </div>
 
           {/* Số tiền bằng chữ */}
-          <div className="italic text-sm text-gray-700 mb-9 bg-amber-50/70 p-3 rounded-lg border border-amber-200/70">
+          <div className="italic text-sm text-gray-700 mb-6 sm:mb-8 bg-amber-50/70 p-2.5 sm:p-3 rounded-lg border border-amber-200/70 print:p-2 print:mb-3 print:text-xs">
             Số tiền bằng chữ: <span className="font-semibold text-gray-900">{moneyInWords(payment.amount)}</span>.
           </div>
 
           {/* Khu vực xác nhận */}
-          <div className="grid grid-cols-2 gap-8 text-sm text-center pt-4 border-t border-gray-200">
+          <div className="receipt-signature-block grid grid-cols-2 gap-6 sm:gap-8 text-sm text-center pt-3 sm:pt-4 border-t border-gray-200 print:pt-2 print:gap-4 print:text-xs">
             <div>
-              <div className="font-bold text-gray-800 uppercase tracking-wide">Người nộp tiền</div>
-              <div className="text-xs text-gray-500 mb-12">(Người đại diện)</div>
-              <div className="font-bold text-gray-900 text-lg">{repName}</div>
+              <div className="font-bold text-gray-800 uppercase tracking-wide print:text-xs">Người nộp tiền</div>
+              <div className="text-xs text-gray-500 mb-8 sm:mb-12 print:mb-6">(Người đại diện)</div>
+              <div className="font-bold text-gray-900 text-base sm:text-lg print:text-sm">{repName}</div>
             </div>
             <div>
-              <div className="font-bold text-gray-800 uppercase tracking-wide">Xác nhận điện tử</div>
-              <div className="mt-2 mx-auto max-w-80 rounded-lg border border-emerald-600 bg-emerald-50/90 p-3.5 text-sm text-emerald-950 text-left leading-relaxed [print-color-adjust:exact]">
-                <div className="font-bold flex items-center gap-1.5 text-emerald-800 mb-1">
+              <div className="font-bold text-gray-800 uppercase tracking-wide print:text-xs">Xác nhận điện tử</div>
+              <div className="mt-1.5 sm:mt-2 mx-auto max-w-72 sm:max-w-80 rounded-lg border border-emerald-600 bg-emerald-50/90 p-3 sm:p-3.5 text-xs sm:text-sm text-emerald-950 text-left leading-relaxed print:p-2 print:max-w-64 print:text-[11px] [print-color-adjust:exact]">
+                <div className="font-bold flex items-center gap-1.5 text-emerald-800 mb-0.5 print:mb-0">
                   ✓ Hệ thống Housify ghi nhận qua SePay
                 </div>
                 <div>Mã GD: <span className="font-mono font-bold text-gray-900">{payment.sepayTxnId || '—'}</span></div>
