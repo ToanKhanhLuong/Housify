@@ -26,12 +26,21 @@ import Incident from '../../models/Incident.js';
 import Manager from '../../models/Manager.js';
 import TerminationRequest from '../../models/TerminationRequest.js';
 
-// Danh sách các model Gemini ưu tiên từ mới nhất xuống model dự phòng
+// Danh sách các model Gemini ưu tiên từ thế hệ 3.x siêu tốc xuống các model dự phòng 2.5 và Latest
 const GEMINI_MODELS = [
+    // 🌟 Các Model thế hệ 3.x siêu tốc & thông minh nhất
+    'gemini-3.8-flash',
+    'gemini-3.6-flash',
+    'gemini-3.5-flash',
+    'gemini-3-flash-preview',
+    'gemini-3.5-flash-lite',
+
+    // 🚀 Các Model thế hệ 2.5 & Flash Lite
+    'gemini-2.5-flash-lite',
     'gemini-2.5-flash',
-    'gemini-2.0-flash',
-    'gemini-1.5-flash',
-    'gemini-1.5-pro',
+    'gemini-flash-latest',
+    'gemini-flash-lite-latest',
+    'gemini-pro-latest',
 ];
 
 const formatMoneyVn = (amount) => {
@@ -878,12 +887,10 @@ const executeGeminiWithFallback = async ({ systemInstruction, contents }) => {
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 const status = response.status;
-                // Nếu quá tải (429 Too Many Requests, 503 Overloaded, 500) -> Thử model tiếp theo
-                if (status === 429 || status === 503 || status === 500) {
-                    lastError = new Error(`Model ${model} HTTP ${status}: ${errorData.error?.message || 'Quá tải hạn mức'}`);
-                    continue;
-                }
-                throw new AppError(`Lỗi Gemini API (${model}): ${errorData.error?.message || response.statusText}`, 502);
+                const errorMsg = errorData.error?.message || response.statusText;
+                console.warn(`[Gemini Fallback] Model "${model}" phản hồi HTTP ${status}: ${errorMsg}. Đang tự động chuyển sang model tiếp theo...`);
+                lastError = new Error(`Model ${model} HTTP ${status}: ${errorMsg}`);
+                continue;
             }
 
             const result = await response.json();
@@ -895,16 +902,18 @@ const executeGeminiWithFallback = async ({ systemInstruction, contents }) => {
                     modelUsed: model,
                 };
             }
+
+            console.warn(`[Gemini Fallback] Model "${model}" trả về candidate rỗng. Đang thử model tiếp theo...`);
         } catch (error) {
-            if (error instanceof AppError) throw error;
+            console.warn(`[Gemini Fallback] Lỗi kết nối tới model "${model}": ${error.message}. Đang thử model tiếp theo...`);
             lastError = error;
         }
     }
 
-    throw new AppError(
-        `Toàn bộ các mô hình Gemini (${GEMINI_MODELS.join(', ')}) hiện đang quá tải hoặc gặp sự cố: ${lastError?.message || 'Không thể kết nối'}. Vui lòng thử lại sau giây lát.`,
-        503,
-    );
+    return {
+        reply: `Hệ thống AI hiện đang chịu tải cao hoặc đang bảo trì từ Google Gemini (${lastError?.message || 'Không thể kết nối'}). Bạn vui lòng thử lại sau giây lát nhé!`,
+        modelUsed: 'all-overloaded',
+    };
 };
 
 /**

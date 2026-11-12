@@ -28,15 +28,21 @@ Module `gemini` cung cấp trợ lý ảo thông minh (**Housify AI Assistant**)
 
 ---
 
-## 4. Rào chắn 4 Model dự phòng chống quá tải (Cascade Fallback)
+## 4. Rào chắn 10 Model dự phòng chống quá tải (Cascade Fallback)
 
-Hệ thống thiết lập cơ chế tự động chuyển đổi dự phòng qua 4 mô hình Gemini theo thứ tự ưu tiên:
-1. `gemini-2.5-flash`: Mô hình thế hệ mới nhất, tốc độ phản hồi nhanh và suy luận chính xác.
-2. `gemini-2.0-flash`: Mô hình dự phòng cấp 1 khi model chính gặp giới hạn tải.
-3. `gemini-1.5-flash`: Mô hình dự phòng cấp 2 ổn định cao.
-4. `gemini-1.5-pro`: Mô hình dự phòng cuối cùng chuyên xử lý phân tích sâu.
+Hệ thống thiết lập cơ chế tự động chuyển đổi dự phòng qua 10 mô hình Gemini thế hệ 3.x và 2.5 theo thứ tự ưu tiên:
+1. `gemini-3.8-flash`: Mô hình thế hệ mới nhất, tối ưu tốc độ và độ chính xác cao.
+2. `gemini-3.6-flash`: Mô hình 3.x hiệu năng cao, phản hồi tức thì.
+3. `gemini-3.5-flash`: Mô hình 3.x ổn định và suy luận thông minh.
+4. `gemini-3-flash-preview`: Bản thử nghiệm thế hệ 3.x với độ trễ siêu thấp.
+5. `gemini-3.5-flash-lite`: Bản rút gọn siêu tốc tiết kiệm tài nguyên.
+6. `gemini-2.5-flash-lite`: Bản lite thế hệ 2.5 dự phòng linh hoạt.
+7. `gemini-2.5-flash`: Mô hình 2.5 tiêu chuẩn mạnh mẽ.
+8. `gemini-flash-latest`: Trỏ tự động tới bản flash mới nhất.
+9. `gemini-flash-lite-latest`: Trỏ tự động tới bản flash lite mới nhất.
+10. `gemini-pro-latest`: Bản Pro chuyên sâu làm chốt chặn cuối cùng.
 
-Khi gọi API, nếu gặp lỗi quá tải hạn mức (`429 Too Many Requests`, `503 Service Unavailable` hoặc `500`), hệ thống tự động chuyển tiếp sang model kế tiếp hoàn toàn trong suốt với người dùng.
+Khi gọi API, nếu bất kỳ mô hình nào gặp sự cố hoặc quá tải hạn mức (`429 Too Many Requests`, `503 Service Unavailable`, `404/400 Deprecated` hoặc sự cố mạng), hệ thống tự động cảnh báo ngầm và chuyển tiếp sang model kế tiếp hoàn toàn trong suốt với người dùng. Không bao giờ làm đứt gãy trải nghiệm.
 
 ---
 
