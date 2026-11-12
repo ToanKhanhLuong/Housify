@@ -10,12 +10,13 @@ import { withTransaction } from "../../helpers/withTransaction.js";
 import { endOfVietnamDay, startOfVietnamDay } from "../../helpers/date.js";
 import { notify } from "../../helpers/notify.js";
 import { sendMail } from "../../config/mail.js";
+import { AppError } from "../../utils/AppError.js";
 import {
   ROLE,
   INVOICE_STATUS,
   NOTIFICATION_TYPE,
 } from "../../constants/enums.js";
-import { AppError } from "../../utils/AppError.js";
+
 
 /**
  * Helper: Tính trạng thái thanh toán "Đúng hạn" hoặc "Quá hạn X ngày" (BR-101)
@@ -341,14 +342,14 @@ export const getPayments = async (query, user) => {
       statusLabel, // "Đúng hạn" hoặc "Quá hạn X ngày"
       invoice: inv
         ? {
-            _id: inv._id,
-            invoiceCode: inv.invoiceCode,
-            month: inv.month,
-            totalAmount: inv.totalAmount,
-            dueDate: inv.dueDate,
-            status: inv.status,
-            roomNumber: room?.roomNumber || "",
-          }
+          _id: inv._id,
+          invoiceCode: inv.invoiceCode,
+          month: inv.month,
+          totalAmount: inv.totalAmount,
+          dueDate: inv.dueDate,
+          status: inv.status,
+          roomNumber: room?.roomNumber || "",
+        }
         : null,
     };
   });
