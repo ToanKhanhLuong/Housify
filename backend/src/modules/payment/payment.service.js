@@ -4,6 +4,7 @@ import Invoice from "../../models/Invoice.js";
 import Contract from "../../models/Contract.js";
 import Room from "../../models/Room.js";
 import Building from "../../models/Building.js";
+import Manager from "../../models/Manager.js";
 import Occupant from "../../models/Occupant.js";
 import User from "../../models/User.js";
 import { withTransaction } from "../../helpers/withTransaction.js";
@@ -313,11 +314,18 @@ export const getPayments = async (query, user) => {
     Payment.find(paymentFilter)
       .populate({
         path: "invoiceId",
-        select: "invoiceCode month totalAmount dueDate status contractId",
+        select: "invoiceCode month totalAmount dueDate sentAt createdAt status items contractId",
         populate: {
           path: "contractId",
-          select: "roomId",
-          populate: { path: "roomId", select: "roomNumber floorNumber" },
+          select: "roomId representativeCccd representativeEmail",
+          populate: {
+            path: "roomId",
+            select: "roomNumber floorNumber buildingId",
+            populate: {
+              path: "buildingId",
+              select: "name address managerId",
+            },
+          },
         },
       })
       .sort({ paidAt: -1 })
@@ -326,10 +334,49 @@ export const getPayments = async (query, user) => {
     Payment.countDocuments(paymentFilter),
   ]);
 
+  // Lấy thông tin đại diện (Occupant) và thông tin Manager của tòa nhà
+  const contractIds = payments
+    .map((p) => p.invoiceId?.contractId?._id)
+    .filter(Boolean);
+  const managerUserIds = payments
+    .map((p) => p.invoiceId?.contractId?.roomId?.buildingId?.managerId)
+    .filter(Boolean);
+
+  const [representatives, managers] = await Promise.all([
+    Occupant.find({
+      contractId: { $in: contractIds },
+      isRepresentative: true,
+    }).select("contractId name phone cccd"),
+    Manager.find({
+      userId: { $in: managerUserIds },
+    }).select("userId name phone"),
+  ]);
+
+  const repMap = new Map(representatives.map((r) => [r.contractId.toString(), r]));
+  const managerMap = new Map(managers.map((m) => [m.userId.toString(), m]));
+
+  const missingRepCccds = payments
+    .filter((p) => {
+      const cId = p.invoiceId?.contractId?._id?.toString();
+      return cId && !repMap.has(cId) && p.invoiceId?.contractId?.representativeCccd;
+    })
+    .map((p) => p.invoiceId.contractId.representativeCccd);
+
+  let userMap = new Map();
+  if (missingRepCccds.length > 0) {
+    const users = await User.find({ cccd: { $in: missingRepCccds } }).select("name phone cccd email");
+    userMap = new Map(users.map((u) => [u.cccd, u]));
+  }
+
   // 4. Định dạng dữ liệu trả về và tính nhãn "Đúng hạn" / "Quá hạn X ngày"
   const items = payments.map((p) => {
     const inv = p.invoiceId;
-    const room = inv?.contractId?.roomId;
+    const contract = inv?.contractId;
+    const room = contract?.roomId;
+    const building = room?.buildingId;
+    const cId = contract?._id?.toString();
+    const rep = (cId ? repMap.get(cId) : null) || (contract?.representativeCccd ? userMap.get(contract.representativeCccd) : null);
+    const bManager = building?.managerId ? managerMap.get(building.managerId.toString()) : null;
     const statusLabel = calculateOverdueLabel(p.paidAt, inv?.dueDate);
 
     return {
@@ -347,8 +394,27 @@ export const getPayments = async (query, user) => {
           month: inv.month,
           totalAmount: inv.totalAmount,
           dueDate: inv.dueDate,
+          sentAt: inv.sentAt,
+          createdAt: inv.createdAt,
           status: inv.status,
+          items: inv.items || [],
           roomNumber: room?.roomNumber || "",
+          floorNumber: room?.floorNumber || "",
+          building: building
+            ? {
+              _id: building._id,
+              name: building.name,
+              address: building.address,
+              managerName: bManager?.name || "",
+              managerPhone: bManager?.phone || "",
+            }
+            : null,
+          representative: {
+            name: rep?.name || "",
+            phone: rep?.phone || "",
+            email: contract?.representativeEmail || rep?.email || "",
+            cccd: contract?.representativeCccd || rep?.cccd || "",
+          },
         }
         : null,
     };
