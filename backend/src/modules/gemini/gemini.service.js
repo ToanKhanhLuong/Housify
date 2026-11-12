@@ -28,14 +28,14 @@ import TerminationRequest from '../../models/TerminationRequest.js';
 
 // Danh sách các model Gemini ưu tiên từ thế hệ 3.x siêu tốc xuống các model dự phòng 2.5 và Latest
 const GEMINI_MODELS = [
-    // 🌟 Các Model thế hệ 3.x siêu tốc & thông minh nhất
+    // Model thế hệ 3.x
     'gemini-3.8-flash',
     'gemini-3.6-flash',
     'gemini-3.5-flash',
     'gemini-3-flash-preview',
     'gemini-3.5-flash-lite',
 
-    // 🚀 Các Model thế hệ 2.5 & Flash Lite
+    //=Model thế hệ 2.5 & Flash Lite
     'gemini-2.5-flash-lite',
     'gemini-2.5-flash',
     'gemini-flash-latest',
@@ -195,8 +195,8 @@ Nếu khách hỏi về hóa đơn hay phòng đang ở, hãy thông báo lịch
             inv.status === INVOICE_STATUS.PAID
                 ? `Đã thanh toán (ngày ${formatDateVn(inv.paidAt)})`
                 : inv.dueDate && new Date(inv.dueDate) < now
-                  ? 'Chưa thanh toán - ĐANG QUÁ HẠN'
-                  : 'Chưa thanh toán (Chờ nộp)',
+                    ? 'Chưa thanh toán - ĐANG QUÁ HẠN'
+                    : 'Chưa thanh toán (Chờ nộp)',
         dueDate: formatDateVn(inv.dueDate),
         items: (inv.items || []).map((item) => ({
             description: item.description,
@@ -215,10 +215,10 @@ Nếu khách hỏi về hóa đơn hay phòng đang ở, hãy thông báo lịch
             t.status === TERMINATION_STATUS.PENDING
                 ? 'Đang chờ xác nhận / phê duyệt (PENDING)'
                 : t.status === TERMINATION_STATUS.CONFIRMED
-                  ? 'Đã xác nhận hiệu lực (CONFIRMED)'
-                  : t.status === TERMINATION_STATUS.REJECTED
-                    ? 'Đã từ chối (REJECTED)'
-                    : 'Đã hủy (CANCELLED)',
+                    ? 'Đã xác nhận hiệu lực (CONFIRMED)'
+                    : t.status === TERMINATION_STATUS.REJECTED
+                        ? 'Đã từ chối (REJECTED)'
+                        : 'Đã hủy (CANCELLED)',
         reason: t.reason,
         effectiveDate: formatDateVn(t.effectiveDate),
         note: t.note || '—',
@@ -232,10 +232,10 @@ Nếu khách hỏi về hóa đơn hay phòng đang ở, hãy thông báo lịch
             inc.status === INCIDENT_STATUS.PENDING
                 ? 'Chờ tiếp nhận'
                 : inc.status === INCIDENT_STATUS.IN_PROGRESS
-                  ? 'Đang sửa chữa / xử lý'
-                  : inc.status === INCIDENT_STATUS.RESOLVED
-                    ? 'Đã giải quyết xong'
-                    : 'Đã từ chối',
+                    ? 'Đang sửa chữa / xử lý'
+                    : inc.status === INCIDENT_STATUS.RESOLVED
+                        ? 'Đã giải quyết xong'
+                        : 'Đã từ chối',
         resultNote: inc.resultNote || '—',
         createdAt: formatDateVn(inc.createdAt),
     }));
@@ -748,8 +748,8 @@ const buildAdminContext = async () => {
                 u.status === USER_STATUS.ACTIVE
                     ? 'Đang hoạt động (ACTIVE)'
                     : u.status === USER_STATUS.PENDING
-                      ? 'Chờ kích hoạt link (PENDING)'
-                      : 'Đang bị khóa (LOCKED)',
+                        ? 'Chờ kích hoạt link (PENDING)'
+                        : 'Đang bị khóa (LOCKED)',
             assignedBuilding: assignedBuilding ? assignedBuilding.name : 'Chưa phân công tòa nhà',
         };
     });
