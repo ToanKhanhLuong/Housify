@@ -1,5 +1,7 @@
 // Thẻ một phòng trong chế độ "Theo phòng" (UC-30): đầu thẻ số phòng + tầng + loại + chấm sức chứa,
 // thân là danh sách thành viên (bấm mở hồ sơ), chân thẻ: Thêm người (còn chỗ, UC-32) và link sang hợp đồng
+// Phòng có hơn 3 người: thân thẻ chỉ cao 3 dòng, cuộn dọc để xem những người còn lại (thẻ trong lưới cao đều nhau)
+import { useEffect, useRef } from 'react';
 import { Button } from 'react-bootstrap';
 import { BiFile, BiUserPlus } from 'react-icons/bi';
 import { Link } from 'react-router-dom';
@@ -7,12 +9,25 @@ import { OCCUPANT_STATUS } from '../../../constants/enums';
 import CapacityDots from './CapacityDots';
 import MemberRow from './MemberRow';
 
+// Số dòng thành viên thấy được trước khi phải cuộn
+const MAX_VISIBLE_MEMBERS = 3;
+
 // highlightIds: Set _id người khớp ô tìm ở danh sách → tô nền dòng đó
 const RoomGroupCard = ({ group, onOpenMember, onAdd, highlightIds }) => {
   const { room, members, contractId } = group;
   const capacity = room.roomType?.capacity;
   const stayed = members.filter((member) => member.status === OCCUPANT_STATUS.STAYED).length;
   const hasSlot = contractId && capacity && stayed < capacity;
+  const scrollable = members.length > MAX_VISIBLE_MEMBERS;
+  const listRef = useRef(null);
+
+  // Người khớp ô tìm nằm dưới dòng thứ 3 thì tự cuộn tới, không để dòng được tô nền bị khuất
+  useEffect(() => {
+    const list = listRef.current;
+    if (!scrollable || !list) return;
+    const index = members.findIndex((member) => highlightIds?.has(member._id));
+    if (index >= MAX_VISIBLE_MEMBERS) list.scrollTo({ top: list.children[index].offsetTop });
+  }, [scrollable, members, highlightIds]);
 
   return (
     <div className="hf-card flex flex-col">
@@ -27,7 +42,11 @@ const RoomGroupCard = ({ group, onOpenMember, onAdd, highlightIds }) => {
         <CapacityDots count={stayed} capacity={capacity} />
       </div>
 
-      <div className="flex flex-col gap-1 p-2 flex-1">
+      {/* 13.4rem = 3 dòng thành viên (mỗi dòng ~3.96rem) + 2 khoảng gap-1 + padding p-2 hai đầu */}
+      <div
+        ref={listRef}
+        className={`flex flex-col gap-1 p-2 flex-1 ${scrollable ? 'relative max-h-[13.4rem] overflow-y-auto' : ''}`}
+      >
         {members.map((member) => (
           <MemberRow
             key={member._id}
