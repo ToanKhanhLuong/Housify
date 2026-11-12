@@ -4,6 +4,7 @@ import {
     CONTRACT_STATUS, CONTRACT_TYPE, INCIDENT_STATUS, INCIDENT_TYPE, INVOICE_ITEM_TYPE,
     INVOICE_STATUS, NOTIFICATION_TYPE, OCCUPANT_STATUS, ROLE, ROOM_STATUS, TERMINATION_STATUS, TERMINATION_TYPE, USER_STATUS,
 } from './enums';
+import { LuFilePen, LuHandshake } from 'react-icons/lu';
 
 export const ROLE_LABEL = {
     [ROLE.ADMIN]: 'Admin',
@@ -41,9 +42,10 @@ export const OCCUPANT_STATUS_LABEL = {
     [OCCUPANT_STATUS.LEFT]: { label: 'Đã chuyển đi', variant: 'secondary' },
 };
 
+// icon: bắt tay = hai bên thỏa thuận, giấy + bút ký = đơn phương (hiện ở badge, menu con, thẻ chọn loại đơn)
 export const TERMINATION_TYPE_LABEL = {
-    [TERMINATION_TYPE.MUTUAL]: { label: 'Hai bên thỏa thuận', variant: 'secondary' },
-    [TERMINATION_TYPE.UNILATERAL]: { label: 'Đơn phương', variant: 'danger' },
+    [TERMINATION_TYPE.MUTUAL]: { label: 'Hai bên thỏa thuận', variant: 'secondary', icon: LuHandshake },
+    [TERMINATION_TYPE.UNILATERAL]: { label: 'Đơn phương', variant: 'danger', icon: LuFilePen },
 };
 
 export const TERMINATION_STATUS_LABEL = {

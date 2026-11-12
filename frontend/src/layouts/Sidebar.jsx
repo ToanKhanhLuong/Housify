@@ -160,8 +160,9 @@ const Sidebar = ({ show, onHide, collapsed, onToggleCollapse }) => {
                                                     to={child.path}
                                                     active={child === activeChild}
                                                     onClick={onHide}
-                                                    className={`py-1 ${itemClass}`}
+                                                    className={`flex items-center gap-2 py-1 ${itemClass}`}
                                                 >
+                                                    {child.icon && <child.icon size={16} className="shrink-0" />}
                                                     {child.label}
                                                 </Nav.Link>
                                             ))}
