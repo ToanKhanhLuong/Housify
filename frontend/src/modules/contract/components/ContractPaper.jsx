@@ -115,7 +115,7 @@ const ContractPaper = ({ contract, onOccupantClick }) => {
           <div>
             <FieldRow label="Xác nhận điện tử">
               {contract.activatedAt ? (
-                <span className="inline-flex items-center gap-1 text-success-emphasis">
+                <span className="inline-flex items-center gap-1 text-success">
                   <BiCheckShield />
                   Đã xác nhận lúc {formatDateTime(contract.activatedAt)}
                 </span>

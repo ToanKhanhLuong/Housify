@@ -238,13 +238,19 @@ Chỉ Admin (Manager, Customer gọi → 403). Id sai định dạng → 404 nh�
       "dateOfBirth": "2002-05-10T00:00:00.000Z",
       "address": "Hà Nội"
     },
+    "manager": {
+      "name": "Trần Thị B",
+      "phone": "0987654321",
+      "address": "Cầu Giấy, Hà Nội",
+      "dateOfBirth": "1995-03-20T00:00:00.000Z"
+    },
     "occupants": [
       { "_id": "66f2...", "isRepresentative": true, "name": "Nguyễn Văn A", "cccd": "001202012345", "phone": "0912345678", "status": "STAYED", "joinDate": "2026-09-01T00:00:00.000Z" }
     ]
   }
 }
 ```
-*(Lưu ý: Nếu hợp đồng là `DRAFT`, `representative` chỉ có `{ cccd, email }`).*
+*(Lưu ý: Nếu hợp đồng là `DRAFT`, `representative` chỉ có `{ cccd, email }`. `manager` là Bên A của văn bản hợp đồng = Manager tạo hợp đồng (`createdBy`), giống `GET /activation/contract/:token`; `null` khi không tìm thấy hồ sơ Manager; `address` rỗng, `dateOfBirth` null khi Manager chưa nhập ở Hồ sơ).*
 
 #### `PUT /api/contracts/:id` — UC-26 (Role: M)
 - **Request (khi DRAFT):** `{ "representativeCccd": "001202099999", "representativeEmail": "moi@gmail.com", "startDate": "2026-10-01", "durationMonths": 12, "notes": "Ghi chú mới" }`

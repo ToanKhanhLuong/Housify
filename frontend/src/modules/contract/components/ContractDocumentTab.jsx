@@ -1,6 +1,6 @@
 // UC-25: tab "Văn bản hợp đồng" – hợp đồng hiện dạng trang giấy A4 như lúc gửi cho khách kích hoạt (ContractDocument chung)
-// Dựng dữ liệu từ GET /contracts/:id + nội quy tòa (GET /buildings/:id/rules). Bên A = Manager của tòa:
-//   Manager xem → chính mình (useAuth); Customer xem → user.building.manager (/auth/me). Có nút In / Lưu PDF
+// Dựng dữ liệu từ GET /contracts/:id + nội quy tòa (GET /buildings/:id/rules). Bên A = contract.manager
+//   (Manager tạo hợp đồng, có ngày sinh + địa chỉ, giống văn bản khách xác nhận ở UC-06). Có nút In / Lưu PDF
 import { useEffect, useState } from 'react';
 import { Button } from 'react-bootstrap';
 import { BiPrinter } from 'react-icons/bi';
@@ -48,10 +48,12 @@ const ContractDocumentTab = ({ contract }) => {
       .catch(() => setRules(''));
   }, [buildingId]);
 
+  // BE chưa trả manager (bản cũ) thì dùng cách cũ: Manager xem → chính mình, Customer xem → Manager của tòa
   const manager =
-    user.role === ROLE.MANAGER
+    contract.manager ??
+    (user.role === ROLE.MANAGER
       ? { name: user.name, phone: user.phone }
-      : (user.building?.manager ?? null);
+      : (user.building?.manager ?? null));
 
   const representative = contract.representative ?? {};
   // Bên B: đã kích hoạt thì có hồ sơ; Nháp thì để "……" như mẫu giấy
