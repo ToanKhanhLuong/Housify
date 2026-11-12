@@ -1,14 +1,15 @@
 // UC-47: Tổng quan điều hành thực tế cho Manager
 // Hiển thị toàn diện: Tỷ lệ lấp đầy phòng, Nhân khẩu cư dân (Đang ở / Mới vào / Đã chuyển đi), Tiến độ thu tài chính,
-// Công việc cần xử lý (Hóa đơn quá hạn, Hợp đồng sắp hết hạn, Chờ hoàn cọc, Sự cố) và Lối tắt thao tác nhanh
-import { Button, Card } from 'react-bootstrap';
+// Công việc cần xử lý (Hóa đơn quá hạn, Hợp đồng sắp hết hạn, Chờ hoàn cọc, Sự cố, Đơn thỏa thuận chờ khách xác nhận)
+// và Lối tắt thao tác nhanh. Trang VẬN HÀNH: không chọn kỳ (phân tích theo kỳ ở /reports)
+import { useEffect, useState } from 'react';
+import { Button, Card, ProgressBar } from 'react-bootstrap';
 import {
   BiBell,
   BiBroadcast,
   BiBuilding,
   BiCalendarExclamation,
   BiCheck,
-  BiChevronRight,
   BiCreditCard,
   BiDoorOpen,
   BiErrorCircle,
@@ -26,7 +27,10 @@ import {
 import { Link } from 'react-router-dom';
 import MoneyText from '../../components/MoneyText';
 import { useAuth } from '../../context/AuthContext';
+import { TERMINATION_STATUS, TERMINATION_TYPE } from '../../constants/enums';
 import { formatDateTime } from '../../utils/format';
+import dashboardApi from './dashboard.api';
+import TaskRow from './components/TaskRow';
 
 const ManagerDashboard = ({ data }) => {
   const { user } = useAuth();
@@ -57,8 +61,18 @@ const ManagerDashboard = ({ data }) => {
   const collectionRate =
     totalExpectedMonth > 0 ? Math.round((monthlyRevenue / totalExpectedMonth) * 100) : 100;
 
+  // UC-28: đơn thỏa thuận đã gửi, đang chờ người đại diện xác nhận (quá 7 ngày tự xác nhận) – lỗi thì để null
+  const [pendingMutual, setPendingMutual] = useState(null);
+
+  useEffect(() => {
+    dashboardApi
+      .terminations({ type: TERMINATION_TYPE.MUTUAL, status: TERMINATION_STATUS.PENDING, page: 1, limit: 1 })
+      .then((response) => setPendingMutual(response.data.total))
+      .catch(() => setPendingMutual(null));
+  }, []);
+
   const totalTasks =
-    overdueCount + openIncidentsCount + expiringContracts + pendingRefundContracts;
+    overdueCount + openIncidentsCount + expiringContracts + pendingRefundContracts + (pendingMutual ?? 0);
 
   const buildingName = data?.buildingOverview?.name || 'Tòa nhà phụ trách';
   const recentActivities = Array.isArray(data?.recentActivities) ? data.recentActivities : [];
@@ -242,40 +256,28 @@ const ManagerDashboard = ({ data }) => {
 
               {/* Segmented Progress Bar nhiều đoạn */}
               <div>
-                <div className="w-full h-3 rounded-full overflow-hidden flex bg-slate-100 mb-2.5">
-                  <div
-                    style={{ width: `${occupancyRate}%` }}
-                    className="bg-purple-600 h-full transition-all duration-300"
-                    title={`Đang thuê: ${occupancyRate}%`}
-                  />
-                  <div
-                    style={{ width: `${availableRate}%` }}
-                    className="bg-teal-500 h-full transition-all duration-300"
-                    title={`Trống: ${availableRate}%`}
-                  />
-                  <div
-                    style={{ width: `${maintenanceRate}%` }}
-                    className="bg-amber-400 h-full transition-all duration-300"
-                    title={`Bảo trì: ${maintenanceRate}%`}
-                  />
-                </div>
+                <ProgressBar className="h-3 mb-2.5">
+                  <ProgressBar variant="primary" now={occupancyRate} title={`Đang thuê: ${occupancyRate}%`} />
+                  <ProgressBar variant="success" now={availableRate} title={`Trống: ${availableRate}%`} />
+                  <ProgressBar variant="warning" now={maintenanceRate} title={`Bảo trì: ${maintenanceRate}%`} />
+                </ProgressBar>
 
                 {/* Legend thống kê chi tiết theo % */}
                 <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
                   <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-purple-600 shrink-0" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-primary shrink-0" />
                     <span className="text-slate-600">
                       <strong className="text-slate-800">{rooms.occupied}</strong> đang thuê ({occupancyRate}%)
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-teal-500 shrink-0" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-success shrink-0" />
                     <span className="text-slate-600">
                       <strong className="text-slate-800">{rooms.available}</strong> trống ({availableRate}%)
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-warning shrink-0" />
                     <span className="text-slate-600">
                       <strong className="text-slate-800">{rooms.maintenance}</strong> bảo trì ({maintenanceRate}%)
                     </span>
@@ -416,141 +418,82 @@ const ManagerDashboard = ({ data }) => {
               </div>
 
               <div className="flex flex-col gap-2.5">
-                {/* 1. Hóa đơn quá hạn -> navigate tới /invoices?status=PENDING */}
-                <Link
+                <TaskRow
                   to="/invoices?status=PENDING"
-                  className="p-3 rounded-xl border border-slate-200/80 bg-white hover:bg-slate-50 flex items-center justify-between gap-3 text-xs no-underline transition-all group"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
-                      <BiErrorCircle size={18} />
-                    </span>
-                    <div className="min-w-0">
-                      <div className="font-semibold text-slate-800 group-hover:text-slate-900 transition-colors">
-                        Hóa đơn quá hạn
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5 text-truncate">
-                        {overdueCount > 0 ? (
-                          <>
-                            {overdueCount} hóa đơn · Còn nợ <MoneyText value={overdueAmount} />
-                          </>
-                        ) : (
-                          'Hiện không có hóa đơn quá hạn'
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {overdueCount > 0 && (
-                      <span className="hf-badge hf-b-red">
-                        Khẩn cấp
-                      </span>
-                    )}
-                    <BiChevronRight
-                      size={18}
-                      className="text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 transition-transform"
-                    />
-                  </div>
-                </Link>
+                  icon={BiErrorCircle}
+                  iconClass="bg-rose-50 text-rose-600"
+                  title="Hóa đơn quá hạn"
+                  description={
+                    overdueCount > 0 ? (
+                      <>
+                        {overdueCount} hóa đơn · Còn nợ <MoneyText value={overdueAmount} />
+                      </>
+                    ) : (
+                      'Hiện không có hóa đơn quá hạn'
+                    )
+                  }
+                  badge={overdueCount > 0 && 'Khẩn cấp'}
+                  badgeTone="red"
+                />
 
-                {/* 2. Hợp đồng sắp hết hạn trong 30 ngày tới */}
-                <Link
-                  to="/contracts?status=ACTIVE"
-                  className="p-3 rounded-xl border border-slate-200/80 bg-white hover:bg-slate-50 flex items-center justify-between gap-3 text-xs no-underline transition-all group"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="w-8 h-8 rounded-lg bg-purple-50 text-[#714b67] flex items-center justify-center shrink-0">
-                      <BiCalendarExclamation size={18} />
-                    </span>
-                    <div className="min-w-0">
-                      <div className="font-semibold text-slate-800 group-hover:text-slate-900 transition-colors">
-                        Hợp đồng sắp hết hạn (30 ngày tới)
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5 text-truncate">
-                        {expiringContracts > 0
-                          ? `${expiringContracts} hợp đồng cần liên hệ gia hạn hoặc tìm khách mới`
-                          : 'Không có hợp đồng nào sắp hết hạn trong 30 ngày'}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {expiringContracts > 0 && (
-                      <span className="hf-badge hf-b-plum">
-                        {expiringContracts} phòng
-                      </span>
-                    )}
-                    <BiChevronRight
-                      size={18}
-                      className="text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 transition-transform"
-                    />
-                  </div>
-                </Link>
-
-                {/* 3. Hợp đồng đã kết thúc chờ hoàn cọc */}
-                <Link
-                  to="/contracts?status=ENDED"
-                  className="p-3 rounded-xl border border-slate-200/80 bg-white hover:bg-slate-50 flex items-center justify-between gap-3 text-xs no-underline transition-all group"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
-                      <BiWallet size={18} />
-                    </span>
-                    <div className="min-w-0">
-                      <div className="font-semibold text-slate-800 group-hover:text-slate-900 transition-colors">
-                        Quyết toán & Hoàn trả tiền cọc
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5 text-truncate">
-                        {pendingRefundContracts > 0
-                          ? `${pendingRefundContracts} hợp đồng hết hạn đang chờ hoàn trả tiền cọc`
-                          : 'Tất cả hợp đồng hết hạn đã được quyết toán cọc'}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {pendingRefundContracts > 0 && (
-                      <span className="hf-badge hf-b-warn">
-                        {pendingRefundContracts} chờ hoàn
-                      </span>
-                    )}
-                    <BiChevronRight
-                      size={18}
-                      className="text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 transition-transform"
-                    />
-                  </div>
-                </Link>
-
-                {/* 4. Sự cố chưa xử lý -> navigate tới /incidents?status=PENDING */}
-                <Link
+                <TaskRow
                   to="/incidents?status=PENDING"
-                  className="p-3 rounded-xl border border-slate-200/80 bg-white hover:bg-slate-50 flex items-center justify-between gap-3 text-xs no-underline transition-all group"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                      <BiWrench size={18} />
-                    </span>
-                    <div className="min-w-0">
-                      <div className="font-semibold text-slate-800 group-hover:text-slate-900 transition-colors">
-                        Sự cố chưa xử lý
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5 text-truncate">
-                        {openIncidentsCount > 0
-                          ? `${openIncidentsCount} sự cố phòng đang chờ kiểm tra`
-                          : 'Không có sự cố nào đang chờ xử lý'}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {openIncidentsCount > 0 && (
-                      <span className="hf-badge hf-b-warn">
-                        {openIncidentsCount} sự cố
-                      </span>
-                    )}
-                    <BiChevronRight
-                      size={18}
-                      className="text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 transition-transform"
-                    />
-                  </div>
-                </Link>
+                  icon={BiWrench}
+                  iconClass="bg-amber-50 text-amber-600"
+                  title="Sự cố chưa xử lý"
+                  description={
+                    openIncidentsCount > 0
+                      ? `${openIncidentsCount} sự cố phòng đang chờ kiểm tra`
+                      : 'Không có sự cố nào đang chờ xử lý'
+                  }
+                  badge={openIncidentsCount > 0 && `${openIncidentsCount} sự cố`}
+                  badgeTone="warn"
+                />
+
+                <TaskRow
+                  to="/contracts?status=ACTIVE"
+                  icon={BiCalendarExclamation}
+                  iconClass="bg-primary-subtle text-primary"
+                  title="Hợp đồng sắp hết hạn (30 ngày tới)"
+                  description={
+                    expiringContracts > 0
+                      ? `${expiringContracts} hợp đồng cần liên hệ gia hạn hoặc tìm khách mới`
+                      : 'Không có hợp đồng nào sắp hết hạn trong 30 ngày'
+                  }
+                  badge={expiringContracts > 0 && `${expiringContracts} phòng`}
+                  badgeTone="plum"
+                />
+
+                {/* UC-28: khách chưa xác nhận thì Manager nhắc khách; quá 7 ngày hệ thống tự xác nhận */}
+                <TaskRow
+                  to={`/terminations?type=${TERMINATION_TYPE.MUTUAL}`}
+                  icon={BiTimeFive}
+                  iconClass="bg-slate-100 text-slate-700"
+                  title="Đơn thỏa thuận chờ khách xác nhận"
+                  description={
+                    pendingMutual === null
+                      ? 'Bấm để mở danh sách đơn chấm dứt'
+                      : pendingMutual > 0
+                        ? `${pendingMutual} đơn đang chờ người đại diện xác nhận điện tử`
+                        : 'Không có đơn nào đang chờ khách xác nhận'
+                  }
+                  badge={pendingMutual > 0 && `${pendingMutual} đơn`}
+                  badgeTone="gray"
+                />
+
+                <TaskRow
+                  to="/contracts?status=ENDED"
+                  icon={BiWallet}
+                  iconClass="bg-slate-100 text-slate-700"
+                  title="Quyết toán & Hoàn trả tiền cọc"
+                  description={
+                    pendingRefundContracts > 0
+                      ? `${pendingRefundContracts} hợp đồng hết hạn đang chờ hoàn trả tiền cọc`
+                      : 'Tất cả hợp đồng hết hạn đã được quyết toán cọc'
+                  }
+                  badge={pendingRefundContracts > 0 && `${pendingRefundContracts} chờ hoàn`}
+                  badgeTone="warn"
+                />
               </div>
             </Card.Body>
           </Card>

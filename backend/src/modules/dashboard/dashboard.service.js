@@ -236,7 +236,7 @@ const buildDailySeries = (now, daysCount, contracts, occupants, paidInvoices, in
 
         let contractsCount = 0;
         contracts.forEach((contract) => {
-            const eventDate = contract.activatedAt ?? contract.createdAt;
+            const eventDate = contract.activatedAt; // chỉ đếm hợp đồng đã kích hoạt (nháp không tính)
             if (eventDate && new Date(eventDate) >= start && new Date(eventDate) <= end) {
                 contractsCount += 1;
             }
@@ -299,7 +299,7 @@ const buildMonthlySeries = (now, monthsCount, contracts, occupants, paidInvoices
 
         let contractsCount = 0;
         contracts.forEach((contract) => {
-            const eventDate = contract.activatedAt ?? contract.createdAt;
+            const eventDate = contract.activatedAt; // chỉ đếm hợp đồng đã kích hoạt (nháp không tính)
             if (eventDate && new Date(eventDate) >= start && new Date(eventDate) <= end) {
                 contractsCount += 1;
             }
@@ -922,7 +922,7 @@ export const getReport = async ({ userId, roleId, query = {} }) => {
 
         const rev = revenueMap.get(key) ?? 0;
         const contractsCount = scope.contracts.filter((c) => {
-            const d = c.activatedAt ?? c.createdAt;
+            const d = c.activatedAt; // chỉ hợp đồng đã kích hoạt, khớp contracts.new
             return d && new Date(d) >= mStart && new Date(d) <= mEnd;
         }).length;
         const residentsCount = periodOccupants.filter((occ) => {

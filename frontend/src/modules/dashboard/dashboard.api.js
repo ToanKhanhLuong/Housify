@@ -11,8 +11,11 @@ const dashboardApi = {
   // UC-48: ?from=&to=&buildingId= → { totalRevenue, revenueByMonth[{ month, revenue }], rooms{…, occupancyRate}, contracts{ new, ended }, latePayments[] }
   report: (params) => api.get('/reports', { params }),
 
-  // Danh sách tòa để Admin lọc và xem tổng quan
-  buildings: () => api.get('/buildings'),
+  // Danh sách tòa (Admin): lọc báo cáo theo tòa; ?hasManager=false → tòa chưa có Manager (việc cần xử lý UC-07)
+  buildings: (params) => api.get('/buildings', { params }),
+
+  // Đếm đơn chấm dứt chờ xử lý cho khối "Việc cần xử lý": ?type=&status=PENDING&limit=1 → đọc total
+  terminations: (params) => api.get('/terminations', { params }),
 };
 
 export default dashboardApi;
