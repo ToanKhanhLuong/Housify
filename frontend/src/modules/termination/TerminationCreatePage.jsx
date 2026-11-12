@@ -3,7 +3,7 @@
 // Nhập lý do (bắt buộc), ngày hiệu lực (bắt buộc), ghi chú bàn giao (tùy chọn). Gửi xong nội dung đơn bị khóa
 import { useEffect, useState } from 'react';
 import { Alert, Button, Card, Form, Placeholder, Spinner } from 'react-bootstrap';
-import { BiCheckShield, BiError, BiSend } from 'react-icons/bi';
+import { BiSend } from 'react-icons/bi';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import EmptyState from '../../components/EmptyState';
@@ -14,6 +14,7 @@ import PageHeader from '../../components/PageHeader';
 import SkeletonRows from '../../components/SkeletonRows';
 import ConfirmModal from '../../components/ConfirmModal';
 import { CONTRACT_STATUS, TERMINATION_TYPE } from '../../constants/enums';
+import { TERMINATION_TYPE_LABEL } from '../../constants/statusLabels';
 import { toDateInput, formatDate } from '../../utils/format';
 import { hasErrors, toFieldErrors } from '../../utils/formErrors';
 import terminationApi from './termination.api';
@@ -23,7 +24,7 @@ import { validateCreateTermination } from './termination.validate';
 const TYPE_OPTIONS = [
   {
     value: TERMINATION_TYPE.MUTUAL,
-    icon: BiCheckShield,
+    icon: TERMINATION_TYPE_LABEL[TERMINATION_TYPE.MUTUAL].icon,
     title: 'Hai bên thỏa thuận',
     lines: [
       'Khách muốn trả phòng sớm, hai bên đã thống nhất',
@@ -33,7 +34,7 @@ const TYPE_OPTIONS = [
   },
   {
     value: TERMINATION_TYPE.UNILATERAL,
-    icon: BiError,
+    icon: TERMINATION_TYPE_LABEL[TERMINATION_TYPE.UNILATERAL].icon,
     title: 'Đơn phương',
     lines: [
       'Khách vi phạm nghiêm trọng nội quy',

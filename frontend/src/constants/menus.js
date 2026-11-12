@@ -18,7 +18,7 @@ export const NO_BUILDING_PATHS = ['/profile', '/change-password', '/notification
 
 // Thông báo (UC-41) không nằm trong menu: vào bằng chuông trên Header → "Xem tất cả" (/notifications)
 // Mục có disabled: true là thuộc Iter 2–3 (chưa làm, hiển thị mờ theo Sidebar.dc.html)
-// Mục có children: [{ label, path }] thì sổ xuống các mục con (path con được kèm ?query) – xem Sidebar.jsx
+// Mục có children: [{ label, path, icon? }] thì sổ xuống các mục con (path con được kèm ?query) – xem Sidebar.jsx
 export const MENUS = {
     [ROLE.ADMIN]: [
         { label: 'Tổng quan', path: '/dashboard', icon: BiGridAlt, disabled: false }, // UC-07
@@ -34,6 +34,7 @@ export const MENUS = {
             // sổ xuống: mở nhanh danh sách đã lọc sẵn theo loại đơn (TerminationListPage đọc ?type=)
             children: Object.values(TERMINATION_TYPE).map((type) => ({
                 label: TERMINATION_TYPE_LABEL[type].label,
+                icon: TERMINATION_TYPE_LABEL[type].icon,
                 path: `/terminations?type=${type}`,
             })),
         }, // UC-28, 29
