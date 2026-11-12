@@ -157,7 +157,8 @@
     background-color: #f1f2f4;
   }
 
-  /* rê chuột: mục menu trái và mục trong dropdown nhích sang phải 2px */
+  /* rê chuột: mục menu trái và mục trong dropdown nhích sang phải 2px.
+     Mục to nằm trong khung cuộn (vd thông báo ở chuông) gắn hf-no-shift: nhích 2px sẽ làm khung tràn ngang, thanh cuộn ngang hiện/ẩn liên tục gây giật */
   .nav-pills .nav-link,
   .dropdown-item {
     transition:
@@ -167,7 +168,7 @@
   }
 
   .nav-pills .nav-link:not(.active):hover,
-  .dropdown-item:hover {
+  .dropdown-item:not(.hf-no-shift):hover {
     transform: translateX(2px);
   }
 
