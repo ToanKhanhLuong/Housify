@@ -1,12 +1,13 @@
-// UC-07: Tổng quan điều hành cho Admin (Theo mẫu thiết kế Ảnh 1 tinh gọn, chính xác)
-// Không viết cứng số liệu/phần trăm, biểu đồ 7 ngày hiển thị chuẩn trục X, Hoạt động gần đây cuộn dọc mượt mà, bỏ thẻ Housify
-import { useMemo } from 'react';
+// UC-07: Tổng quan VẬN HÀNH cho Admin – xem nhanh hiện tại và đi xử lý ngay, không chọn kỳ (phân tích theo kỳ ở /reports)
+// 4 thẻ số (doanh thu so với tháng trước) · Việc cần Admin xử lý (đơn phương chờ duyệt, tòa chưa có Manager, nợ quá hạn)
+// · Hoạt động gần đây · Cơ cấu phòng · Biến động cư dân và hợp đồng cần theo dõi
+import { useEffect, useMemo, useState } from 'react';
 import { Card } from 'react-bootstrap';
 import {
-  BiBarChartAlt2,
   BiBell,
   BiBuildings,
   BiCalendarExclamation,
+  BiCheckDouble,
   BiCreditCard,
   BiErrorCircle,
   BiFile,
@@ -18,22 +19,20 @@ import {
   BiUserPlus,
   BiWallet,
   BiWrench,
+  BiXCircle,
 } from 'react-icons/bi';
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  Cell,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import { Cell, Pie, PieChart, ResponsiveContainer } from 'recharts';
 import MoneyText from '../../components/MoneyText';
 import { useAuth } from '../../context/AuthContext';
+import { TERMINATION_STATUS, TERMINATION_TYPE } from '../../constants/enums';
 import { formatDateTime } from '../../utils/format';
+import dashboardApi from './dashboard.api';
+import ChangeText from './components/ChangeText';
+import TaskRow from './components/TaskRow';
+import { currentPeriod, periodLabel, periodRange, previousPeriod } from './reportPeriod';
+
+// tháng trước để so doanh thu (GET /reports của đúng tháng đó)
+const LAST_MONTH = previousPeriod(currentPeriod());
 
 const AdminDashboard = ({ data }) => {
   const { user } = useAuth();
@@ -43,7 +42,6 @@ const AdminDashboard = ({ data }) => {
     [data?.rooms],
   );
   const occupancyRate = rooms.total > 0 ? Math.round((rooms.occupied / rooms.total) * 100) : 0;
-  const openIncidents = data?.openIncidents ?? 0;
   const residents = data?.residents ?? 0;
   const movedIn = data?.movedIn ?? 0;
   const movedOut = data?.movedOut ?? 0;
@@ -56,55 +54,41 @@ const AdminDashboard = ({ data }) => {
   const overdueAmount = data?.pendingInvoices?.overdueAmount ?? 0;
   const recentActivities = Array.isArray(data?.recentActivities) ? data.recentActivities : [];
 
-  // Dữ liệu biểu đồ hoạt động 7 ngày qua (đọc đúng trường name / date từ backend)
-  const chartData = useMemo(() => {
-    const rawPoints = data?.performanceByPeriod?.['7d']?.points;
-    if (Array.isArray(rawPoints) && rawPoints.length > 0) {
-      return rawPoints.map((p) => {
-        // p.name là "DD/MM/YY" hoặc p.date là "YYYY-MM-DD"
-        let shortDate = '';
-        if (p.name) {
-          const parts = String(p.name).split('/');
-          shortDate = parts.length >= 2 ? `${parts[0]}/${parts[1]}` : p.name;
-        } else if (p.date) {
-          const parts = String(p.date).split('-');
-          shortDate = parts.length >= 3 ? `${parts[2]}/${parts[1]}` : p.date;
-        }
+  // số liệu phụ cho khối "Việc cần Admin xử lý" + doanh thu tháng trước; lỗi thì để null (ẩn số, không chặn trang)
+  const [extras, setExtras] = useState({ unilateral: null, noManager: null, lastMonthRevenue: null });
 
-        const contracts = p.contracts ?? 0;
-        const residents = p.residents ?? 0;
-        const incidents = p.incidents ?? 0;
-        const totalActivity = contracts + residents + incidents;
-
-        return {
-          date: shortDate || 'N/A',
-          total: totalActivity,
-          contracts,
-          residents,
-          incidents,
-        };
-      });
-    }
-
-    // Dữ liệu fallback nếu chưa có sự kiện
-    const days = [];
-    const now = new Date();
-    for (let i = 6; i >= 0; i -= 1) {
-      const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-      const day = String(d.getDate()).padStart(2, '0');
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      days.push({ date: `${day}/${month}`, total: 0, contracts: 0, residents: 0, incidents: 0 });
-    }
-    return days;
-  }, [data]);
+  useEffect(() => {
+    Promise.all([
+      dashboardApi
+        .terminations({ type: TERMINATION_TYPE.UNILATERAL, status: TERMINATION_STATUS.PENDING, page: 1, limit: 1 })
+        .then((response) => response.data.total)
+        .catch(() => null),
+      dashboardApi
+        .buildings({ hasManager: 'false' })
+        .then((response) => (Array.isArray(response.data) ? response.data : []))
+        .catch(() => null),
+      dashboardApi
+        .report(periodRange(LAST_MONTH))
+        .then((response) => response.data.totalRevenue)
+        .catch(() => null),
+    ]).then(([unilateral, noManager, lastMonthRevenue]) =>
+      setExtras({ unilateral, noManager, lastMonthRevenue }),
+    );
+  }, []);
 
   // Dữ liệu biểu đồ tròn Donut
-  const donutData = useMemo(() => [
-    { name: 'Đang thuê', value: rooms.occupied, color: '#8b5cf6' },
-    { name: 'Trống', value: rooms.available, color: '#10b981' },
-    { name: 'Bảo trì', value: rooms.maintenance, color: '#f59e0b' },
-    { name: 'Sự cố', value: openIncidents, color: '#ef4444' },
-  ], [rooms, openIncidents]);
+  // chỉ 3 trạng thái phòng (sự cố không phải trạng thái phòng nên không đưa vào đây)
+  const donutData = useMemo(
+    () => [
+      { name: 'Đang thuê', value: rooms.occupied, color: 'var(--bs-primary)' },
+      { name: 'Trống', value: rooms.available, color: 'var(--bs-success)' },
+      { name: 'Bảo trì', value: rooms.maintenance, color: 'var(--bs-warning)' },
+    ],
+    [rooms],
+  );
+
+  const noManagerNames = (extras.noManager ?? []).map((building) => building.name).join(', ');
+  const totalTasks = (extras.unilateral ?? 0) + (extras.noManager?.length ?? 0) + overdueCount;
 
   return (
     <div className="flex flex-col gap-3">
@@ -176,13 +160,23 @@ const AdminDashboard = ({ data }) => {
             <div className="text-xl fw-bold text-slate-800 leading-tight text-truncate">
               <MoneyText value={data?.monthlyRevenue ?? 0} />
             </div>
-            <div className="text-[11px] text-slate-500 mt-0.5 text-truncate">
-              {pendingAmount > 0 ? (
-                <>
-                  Chờ thu: <MoneyText value={pendingAmount} /> ({overdueCount} quá hạn)
-                </>
+            <div className="text-[11px] mt-0.5 text-truncate">
+              {extras.lastMonthRevenue === null ? (
+                <span className="text-slate-500">
+                  {pendingAmount > 0 ? (
+                    <>
+                      Chờ thu: <MoneyText value={pendingAmount} />
+                    </>
+                  ) : (
+                    'Không có hóa đơn tồn đọng'
+                  )}
+                </span>
               ) : (
-                'Không có hóa đơn tồn đọng'
+                <ChangeText
+                  current={data?.monthlyRevenue ?? 0}
+                  previous={extras.lastMonthRevenue}
+                  label={periodLabel(LAST_MONTH)}
+                />
               )}
             </div>
           </div>
@@ -193,77 +187,72 @@ const AdminDashboard = ({ data }) => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-start">
         {/* CỘT TRÁI (8 CỘT) */}
         <div className="lg:col-span-8 flex flex-col gap-3.5">
-          {/* Card Biểu đồ 7 ngày */}
+          {/* Việc chỉ Admin làm được; bấm từng dòng sang danh sách đã lọc sẵn */}
           <Card className="border-slate-100 shadow-xs rounded-2xl">
-            <Card.Body className="p-3.5">
-              <div className="flex items-center justify-between mb-2">
+            <Card.Body className="p-3.5 flex flex-col gap-3">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="hf-av w-8 h-8 shrink-0">
-                    <BiBarChartAlt2 size={18} />
+                    <BiCheckDouble size={18} />
                   </span>
-                  <span className="text-sm fw-bold text-slate-800">Hoạt động trong 7 ngày qua</span>
+                  <span className="text-sm fw-bold text-slate-800">Việc cần Admin xử lý</span>
                 </div>
-                <span className="text-xs text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg">
-                  7 ngày
-                </span>
+                {totalTasks > 0 && <span className="hf-badge hf-b-red">{totalTasks} việc</span>}
               </div>
 
-              <div className="h-44 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData} margin={{ top: 10, right: 15, left: -20, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="adminPurpleArea" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.25} />
-                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis
-                      dataKey="date"
-                      tickLine={false}
-                      axisLine={{ stroke: '#e2e8f0' }}
-                      tick={{ fill: '#64748b', fontSize: 11 }}
-                    />
-                    <YAxis
-                      tickLine={false}
-                      axisLine={false}
-                      tick={{ fill: '#64748b', fontSize: 11 }}
-                      allowDecimals={false}
-                    />
-                    <Tooltip
-                      content={({ active, payload, label }) => {
-                        if (active && payload && payload.length) {
-                          const item = payload[0].payload;
-                          return (
-                            <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs text-xs flex flex-col gap-1">
-                              <div className="font-bold text-slate-800 border-b border-slate-100 pb-1">
-                                Ngày {label}
-                              </div>
-                              <div className="flex items-center justify-between gap-3 text-slate-600">
-                                <span>Tổng hoạt động:</span>
-                                <strong className="text-purple-600">{item.total}</strong>
-                              </div>
-                              <div className="text-[11px] text-slate-500">
-                                Hợp đồng: {item.contracts} · Cư dân: {item.residents} · Sự cố: {item.incidents}
-                              </div>
-                            </div>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="total"
-                      stroke="#8b5cf6"
-                      strokeWidth={2.5}
-                      fillOpacity={1}
-                      fill="url(#adminPurpleArea)"
-                      dot={{ r: 4, fill: '#8b5cf6', stroke: '#fff', strokeWidth: 2 }}
-                      activeDot={{ r: 6, fill: '#7c3aed' }}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
+              <div className="flex flex-col gap-2.5">
+                {/* UC-29: đơn đơn phương Manager gửi lên, Admin duyệt / từ chối */}
+                <TaskRow
+                  to={`/terminations?type=${TERMINATION_TYPE.UNILATERAL}`}
+                  icon={BiXCircle}
+                  iconClass="bg-rose-50 text-rose-600"
+                  title="Đơn chấm dứt đơn phương chờ duyệt"
+                  description={
+                    extras.unilateral === null
+                      ? 'Bấm để mở danh sách đơn chấm dứt'
+                      : extras.unilateral > 0
+                        ? `${extras.unilateral} đơn đang chờ Admin phê duyệt hoặc từ chối`
+                        : 'Không có đơn nào chờ duyệt'
+                  }
+                  badge={extras.unilateral > 0 && `${extras.unilateral} đơn`}
+                  badgeTone="red"
+                />
+
+                {/* BR-023: tòa không có Manager thì không ai vận hành */}
+                <TaskRow
+                  to="/buildings"
+                  icon={BiBuildings}
+                  iconClass="bg-primary-subtle text-primary"
+                  title="Tòa nhà chưa có Manager phụ trách"
+                  description={
+                    extras.noManager === null
+                      ? 'Bấm để mở danh sách tòa nhà'
+                      : extras.noManager.length > 0
+                        ? noManagerNames
+                        : 'Tòa nào cũng đã có Manager'
+                  }
+                  badge={extras.noManager?.length > 0 && `${extras.noManager.length} tòa`}
+                  badgeTone="plum"
+                />
+
+                {/* chi tiết từng hóa đơn nợ nằm ở mục Công nợ quá hạn của trang Báo cáo */}
+                <TaskRow
+                  to="/reports"
+                  icon={BiErrorCircle}
+                  iconClass="bg-amber-50 text-amber-600"
+                  title="Hóa đơn quá hạn toàn hệ thống"
+                  description={
+                    overdueCount > 0 ? (
+                      <>
+                        {overdueCount} hóa đơn · Còn nợ <MoneyText value={overdueAmount} />
+                      </>
+                    ) : (
+                      'Không có hóa đơn quá hạn'
+                    )
+                  }
+                  badge={overdueCount > 0 && `${overdueCount} HĐ`}
+                  badgeTone="warn"
+                />
               </div>
             </Card.Body>
           </Card>
@@ -346,7 +335,7 @@ const AdminDashboard = ({ data }) => {
           </Card>
         </div>
 
-        {/* CỘT PHẢI (4 CỘT - Đã bỏ thẻ Housify) */}
+        {/* CỘT PHẢI (4 CỘT) */}
         <div className="lg:col-span-4 flex flex-col gap-3.5">
           {/* Card Cơ cấu phòng (Donut) */}
           <Card className="border-slate-100 shadow-xs rounded-2xl">
@@ -389,38 +378,31 @@ const AdminDashboard = ({ data }) => {
                 <div className="flex flex-col gap-2 flex-1 min-w-0 text-xs">
                   <div className="flex items-center justify-between p-1.5 rounded-lg bg-slate-50">
                     <div className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-purple-600 shrink-0" />
+                      <span className="w-2.5 h-2.5 rounded-full bg-primary shrink-0" />
                       <span className="text-slate-600">Đang thuê</span>
                     </div>
                     <span className="font-semibold text-slate-800">{rooms.occupied}</span>
                   </div>
                   <div className="flex items-center justify-between p-1.5 rounded-lg bg-slate-50">
                     <div className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+                      <span className="w-2.5 h-2.5 rounded-full bg-success shrink-0" />
                       <span className="text-slate-600">Trống</span>
                     </div>
                     <span className="font-semibold text-slate-800">{rooms.available}</span>
                   </div>
                   <div className="flex items-center justify-between p-1.5 rounded-lg bg-slate-50">
                     <div className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0" />
+                      <span className="w-2.5 h-2.5 rounded-full bg-warning shrink-0" />
                       <span className="text-slate-600">Bảo trì</span>
                     </div>
                     <span className="font-semibold text-slate-800">{rooms.maintenance}</span>
-                  </div>
-                  <div className="flex items-center justify-between p-1.5 rounded-lg bg-slate-50">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
-                      <span className="text-slate-600">Sự cố</span>
-                    </div>
-                    <span className="font-semibold text-slate-800">{openIncidents}</span>
                   </div>
                 </div>
               </div>
             </Card.Body>
           </Card>
 
-          {/* Card Biến động Cư dân & Cảnh báo vận hành toàn hệ thống */}
+          {/* Card Biến động cư dân & hợp đồng cần theo dõi */}
           <Card className="border-slate-100 shadow-xs rounded-2xl">
             <Card.Body className="p-4 flex flex-col gap-3">
               <div className="flex items-center gap-2">
@@ -428,7 +410,7 @@ const AdminDashboard = ({ data }) => {
                   <BiGroup size={18} />
                 </span>
                 <span className="text-sm fw-bold text-slate-800">
-                  Biến động Cư dân & Cảnh báo
+                  Biến động cư dân & Hợp đồng cần theo dõi
                 </span>
               </div>
 
@@ -455,17 +437,8 @@ const AdminDashboard = ({ data }) => {
                 </div>
               </div>
 
-              {/* Các chỉ số cảnh báo vận hành */}
+              {/* Manager các tòa xử lý; Admin chỉ theo dõi số lượng */}
               <div className="flex flex-col gap-2 pt-1 border-t border-slate-100 text-xs">
-                <div className="flex items-center justify-between p-2 rounded-xl bg-rose-50/50 border border-rose-100">
-                  <span className="flex items-center gap-1.5 text-slate-700">
-                    <BiErrorCircle className="text-rose-600" size={15} /> Hóa đơn quá hạn
-                  </span>
-                  <strong className="text-rose-600">
-                    {overdueCount} HĐ (<MoneyText value={overdueAmount} />)
-                  </strong>
-                </div>
-
                 <div className="flex items-center justify-between p-2 rounded-xl bg-purple-50/50 border border-purple-100">
                   <span className="flex items-center gap-1.5 text-slate-700">
                     <BiCalendarExclamation className="text-purple-600" size={15} /> Sắp hết hạn (30 ngày)
