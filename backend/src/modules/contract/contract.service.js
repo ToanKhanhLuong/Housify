@@ -687,9 +687,11 @@ export const getContractById = async ({ userId, roleId, contractId }) => {
         throw new AppError('Bạn không có quyền thực hiện thao tác này', 403);
     }
 
-    const [roomType, occupants] = await Promise.all([
+    // Bên A của văn bản hợp đồng = Manager tạo hợp đồng (createdBy), giống văn bản khách xác nhận ở UC-06
+    const [roomType, occupants, partyA] = await Promise.all([
         room?.roomTypeId ? RoomType.findById(room.roomTypeId).select('_id name capacity').lean() : null,
         Occupant.find({ contractId: contract._id }).sort({ isRepresentative: -1, joinDate: 1 }).lean(),
+        Manager.findOne({ userId: contract.createdBy }).select('name phone address dateOfBirth').lean(),
     ]);
 
     const repOccupant = occupants.find((o) => o.isRepresentative);
@@ -730,6 +732,15 @@ export const getContractById = async ({ userId, roleId, contractId }) => {
             }
             : null,
         representative,
+        // null khi không tìm thấy hồ sơ Manager
+        manager: partyA
+            ? {
+                name: partyA.name,
+                phone: partyA.phone,
+                address: partyA.address || '',
+                dateOfBirth: partyA.dateOfBirth || null,
+            }
+            : null,
         occupants,
     };
 };
