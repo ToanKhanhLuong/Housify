@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Card, Form, ProgressBar } from 'react-bootstrap';
 import { BiBuildings, BiCalendar, BiPrinter } from 'react-icons/bi';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Area,
   AreaChart,
@@ -172,8 +172,16 @@ const ReportPage = () => {
     () => buildings.find((building) => building._id === buildingId) ?? null,
     [buildings, buildingId],
   );
+  // Manager phụ trách từng tòa (GET /buildings trả manager: { _id, name } | null) – ai chịu trách nhiệm số liệu của tòa
+  const managerByBuilding = useMemo(
+    () => new Map(buildings.map((building) => [String(building._id), building.manager ?? null])),
+    [buildings],
+  );
+  const selectedManager = selectedBuilding?.manager;
   const scopeName = isAdmin
-    ? (selectedBuilding?.name ?? 'Toàn hệ thống')
+    ? selectedBuilding
+      ? `${selectedBuilding.name} · ${selectedManager ? `Manager: ${selectedManager.name}` : 'Chưa có Manager'}`
+      : 'Toàn hệ thống'
     : (user.building?.name ?? 'Tòa của tôi');
   const previousLabel = periodLabel(previousPeriod(period));
 
@@ -247,6 +255,25 @@ const ReportPage = () => {
           <span className="small text-secondary">{row.address}</span>
         </span>
       ),
+    },
+    {
+      key: 'manager',
+      title: 'Manager phụ trách',
+      render: (row) => {
+        const manager = managerByBuilding.get(String(row._id));
+        // bấm tên mở hồ sơ Manager (số điện thoại, email); chặn nổi lên để không mở báo cáo riêng của tòa
+        return manager ? (
+          <Link
+            to={`/managers/${manager._id}`}
+            onClick={(event) => event.stopPropagation()}
+            className="text-nowrap"
+          >
+            {manager.name}
+          </Link>
+        ) : (
+          <span className="text-danger text-nowrap">Chưa có Manager</span>
+        );
+      },
     },
     {
       key: 'occupancyRate',
