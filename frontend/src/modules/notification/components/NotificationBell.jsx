@@ -52,7 +52,7 @@ const BellItem = ({ notification, onOpen }) => {
             as="div"
             role="button"
             onClick={() => onOpen(notification)}
-            className={`flex gap-3 px-3 py-2 text-wrap border-bottom ${notification.isRead ? '' : 'bg-primary-subtle'}`}
+            className={`hf-no-shift flex gap-3 px-3 py-2 text-wrap border-bottom ${notification.isRead ? '' : 'bg-primary-subtle'}`}
         >
             <span className="flex items-center justify-center w-9 h-9 shrink-0 rounded bg-white border text-primary">
                 {renderNotificationIcon(notification.type, { size: 18 })}
@@ -268,7 +268,8 @@ const NotificationBell = () => {
                     </Nav.Item>
                 </Nav>
 
-                <div className="max-h-96 overflow-y-auto border-top">{renderList()}</div>
+                {/* chỉ cuộn dọc; không bao giờ có thanh cuộn ngang */}
+                <div className="max-h-96 overflow-y-auto overflow-x-hidden border-top">{renderList()}</div>
 
                 <div className="p-2 border-top">
                     <Button variant="secondary" size="sm" className="w-100" onClick={handleViewAll}>
