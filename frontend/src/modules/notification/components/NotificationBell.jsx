@@ -25,17 +25,17 @@ const LATEST_LIMIT = 5; // docs/api.md: dropdown dùng ?limit=5
 const TAB = { ALL: 'all', UNREAD: 'unread' };
 
 // Nút chuông tự làm thay nút mặc định của Dropdown để không có mũi tên ▾
+// Ô vuông nhỏ, hover / đang mở giống mục menu trái (hf-btn-nav); class show để Bootstrap tô màu đang mở
 const BellToggle = forwardRef(({ onClick, count, 'aria-expanded': expanded }, ref) => (
     <Button
         ref={ref}
         variant="secondary"
-        size="sm"
-        className="hf-btn-ghost flex position-relative border-0 text-secondary"
+        className={`hf-btn-ghost hf-btn-nav flex items-center justify-center w-8 h-8 p-0 position-relative border-0 ${expanded ? 'show' : ''}`}
         aria-label={count > 0 ? `Thông báo, ${count} chưa đọc` : 'Thông báo'}
         aria-expanded={expanded}
         onClick={onClick}
     >
-        <BiBell size={20} />
+        <BiBell size={18} />
         {count > 0 && (
             <Badge bg="danger" pill className="position-absolute top-0 start-100 translate-middle">
                 {count > 99 ? '99+' : count}
