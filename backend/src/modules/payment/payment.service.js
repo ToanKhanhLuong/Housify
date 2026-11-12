@@ -387,6 +387,8 @@ export const getPayments = async (query, user) => {
       transferContent: p.transferContent,
       paidAt: p.paidAt,
       statusLabel, // "Đúng hạn" hoặc "Quá hạn X ngày"
+      representativeName: rep?.name || "",
+      representativePhone: rep?.phone || "",
       invoice: inv
         ? {
           _id: inv._id,
@@ -415,6 +417,8 @@ export const getPayments = async (query, user) => {
             email: contract?.representativeEmail || rep?.email || "",
             cccd: contract?.representativeCccd || rep?.cccd || "",
           },
+          representativeName: rep?.name || "",
+          representativePhone: rep?.phone || "",
         }
         : null,
     };
@@ -426,6 +430,115 @@ export const getPayments = async (query, user) => {
     page: Number(page),
     limit: Number(limit),
     totalPages: Math.ceil(total / Number(limit)) || 0,
+  };
+};
+
+/**
+ * UC-39: Xem chi tiết 1 biên lai thanh toán
+ * GET /api/payments/:id
+ */
+export const getPaymentById = async (id, user) => {
+  const payment = await Payment.findById(id).populate({
+    path: "invoiceId",
+    select: "invoiceCode month totalAmount dueDate sentAt createdAt status items contractId",
+    populate: {
+      path: "contractId",
+      select: "roomId representativeCccd representativeEmail",
+      populate: {
+        path: "roomId",
+        select: "roomNumber floorNumber buildingId",
+        populate: {
+          path: "buildingId",
+          select: "name address managerId",
+        },
+      },
+    },
+  });
+
+  if (!payment) {
+    throw new AppError("Không tìm thấy biên lai thanh toán", 404);
+  }
+
+  const inv = payment.invoiceId;
+  const contract = inv?.contractId;
+  const room = contract?.roomId;
+  const building = room?.buildingId;
+
+  const userRole = user.role ?? user.roleId;
+  if (userRole === ROLE.MANAGER) {
+    const managerBuilding = await Building.findOne({
+      managerId: user._id,
+      isDeleted: false,
+    });
+    if (!managerBuilding || String(building?._id) !== String(managerBuilding._id)) {
+      throw new AppError("Bạn không có quyền xem biên lai của tòa nhà khác", 403);
+    }
+  } else if (userRole === ROLE.CUSTOMER) {
+    const contractIds = await Occupant.distinct("contractId", {
+      userId: user._id,
+      isRepresentative: true,
+    });
+    const isOwner = contractIds.some((cId) => String(cId) === String(contract?._id));
+    if (!isOwner) {
+      throw new AppError("Bạn không có quyền xem biên lai này", 403);
+    }
+  }
+
+  const rep = contract?._id
+    ? await Occupant.findOne({ contractId: contract._id, isRepresentative: true }).select("name phone cccd")
+    : null;
+  const userRep = !rep && contract?.representativeCccd
+    ? await User.findOne({ cccd: contract.representativeCccd }).select("name phone cccd email")
+    : null;
+
+  const bManager = building?.managerId
+    ? await Manager.findOne({ userId: building.managerId }).select("name phone")
+    : null;
+
+  const statusLabel = calculateOverdueLabel(payment.paidAt, inv?.dueDate);
+
+  return {
+    _id: payment._id,
+    sepayTxnId: payment.sepayTxnId,
+    amount: payment.amount,
+    bankName: payment.bankName,
+    transferContent: payment.transferContent,
+    paidAt: payment.paidAt,
+    statusLabel,
+    representativeName: rep?.name || userRep?.name || "",
+    representativePhone: rep?.phone || userRep?.phone || "",
+    invoice: inv
+      ? {
+        _id: inv._id,
+        invoiceCode: inv.invoiceCode,
+        month: inv.month,
+        totalAmount: inv.totalAmount,
+        dueDate: inv.dueDate,
+        sentAt: inv.sentAt,
+        createdAt: inv.createdAt,
+        status: inv.status,
+        items: inv.items || [],
+        roomNumber: room?.roomNumber || "",
+        floorNumber: room?.floorNumber || "",
+        building: building
+          ? {
+            _id: building._id,
+            name: building.name,
+            address: building.address,
+            managerName: bManager?.name || "",
+            managerPhone: bManager?.phone || "",
+          }
+          : null,
+        representative: {
+          name: rep?.name || userRep?.name || "",
+          phone: rep?.phone || userRep?.phone || "",
+          email: contract?.representativeEmail || userRep?.email || "",
+          cccd: contract?.representativeCccd || rep?.cccd || userRep?.cccd || "",
+        },
+        representativeName: rep?.name || userRep?.name || "",
+        representativePhone: rep?.phone || userRep?.phone || "",
+      }
+      : null,
   };
 };
 

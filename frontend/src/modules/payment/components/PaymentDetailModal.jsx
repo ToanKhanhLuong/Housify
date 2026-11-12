@@ -56,8 +56,9 @@ const PaymentDetailModal = ({ payment, invoiceBasePath, onHide }) => {
               ...res.data,
               items: res.data.items || [],
               building: prev?.building || res.data.contractId?.roomId?.buildingId,
-              representative: prev?.representative || {
-                name: res.data.representativeName || '',
+              representative: res.data.representative || prev?.representative || {
+                name: res.data.representativeName || payment.representativeName || '',
+                phone: res.data.representativePhone || payment.representativePhone || '',
                 email: res.data.contractId?.representativeEmail || '',
               },
             }));
@@ -65,14 +66,26 @@ const PaymentDetailModal = ({ payment, invoiceBasePath, onHide }) => {
         })
         .catch(() => {});
     }
-  }, [payment.invoice, fullInvoice]);
+  }, [payment.invoice, fullInvoice, payment.representativeName, payment.representativePhone]);
 
   const invoice = fullInvoice || payment.invoice;
   const building = invoice?.building;
-  const representative = invoice?.representative;
-  const repName = representative?.name || invoice?.representativeName || '—';
-  const repEmail = representative?.email || invoice?.representativeEmail || '—';
-  const repPhone = representative?.phone || invoice?.representativePhone || '—';
+  const representative = invoice?.representative || payment?.representative;
+  const repName =
+    representative?.name ||
+    invoice?.representativeName ||
+    payment?.representativeName ||
+    '—';
+  const repEmail =
+    representative?.email ||
+    invoice?.representativeEmail ||
+    invoice?.contractId?.representativeEmail ||
+    '—';
+  const repPhone =
+    representative?.phone ||
+    invoice?.representativePhone ||
+    payment?.representativePhone ||
+    '—';
   const roomText = invoice?.roomNumber
     ? `${invoice.roomNumber}${invoice.floorNumber ? ` · Tầng ${invoice.floorNumber}` : ''}`
     : '—';
@@ -139,11 +152,6 @@ const PaymentDetailModal = ({ payment, invoiceBasePath, onHide }) => {
             <Nav.Item>
               <Nav.Link eventKey="receipt" className="font-semibold text-sm">
                 Biên lai
-              </Nav.Link>
-            </Nav.Item>
-            <Nav.Item>
-              <Nav.Link eventKey="sepay" className="font-semibold text-sm">
-                Giao dịch SePay
               </Nav.Link>
             </Nav.Item>
             <Nav.Item>
@@ -324,55 +332,7 @@ const PaymentDetailModal = ({ payment, invoiceBasePath, onHide }) => {
             </div>
           )}
 
-          {/* TAB 2: CHI TIẾT GIAO DỊCH SEPAY */}
-          {activeTab === 'sepay' && (
-            <div className="bg-white border rounded-lg p-5">
-              <div className="flex flex-col items-center gap-1 text-center mb-4">
-                <BiCheckCircle size={48} className="text-emerald-600" />
-                <span className="font-semibold text-emerald-800 text-base">Thanh toán thành công</span>
-                <span className="text-2xl font-bold tabular-nums text-gray-900">
-                  <MoneyText value={payment.amount} />
-                </span>
-                <span className="text-xs text-gray-500">{formatDateTime(payment.paidAt)}</span>
-                <OnTimeBadge label={payment.statusLabel} />
-              </div>
-
-              <div className="border-t border-dashed border-gray-200 my-4" />
-
-              <dl className="grid grid-cols-3 gap-y-3 text-sm">
-                <dt className="text-gray-500 font-medium">Mã giao dịch SePay</dt>
-                <dd className="col-span-2 font-mono font-semibold text-gray-800">{payment.sepayTxnId || '—'}</dd>
-
-                <dt className="text-gray-500 font-medium">Ngân hàng</dt>
-                <dd className="col-span-2 font-medium text-gray-800">{payment.bankName || '—'}</dd>
-
-                <dt className="text-gray-500 font-medium">Hình thức</dt>
-                <dd className="col-span-2 text-gray-800">Chuyển khoản</dd>
-
-                <dt className="text-gray-500 font-medium">Nội dung chuyển khoản</dt>
-                <dd className="col-span-2 break-words font-mono text-xs bg-gray-50 p-2 rounded border text-gray-800">
-                  {payment.transferContent || '—'}
-                </dd>
-
-                <dt className="text-gray-500 font-medium">Khớp hóa đơn</dt>
-                <dd className="col-span-2 flex items-center gap-2">
-                  <span className="font-mono font-semibold text-gray-800">{invoice?.invoiceCode || '—'}</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium">
-                    Tự động
-                  </span>
-                </dd>
-              </dl>
-
-              {amountMismatch && (
-                <Alert variant="warning" className="mt-4 mb-0 text-xs">
-                  Số tiền chuyển ({formatMoney(payment.amount)}) khác tổng hóa đơn ({formatMoney(invoice.totalAmount)}).
-                  Vui lòng kiểm tra lại.
-                </Alert>
-              )}
-            </div>
-          )}
-
-          {/* TAB 3: BẢNG KÊ CÁC KHOẢN THU */}
+          {/* TAB 2: BẢNG KÊ CÁC KHOẢN THU */}
           {activeTab === 'items' && (
             <div className="bg-white border rounded-lg p-5">
               <div className="grid grid-cols-2 gap-3 text-xs mb-4 pb-3 border-b border-gray-200">

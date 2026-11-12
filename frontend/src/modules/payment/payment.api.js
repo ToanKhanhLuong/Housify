@@ -7,6 +7,9 @@ const paymentApi = {
   // mỗi dòng: { sepayTxnId, amount, bankName, transferContent, paidAt, statusLabel, invoice{ invoiceCode, month, totalAmount, dueDate, status, roomNumber } }
   list: (params) => api.get('/payments', { params }),
 
+  // UC-39: Xem chi tiết 1 biên lai thanh toán
+  detail: (id) => api.get(`/payments/${id}`),
+
   // phòng của tòa Manager phụ trách – để lọc biên lai theo phòng (GET /buildings/:id/rooms)
   rooms: (buildingId) => api.get(`/buildings/${buildingId}/rooms`),
 };

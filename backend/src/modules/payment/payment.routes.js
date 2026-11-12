@@ -30,4 +30,12 @@ router.get(
   paymentController.getPayments,
 );
 
+// 3. Lấy chi tiết 1 biên lai thanh toán (UC-39)
+router.get(
+  "/payments/:id",
+  auth,
+  requireRole(ROLE.MANAGER, ROLE.CUSTOMER),
+  paymentController.getPaymentById,
+);
+
 export default router;

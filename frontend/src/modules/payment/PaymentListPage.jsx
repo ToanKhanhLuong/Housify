@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Card } from 'react-bootstrap';
 import { BiReset } from 'react-icons/bi';
+import { useNavigate } from 'react-router-dom';
 import ControlBar from '../../components/ControlBar';
 import DataTable from '../../components/DataTable';
 import EmptyState from '../../components/EmptyState';
@@ -29,6 +30,7 @@ const EMPTY_FILTERS = { from: '', to: '', roomId: '' };
 const DATE_FILTER = { id: 'paidAt', label: 'Ngày trả', type: 'dateRange', minField: 'from', maxField: 'to' };
 
 const PaymentListPage = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const isManager = user.role === ROLE.MANAGER;
   const invoiceBasePath = isManager ? '/invoices' : '/my-invoices';
@@ -226,8 +228,12 @@ const PaymentListPage = () => {
       );
     }
 
+    const handlePaymentClick = (payment) => {
+      navigate(`${basePath}/${payment._id}`, { state: { payment } });
+    };
+
     if (view === 'table') {
-      return <DataTable columns={columns} data={items} onRowClick={setSelected} />;
+      return <DataTable columns={columns} data={items} onRowClick={handlePaymentClick} />;
     }
 
     return (
@@ -237,7 +243,7 @@ const PaymentListPage = () => {
             key={payment._id}
             payment={payment}
             showRoom={isManager}
-            onClick={() => setSelected(payment)}
+            onClick={() => handlePaymentClick(payment)}
           />
         ))}
       </div>
@@ -282,14 +288,6 @@ const PaymentListPage = () => {
         <div className="flex justify-end mt-3">
           <Pager page={data.page} limit={data.limit} total={total} onChange={handlePageChange} />
         </div>
-      )}
-
-      {selected && (
-        <PaymentDetailModal
-          payment={selected}
-          invoiceBasePath={invoiceBasePath}
-          onHide={() => setSelected(null)}
-        />
       )}
     </>
   );

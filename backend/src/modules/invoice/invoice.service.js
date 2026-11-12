@@ -7,6 +7,7 @@ import Service from "../../models/Service.js";
 import ServicePrice from "../../models/ServicePrice.js";
 import Occupant from "../../models/Occupant.js";
 import User from "../../models/User.js";
+import Manager from "../../models/Manager.js";
 import { getCurrentPrice } from "../../helpers/getCurrentPrice.js";
 import { notify } from "../../helpers/notify.js";
 import { sendMail } from "../../config/mail.js";
@@ -859,7 +860,42 @@ export const getInvoiceById = async (id, user) => {
     "Bạn không có quyền xem hóa đơn của tòa nhà khác",
   );
 
-  return formatInvoiceData(invoice);
+  const formatted = formatInvoiceData(invoice);
+
+  // Lấy thông tin đại diện (Occupant) và Manager của tòa
+  const contractId = invoice.contractId?._id;
+  const rep = contractId
+    ? await Occupant.findOne({ contractId, isRepresentative: true }).select("name phone cccd")
+    : null;
+  const userRep = !rep && invoice.contractId?.representativeCccd
+    ? await User.findOne({ cccd: invoice.contractId.representativeCccd }).select("name phone cccd email")
+    : null;
+
+  const building = invoice.contractId?.roomId?.buildingId;
+  const bManager = building?.managerId
+    ? await Manager.findOne({ userId: building.managerId }).select("name phone")
+    : null;
+
+  formatted.representative = {
+    name: rep?.name || userRep?.name || "",
+    phone: rep?.phone || userRep?.phone || "",
+    email: invoice.contractId?.representativeEmail || userRep?.email || "",
+    cccd: invoice.contractId?.representativeCccd || rep?.cccd || userRep?.cccd || "",
+  };
+  formatted.representativeName = formatted.representative.name;
+  formatted.representativePhone = formatted.representative.phone;
+
+  if (building) {
+    formatted.building = {
+      _id: building._id,
+      name: building.name,
+      address: building.address,
+      managerName: bManager?.name || "",
+      managerPhone: bManager?.phone || "",
+    };
+  }
+
+  return formatted;
 };
 
 /**

@@ -19,6 +19,12 @@ export const getPayments = asyncHandler(async (request, response) => {
   return ok(response, result, "Lấy lịch sử thanh toán thành công");
 });
 
+// 3. Lấy chi tiết 1 biên lai thanh toán (UC-39)
+export const getPaymentById = asyncHandler(async (request, response) => {
+  const result = await paymentService.getPaymentById(request.params.id, request.user);
+  return ok(response, result, "Lấy chi tiết biên lai thanh toán thành công");
+});
+
 // 3. Route Dev giả lập SePay báo tiền về ở local
 export const simulateSepay = asyncHandler(async (request, response) => {
   const result = await paymentService.simulateSepay(request.body);
