@@ -34,7 +34,7 @@ const CATEGORY_META = {
 
 const PAGE_LIMIT = 8;
 
-const AnnouncementHistoryCard = ({ refreshKey = 0, onReuse }) => {
+const AnnouncementHistoryCard = ({ refreshKey = 0, onReuse, className = '' }) => {
   const [filters, setFilters] = useState({
     q: '',
     category: 'ALL',
@@ -104,8 +104,9 @@ const AnnouncementHistoryCard = ({ refreshKey = 0, onReuse }) => {
 
   return (
     <>
-      <Card>
-        <Card.Body className="flex flex-col gap-3">
+      {/* màn hình lớn: khung cao vừa phần còn lại của cột, danh sách cuộn bên trong thay vì kéo cả trang */}
+      <Card className={className}>
+        <Card.Body className="flex flex-col gap-3 min-h-0">
           {/* Tiêu đề & Tổng số đợt đã gửi */}
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -216,7 +217,7 @@ const AnnouncementHistoryCard = ({ refreshKey = 0, onReuse }) => {
                 : 'Chưa có thông báo chung nào được gửi trước đây.'}
             </div>
           ) : (
-            <div className="flex flex-col gap-2 max-h-96 overflow-y-auto pr-1">
+            <div className="flex flex-col gap-2 max-h-96 overflow-y-auto pr-1 xl:max-h-none xl:flex-1 xl:min-h-0">
               {data.items.map((item) => {
                 const meta = CATEGORY_META[item.category] || CATEGORY_META.GENERAL;
                 const roomListText =
