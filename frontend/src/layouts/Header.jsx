@@ -59,21 +59,21 @@ const Header = ({ onToggleMenu, title }) => {
 
                 <div className="h-6 mx-1 border-start" />
 
-                {/* Nút tài khoản theo Topbar.dc.html */}
+                {/* Nút tài khoản theo Topbar.dc.html; hover / đang mở giống mục menu trái (hf-btn-nav) */}
                 <Dropdown align="end">
                     <Dropdown.Toggle
                         variant="secondary"
-                        className="hf-btn-ghost flex items-center gap-2 h-10 px-2 border-0 fw-normal text-gray-800 after:hidden"
+                        className="hf-btn-ghost hf-btn-nav flex items-center gap-2 h-8 px-1.5 py-0 border-0 fw-normal after:hidden"
                         id="user-menu-toggle"
                     >
-                        <span className="hf-av w-8 h-8 text-xs font-bold">
+                        <span className="hf-av w-6 h-6 text-[10px] font-bold">
                             {getInitials(user?.name)}
                         </span>
                         <span className="d-none d-sm-flex flex-col text-left leading-tight">
-                            <span className="text-xs font-semibold text-gray-900">{user?.name}</span>
+                            <span className="text-xs font-semibold">{user?.name}</span>
                             <span className="text-[11px] text-gray-500">{ROLE_LABEL[user?.role] || 'Người dùng'}</span>
                         </span>
-                        <BiChevronDown size={16} className="text-gray-500" />
+                        <BiChevronDown size={14} className="text-gray-500" />
                     </Dropdown.Toggle>
 
                     <Dropdown.Menu className="shadow-lg min-w-[200px] py-1">

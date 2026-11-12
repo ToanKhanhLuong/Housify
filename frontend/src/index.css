@@ -115,6 +115,19 @@
     --bs-btn-disabled-border-color: transparent;
   }
 
+  /* nút trên Header (chuông, tài khoản): màu và hover giống mục menu trái (.nav-pills) –
+     rê chuột nền xám nhạt, đang mở dropdown thì nền tím nhạt chữ tím như mục đang chọn.
+     Dùng kèm hf-btn-ghost: <Button variant="secondary" className="hf-btn-ghost hf-btn-nav"> */
+  .hf-btn-nav {
+    --bs-btn-color: #374151;
+    --bs-btn-hover-color: #111827;
+    --bs-btn-hover-bg: #f1f2f4;
+    --bs-btn-hover-border-color: #f1f2f4;
+    --bs-btn-active-color: var(--bs-primary-text-emphasis);
+    --bs-btn-active-bg: var(--bs-primary-bg-subtle);
+    --bs-btn-active-border-color: var(--bs-primary-bg-subtle);
+  }
+
   .form-control:focus,
   .form-select:focus {
     border-color: #b79aae;
