@@ -17,5 +17,6 @@ export const geminiChatSchema = Joi.object({
         )
         .max(20)
         .default([]),
+    currentScreen: Joi.string().trim().max(300).allow('', null).optional(),
 });
 

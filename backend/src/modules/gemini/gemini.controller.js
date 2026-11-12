@@ -3,13 +3,14 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import * as geminiService from './gemini.service.js';
 
 export const chat = asyncHandler(async (request, response) => {
-    const { message, history } = request.body;
+    const { message, history, currentScreen } = request.body;
     const user = request.user;
 
     const data = await geminiService.chatWithGemini({
         user,
         message,
         history,
+        currentScreen,
     });
 
     response.status(200).json({

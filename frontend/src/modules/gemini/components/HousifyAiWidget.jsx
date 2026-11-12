@@ -174,9 +174,14 @@ const HousifyAiWidget = () => {
           text: m.text,
         }));
 
+      const currentScreen = typeof window !== 'undefined'
+        ? `${window.location.pathname}${window.location.search}`
+        : null;
+
       const response = await geminiApi.chat({
         message: text,
         history: historyPayload.slice(0, -1),
+        currentScreen,
       });
 
       const replyText = response.data?.reply || 'Tôi đã xử lý yêu cầu nhưng không nhận được nội dung phản hồi.';
