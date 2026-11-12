@@ -117,6 +117,7 @@ const ManagerEditModal = ({ manager, onHide, onSaved }) => {
                 value={form.dateOfBirth}
                 onChange={handleChange}
                 error={errors.dateOfBirth}
+                required
               />
             </Col>
             <Col md={12}>
@@ -126,6 +127,7 @@ const ManagerEditModal = ({ manager, onHide, onSaved }) => {
                 value={form.address}
                 onChange={handleChange}
                 error={errors.address}
+                required
               />
             </Col>
             <Col md={6}>
@@ -136,6 +138,7 @@ const ManagerEditModal = ({ manager, onHide, onSaved }) => {
                 onChange={handleImage('cccdFrontImage')}
                 error={errors.cccdFrontImage}
                 disabled={submitting}
+                required
               />
             </Col>
             <Col md={6}>
@@ -146,6 +149,7 @@ const ManagerEditModal = ({ manager, onHide, onSaved }) => {
                 onChange={handleImage('cccdBackImage')}
                 error={errors.cccdBackImage}
                 disabled={submitting}
+                required
               />
             </Col>
           </Row>

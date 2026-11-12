@@ -9,7 +9,10 @@ import { BiIdCard } from 'react-icons/bi';
 const CccdImage = ({ label, url }) => (
   <Card className="w-full max-w-[48rem] mx-auto">
     <Card.Body className="p-3">
-      <div className="small fw-semibold mb-2">{label}</div>
+      <div className="small fw-semibold mb-2">
+        {label}
+        <span className="text-danger ms-1">*</span>
+      </div>
       {url ? (
         <a
           href={url}

@@ -305,13 +305,13 @@ const ManagerDetailPage = () => {
             <InfoRow icon={BiPhone} label="Số điện thoại" required>
               {manager.phone}
             </InfoRow>
-            <InfoRow icon={BiCake} label="Ngày sinh">
+            <InfoRow icon={BiCake} label="Ngày sinh" required>
               {formatDate(manager.dateOfBirth)}
             </InfoRow>
-            <InfoRow icon={BiMap} label="Địa chỉ">
+            <InfoRow icon={BiMap} label="Địa chỉ" required>
               {manager.address || null}
             </InfoRow>
-            <InfoRow icon={BiTime} label="Ngày tạo">
+            <InfoRow icon={BiTime} label="Ngày tạo" required>
               {formatDateTime(manager.createdAt)}
             </InfoRow>
           </div>

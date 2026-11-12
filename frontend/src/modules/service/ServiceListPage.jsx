@@ -5,7 +5,6 @@ import { useNavigate } from 'react-router-dom';
 import {
     BiBoltCircle,
     BiCar,
-    BiChevronRight,
     BiCube,
     BiDroplet,
     BiPencil,
@@ -302,21 +301,6 @@ const ServiceListPage = () => {
                     <p className="text-xs text-gray-500 mb-0 line-clamp-2 leading-relaxed">
                         {visual.hint}
                     </p>
-                </div>
-
-                {/* Footer thẻ: Liên kết cài đặt giá theo tòa chuẩn hf-btn-ghost */}
-                <div className="mt-4 pt-3 border-t border-gray-100/90 flex items-center justify-between text-xs">
-                    <span className="text-gray-400">Đơn giá từng tòa:</span>
-                    <Button
-                        variant="secondary"
-                        className="hf-btn-ghost p-0 text-primary small d-inline-flex align-items-center gap-0.5"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            navigate('/services/prices');
-                        }}
-                    >
-                        Cài đặt giá <BiChevronRight />
-                    </Button>
                 </div>
             </div>
         );
