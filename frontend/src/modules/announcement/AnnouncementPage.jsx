@@ -1,11 +1,12 @@
 // UC-40 (Manager, /announcements): gửi thông báo chung cho khách trong tòa mình
 // Form: tiêu đề, nội dung (bắt buộc), đối tượng nhận = Tất cả / Chọn phòng (chỉ phòng Đang thuê). Mẫu nhanh theo nội dung
-// thường gặp (bảo trì, nội quy, nhắc nhở, thông tin chung). Bên phải: xem trước thông báo như trong chuông + số phòng nhận
+// thường gặp (bảo trì, nội quy, nhắc nhở, thông tin chung). Số phòng nhận hiện ngay dưới "Gửi tới". Bên phải: xem trước
+// thông báo như trong chuông + lịch sử đã gửi. Màn hình lớn: trang vừa khung nhìn, từng cột tự cuộn, không kéo cả trang
 // Bấm Gửi → popup xác nhận → POST /announcements → báo "Đã gửi thành công đến X tài khoản" (BE trả). Không lưu lịch sử
 // ở FE: mỗi khách nhận 1 bản ghi thông báo, xem qua chuông (UC-41)
 import { useEffect, useState } from 'react';
 import { Alert, Button, Card, Form, Spinner } from 'react-bootstrap';
-import { BiBroadcast, BiSend } from 'react-icons/bi';
+import { BiBroadcast, BiGroup, BiSend } from 'react-icons/bi';
 import { toast } from 'react-toastify';
 import ConfirmModal from '../../components/ConfirmModal';
 import Input from '../../components/Input';
@@ -106,8 +107,9 @@ const AnnouncementPage = () => {
   };
 
   return (
-    <div className="grid xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-4">
-      <Form onSubmit={handleSubmit} noValidate>
+    // xl: cao đúng phần còn lại dưới header (h-14 + padding p-4 hai đầu = 6.5rem), cột nào dài thì cột đó tự cuộn
+    <div className="grid xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:grid-rows-[minmax(0,1fr)] xl:h-[calc(100dvh-6.5rem)] gap-4">
+      <Form onSubmit={handleSubmit} noValidate className="xl:min-h-0 xl:overflow-y-auto">
         <Card className="hf-paper">
           <div className="flex flex-col gap-1">
             <span className="small text-secondary">Thông báo chung · {user.building?.name ?? 'Tòa của tôi'}</span>
@@ -195,6 +197,23 @@ const AnnouncementPage = () => {
                 disabled={sending}
               />
             </div>
+
+            {/* số phòng nhận: nằm ngay dưới lựa chọn, đổi theo "Tất cả" / số phòng đã chọn */}
+            <div className="flex items-start gap-3 rounded border px-3 py-2 bg-body-tertiary">
+              <span className="hf-av w-8 h-8 shrink-0">
+                <BiGroup size={16} />
+              </span>
+              <div className="flex flex-col min-w-0">
+                <span>
+                  Người nhận: <b>{rooms === null ? '…' : recipientRooms} phòng</b>
+                </span>
+                <span className="small text-secondary">
+                  Mỗi phòng đang hoạt động sẽ nhận được bởi người đại diện. Người ở cùng không có tài khoản nên không
+                  nhận.
+                </span>
+              </div>
+            </div>
+
             {form.target === 'ROOMS' &&
               (rooms === null ? (
                 <SkeletonRows rows={2} columns={4} />
@@ -225,8 +244,8 @@ const AnnouncementPage = () => {
       </Form>
 
       {/* xem trước như trong chuông của khách */}
-      <div className="flex flex-col gap-3">
-        <Card>
+      <div className="flex flex-col gap-3 xl:min-h-0 xl:overflow-y-auto">
+        <Card className="shrink-0">
           <Card.Body className="flex flex-col gap-3">
             <h2 className="h6 fw-bold mb-0">Khách sẽ thấy như sau</h2>
             <div className="flex items-start gap-3 rounded border px-3 py-3 bg-body-tertiary">
@@ -247,18 +266,9 @@ const AnnouncementPage = () => {
           </Card.Body>
         </Card>
 
-        <Card>
-          <Card.Body className="flex flex-col gap-1">
-            <h2 className="h6 fw-bold mb-1">Người nhận</h2>
-            <span className="fs-5 fw-bold">{rooms === null ? '…' : recipientRooms} phòng</span>
-            <span className="small text-secondary">
-              Mỗi phòng đang hoạt động sẽ nhận được bởi người đại diện. Người ở cùng không có tài khoản nên không nhận.
-            </span>
-          </Card.Body>
-        </Card>
-
-        {/* Bảng lịch sử gửi thông báo chung */}
+        {/* Bảng lịch sử gửi thông báo chung: xl chiếm phần cao còn lại, tối thiểu 20rem để vẫn đọc được trên màn thấp */}
         <AnnouncementHistoryCard
+          className="xl:flex-1 xl:min-h-80"
           refreshKey={historyKey}
           onReuse={({ title, message }) => {
             update({ title, message });
