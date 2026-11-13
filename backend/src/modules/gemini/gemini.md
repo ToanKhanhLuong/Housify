@@ -62,19 +62,17 @@ Module `gemini` cung cấp trợ lý ảo thông minh (**Housify AI Assistant**)
 
 ## 4. Rào chắn Model Cascade Fallback & Tối ưu tốc độ tức thì (~1s)
 
-Hệ thống thiết lập cơ chế tự động chuyển đổi dự phòng qua danh sách mô hình Gemini thế hệ 3.x và 2.5 được sắp xếp ưu tiên theo tốc độ phản hồi thực tế:
-1. `gemini-3.6-flash`: Mô hình 3.x siêu tốc, phản hồi ~1s khi tắt thinkingBudget.
-2. `gemini-2.5-flash`: Mô hình thế hệ 2.5 cực kỳ ổn định, tốc độ dưới 1s.
-3. `gemini-3-flash-preview`: Bản thử nghiệm độ trễ siêu thấp (~0.8s).
+Hệ thống thiết lập cơ chế tự động chuyển đổi dự phòng qua danh sách mô hình Gemini thế hệ 3.x và 2.5 được kiểm chứng phản hồi nhanh và ổn định (kèm timeout `12s` mỗi model để chuyển dự phòng ngay nếu nghẽn):
+1. `gemini-3.6-flash`: Mô hình 3.x tốc độ cao (~1s khi tắt thinkingBudget).
+2. `gemini-3-flash-preview`: Bản 3.x độ trễ thấp (~0.8s).
+3. `gemini-2.5-flash`: Mô hình thế hệ 2.5 ổn định (~0.7s).
 4. `gemini-3.5-flash`: Bản 3.5 suy luận logic vững chắc.
 5. `gemini-3.5-flash-lite`: Bản lite thế hệ 3.5 tiết kiệm tài nguyên.
-6. `gemini-flash-lite-latest`: Bản lite mới nhất tự động trỏ.
-7. `gemini-flash-latest`: Bản flash mới nhất tự động trỏ.
-8. `gemini-3.8-flash`: Bản 3.8 dự phòng nâng cao khi các model trước quá tải.
-9. `gemini-pro-latest`: Bản Pro chuyên sâu làm chốt chặn cuối cùng.
+6. `gemini-3.1-flash-lite`: Bản lite 3.1 dự phòng cuối.
 
-**Cơ chế tối ưu hóa tốc độ (Zero-Thinking Latency):**
-Các model thế hệ mới mặc định bật tính năng "Extended Thinking" (suy nghĩ ngầm) khiến thời gian chờ kéo dài 15-20s. Hệ thống tự động thiết lập `thinkingConfig: { thinkingBudget: 0 }` trên các model hỗ trợ, giúp bỏ qua bước suy nghĩ ngầm và xuất trực tiếp câu trả lời, rút ngắn thời gian phản hồi từ ~20s xuống còn **~1 - 3 giây**!
+**Cơ chế tối ưu hóa tốc độ (Zero-Thinking Latency & Batch Relational Join):**
+- Tắt bước suy nghĩ ngầm với `thinkingConfig: { thinkingBudget: 0 }` trên các model hỗ trợ, rút ngắn thời gian phản hồi AI xuống **~1 - 2 giây**.
+- Truy vấn MongoDB song song 1 nhịp (`Promise.all` + `.select()` + `.lean()`) và thực hiện join các bảng theo quan hệ ERD bằng `Map` trong RAM (bỏ N+1 query), cung cấp đầy đủ thông tin người đại diện, chi tiết khoản thu hóa đơn (`items`), giao dịch SePay (`payments`), người lập/người xử lý đơn chấm dứt & sự cố, lý do khóa tài khoản và thông báo chung đúng theo phạm vi RBAC của từng role.
 
 ---
 
