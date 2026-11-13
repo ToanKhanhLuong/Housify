@@ -19,16 +19,17 @@ const router = Router();
 router.use('/contracts', auth);
 
 // UC-25: Xem danh sách & chi tiết hợp đồng (Manager, Customer)
+// Admin chỉ xem: danh sách theo một phòng (?roomId= bắt buộc) và chi tiết; các API ghi vẫn chỉ Manager
 router.get(
     '/contracts',
-    requireRole(ROLE.MANAGER, ROLE.CUSTOMER),
+    requireRole(ROLE.ADMIN, ROLE.MANAGER, ROLE.CUSTOMER),
     validate(listContractsSchema, 'query'),
     contractController.getContracts,
 );
 
 router.get(
     '/contracts/:id',
-    requireRole(ROLE.MANAGER, ROLE.CUSTOMER),
+    requireRole(ROLE.ADMIN, ROLE.MANAGER, ROLE.CUSTOMER),
     validate(contractIdParamSchema, 'params'),
     contractController.getContractById,
 );

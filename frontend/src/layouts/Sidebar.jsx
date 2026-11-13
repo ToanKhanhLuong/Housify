@@ -24,6 +24,10 @@ const isMenuLinkActive = (menuPath, currentPath, role) => {
         if (role === ROLE.MANAGER && menuPath === '/my-building') return true;
         if (role === ROLE.ADMIN && menuPath === '/buildings') return true;
     }
+    // Admin xem hợp đồng của một phòng (/contracts/:id, mở từ chi tiết phòng): thuộc mục "Tòa nhà"
+    if (currentPath.startsWith('/contracts') && role === ROLE.ADMIN && menuPath === '/buildings') {
+        return true;
+    }
     // Đơn chấm dứt hợp đồng (/terminations, /terminations/new, /terminations/:id):
     // - Manager: thuộc mục "Hợp đồng" (/contracts)
     if (currentPath.startsWith('/terminations') && role === ROLE.MANAGER && menuPath === '/contracts') {
