@@ -1,4 +1,4 @@
-// UC-19 (Manager): lịch sử hợp đồng của phòng trong chi tiết phòng – các hợp đồng Đã kết thúc, Đã hủy
+// UC-19 (Manager, Admin chỉ xem): lịch sử hợp đồng của phòng trong chi tiết phòng – các hợp đồng Đã kết thúc, Đã hủy
 // Mỗi dòng: người đại diện, loại, thời hạn, giá thuê, trạng thái; bấm một dòng → chi tiết hợp đồng. Phân trang 5 dòng
 import { useEffect, useState } from 'react';
 import { BiHistory } from 'react-icons/bi';

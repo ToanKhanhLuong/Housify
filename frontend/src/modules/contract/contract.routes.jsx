@@ -8,7 +8,8 @@ import MyContractPage from './MyContractPage';
 const contractRoutes = [
   { path: '/contracts', element: <ContractListPage />, roles: [ROLE.MANAGER] },
   { path: '/contracts/new', element: <ContractCreatePage />, roles: [ROLE.MANAGER] }, // ?roomId= mở sẵn phòng
-  { path: '/contracts/:id', element: <ContractDetailPage />, roles: [ROLE.MANAGER] },
+  // Admin chỉ xem (mở từ chi tiết phòng), không có nút thao tác
+  { path: '/contracts/:id', element: <ContractDetailPage />, roles: [ROLE.ADMIN, ROLE.MANAGER] },
   { path: '/my-contract', element: <MyContractPage />, roles: [ROLE.CUSTOMER] },
 ];
 

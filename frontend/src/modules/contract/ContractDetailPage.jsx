@@ -12,7 +12,8 @@ import ErrorState from '../../components/ErrorState';
 import PageHeader from '../../components/PageHeader';
 import SkeletonRows from '../../components/SkeletonRows';
 import StatusSteps from '../../components/StatusSteps';
-import { CONTRACT_STATUS } from '../../constants/enums';
+import { useAuth } from '../../context/AuthContext';
+import { CONTRACT_STATUS, ROLE } from '../../constants/enums';
 import { CONTRACT_STATUS_LABEL } from '../../constants/statusLabels';
 import contractApi from './contract.api';
 import CancelContractModal from './components/CancelContractModal';
@@ -38,6 +39,9 @@ const ContractDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  // Admin chỉ xem: không nút thao tác, không hoàn cọc, quay về chi tiết phòng (Admin không có trang danh sách hợp đồng)
+  const { user } = useAuth();
+  const isAdmin = user.role === ROLE.ADMIN;
 
   const [state, setState] = useState({ status: 'loading', contract: null, error: '' });
   const [modal, setModal] = useState(null); // 'edit' | 'renew' | 'cancel'
@@ -130,8 +134,8 @@ const ContractDetailPage = () => {
   if (state.status === 'notFound') {
     return (
       <EmptyState message={state.error || 'Không tìm thấy hợp đồng'}>
-        <Button variant="secondary" onClick={() => navigate('/contracts')}>
-          Về danh sách hợp đồng
+        <Button variant="secondary" onClick={() => navigate(isAdmin ? '/buildings' : '/contracts')}>
+          {isAdmin ? 'Về danh sách tòa nhà' : 'Về danh sách hợp đồng'}
         </Button>
       </EmptyState>
     );
@@ -145,7 +149,9 @@ const ContractDetailPage = () => {
   const isDraft = contract.status === CONTRACT_STATUS.DRAFT;
   const isActive = contract.status === CONTRACT_STATUS.ACTIVE;
 
-  const actions = (
+  const roomPath = `/rooms/${contract.room?._id ?? ''}`;
+
+  const actions = isAdmin ? null : (
     <>
       {isDraft && (
         <Button
@@ -207,11 +213,12 @@ const ContractDetailPage = () => {
       {/* thanh nút, link mời không in – trang in chỉ còn văn bản hợp đồng */}
       <div className="print:hidden">
         <PageHeader
-          backTo="/contracts"
-          breadcrumbs={[
-            { label: 'Hợp đồng', to: '/contracts' },
-            `Phòng ${contract.room?.roomNumber ?? ''}`,
-          ]}
+          backTo={isAdmin ? roomPath : '/contracts'}
+          breadcrumbs={
+            isAdmin
+              ? [{ label: `Phòng ${contract.room?.roomNumber ?? ''}`, to: roomPath }, 'Hợp đồng']
+              : [{ label: 'Hợp đồng', to: '/contracts' }, `Phòng ${contract.room?.roomNumber ?? ''}`]
+          }
           actions={actions}
         >
           <StatusSteps map={CONTRACT_STATUS_LABEL} steps={STEPS} current={contract.status} />
@@ -232,7 +239,7 @@ const ContractDetailPage = () => {
       {!isDraft && (
         <div className="flex flex-col gap-3 mb-3">
           <ContractTerminations contractId={contract._id} onLoaded={handleTerminationsLoaded} />
-          {contract.status === CONTRACT_STATUS.ENDED && <RefundDepositSection contractId={contract._id} />}
+          {contract.status === CONTRACT_STATUS.ENDED && !isAdmin && <RefundDepositSection contractId={contract._id} />}
         </div>
       )}
 
@@ -241,7 +248,7 @@ const ContractDetailPage = () => {
         <Tab eventKey="info" title="Thông tin">
           <ContractPaper
             contract={contract}
-            onOccupantClick={(occupant) => navigate(`/occupants/${occupant._id}`)}
+            onOccupantClick={isAdmin ? undefined : (occupant) => navigate(`/occupants/${occupant._id}`)}
           />
         </Tab>
         <Tab eventKey="document" title="Văn bản hợp đồng">

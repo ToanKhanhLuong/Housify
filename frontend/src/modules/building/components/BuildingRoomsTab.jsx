@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Card } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
-import { BiLayer, BiListUl, BiPlus } from 'react-icons/bi';
+import { BiLayer, BiListUl, BiPlus, BiSolidUser, BiUser } from 'react-icons/bi';
 import ControlBar from '../../../components/ControlBar';
 import DataTable from '../../../components/DataTable';
 import Pager from '../../../components/Pager';
@@ -60,25 +60,49 @@ const Legend = ({ count }) => (
   </div>
 );
 
-// ô một phòng ở dạng "Theo tầng" (gọn, 3 dòng): mã + trạng thái, loại · diện tích, số người + giá
+// số người đang ở / sức chứa bằng hình người: tô đặc = đang có người, viền = còn chỗ
+// sức chứa lớn (hoặc chưa biết) thì hiện 1 hình người + số để ô không bị dài
+const MAX_PEOPLE_ICONS = 4;
+const Occupancy = ({ count, capacity }) => {
+  const label = `${count}/${capacity ?? '—'} người`;
+  if (!capacity || capacity > MAX_PEOPLE_ICONS) {
+    return (
+      <span className="inline-flex items-center gap-1" title={label}>
+        <BiSolidUser aria-hidden="true" />
+        {count}/{capacity ?? '—'}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center" title={label} aria-label={label} role="img">
+      {Array.from({ length: capacity }, (_, index) =>
+        index < count ? (
+          <BiSolidUser key={index} aria-hidden="true" />
+        ) : (
+          <BiUser key={index} aria-hidden="true" className="opacity-50" />
+        ),
+      )}
+    </span>
+  );
+};
+
+// ô một phòng ở dạng "Theo tầng", 3 dòng mỗi dòng một ý: mã phòng + trạng thái · loại, diện tích · người ở + giá
+// màu nền ô đã báo trạng thái nên chữ trạng thái chỉ là nhãn nhỏ, mã phòng và giá là 2 thứ nổi nhất
 const RoomTile = ({ room }) => (
   <Link
     to={`/rooms/${room._id}`}
-    className={`hf-tile w-38 shrink-0 p-2 gap-1 small no-underline ${TILE_CLASS[room.status] ?? ''}`}
+    className={`hf-tile w-44 shrink-0 px-3 py-2 gap-1 small no-underline ${TILE_CLASS[room.status] ?? ''}`}
   >
-    <span className="flex items-center justify-between gap-1">
-      <span className="fw-bold">{room.roomNumber}</span>
+    <span className="flex items-center justify-between gap-2">
+      <span className="fs-6 fw-bold leading-tight">{room.roomNumber}</span>
       <StatusBadge map={ROOM_STATUS_LABEL} value={room.status} />
     </span>
-    <span className="truncate">
+    <span className="truncate text-secondary">
       {room.roomType?.name ?? '—'} · {room.area} m²
     </span>
-    {/* số người và giá chung một dòng cho ô gọn */}
-    <span className="flex items-center justify-between gap-1">
-      <span className="text-secondary">
-        {room.occupantCount ?? 0}/{room.roomType?.capacity ?? '—'} người
-      </span>
-      <span className="fw-semibold">
+    <span className="flex items-center justify-between gap-2 mt-1">
+      <Occupancy count={room.occupantCount ?? 0} capacity={room.roomType?.capacity} />
+      <span className="fw-semibold whitespace-nowrap">
         <MoneyText value={room.rentPrice} />
       </span>
     </span>

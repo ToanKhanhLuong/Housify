@@ -335,10 +335,9 @@ const RoomDetailPage = () => {
           </div>
         </div>
 
-        {/* UC-19: hợp đồng đang hiệu lực + cư dân đang ở – chỉ Manager (Admin không gọi được API
-            hợp đồng / cư dân). key = id phòng: sang phòng cùng tầng thì tải lại từ đầu */}
-        {!isAdmin && <RoomTenancySection key={room._id} room={room} />}
-        {!isAdmin && <RoomContractHistory key={`history-${room._id}`} roomId={room._id} />}
+        {/* UC-19: hợp đồng đang hiệu lực + cư dân đang ở (Manager); Admin chỉ xem hợp đồng và lịch sử hợp đồng. key = id phòng: sang phòng cùng tầng thì tải lại từ đầu */}
+        <RoomTenancySection key={room._id} room={room} readOnly={isAdmin} />
+        <RoomContractHistory key={`history-${room._id}`} roomId={room._id} />
 
         {/* ảnh phòng: hàng ảnh nhỏ, bấm mở ảnh gốc (giống chi tiết tòa) */}
         <div className="flex flex-col gap-2">

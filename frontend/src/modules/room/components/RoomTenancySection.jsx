@@ -2,7 +2,7 @@
 // - Hợp đồng: người đại diện, loại, thời hạn, giá thuê → link sang hợp đồng. Chỉ có nháp thì báo chờ khách kích hoạt
 // - Cư dân: avatar chữ viết tắt, Đại diện / quan hệ, SĐT → bấm mở chi tiết cư dân; còn chỗ thì nút "Thêm người"
 //   (popup thêm nằm ở trang Cư dân: mở với phòng chọn sẵn, thêm xong quay lại phòng này)
-// Admin không gọi được API hợp đồng / cư dân (chỉ M, C) nên trang chỉ hiện phần này cho Manager
+// Admin (readOnly): chỉ hiện thẻ hợp đồng để mở xem, không gọi API cư dân (GET /occupants chỉ Manager)
 import { useEffect, useState } from 'react';
 import { Alert, Button } from 'react-bootstrap';
 import { BiChevronRight, BiFile, BiGroup } from 'react-icons/bi';
@@ -30,31 +30,40 @@ const SectionTitle = ({ icon: Icon, children }) => (
   </span>
 );
 
-const RoomTenancySection = ({ room }) => {
+const RoomTenancySection = ({ room, readOnly = false }) => {
   const navigate = useNavigate();
   // loading → ok | error
-  const [state, setState] = useState({ status: 'loading', contracts: [], occupants: [], error: '' });
+  const [state, setState] = useState({
+    status: 'loading',
+    contracts: [],
+    occupants: [],
+    error: '',
+  });
 
   useEffect(() => {
     let ignore = false;
-    Promise.all([roomApi.contracts(room._id), roomApi.occupants(room._id)])
+    Promise.all([roomApi.contracts(room._id), readOnly ? null : roomApi.occupants(room._id)])
       .then(([contracts, occupants]) => {
         if (ignore) return;
         setState({
           status: 'ok',
           contracts: contracts.data?.items ?? [],
           // đại diện đứng đầu
-          occupants: [...(occupants.data?.items ?? [])].sort(
+          occupants: [...(occupants?.data?.items ?? [])].sort(
             (a, b) => Number(b.isRepresentative) - Number(a.isRepresentative),
           ),
           error: '',
         });
       })
-      .catch((error) => !ignore && setState({ status: 'error', contracts: [], occupants: [], error: error.message }));
+      .catch(
+        (error) =>
+          !ignore &&
+          setState({ status: 'error', contracts: [], occupants: [], error: error.message }),
+      );
     return () => {
       ignore = true;
     };
-  }, [room._id]);
+  }, [room._id, readOnly]);
 
   if (state.status === 'loading') return <SkeletonRows rows={3} columns={3} />;
   if (state.status === 'error') {
@@ -71,7 +80,7 @@ const RoomTenancySection = ({ room }) => {
   const count = state.occupants.length;
 
   return (
-    <div className="grid lg:grid-cols-2 gap-4">
+    <div className={`grid gap-4 ${readOnly ? '' : 'lg:grid-cols-2'}`}>
       {/* hợp đồng đang hiệu lực */}
       <section className="flex flex-col gap-2">
         <SectionTitle icon={BiFile}>Hợp đồng đang hiệu lực</SectionTitle>
@@ -121,48 +130,55 @@ const RoomTenancySection = ({ room }) => {
       </section>
 
       {/* cư dân đang ở */}
-      <section className="flex flex-col gap-2">
-        <SectionTitle icon={BiGroup}>
-          Cư dân đang ở{' '}
-          <span className="fw-normal text-secondary">
-            ({count}
-            {capacity ? `/${capacity}` : ''})
-          </span>
-        </SectionTitle>
-        {count === 0 ? (
-          <div className="hf-ph h-24">Chưa có ai đang ở</div>
-        ) : (
-          <div className="hf-card flex flex-col gap-1 p-2">
-            {state.occupants.map((occupant) => (
-              <Button
-                key={occupant._id}
-                variant="secondary"
-                className="hf-btn-ghost w-full flex items-center gap-3 px-2 py-2 text-start"
-                onClick={() => navigate(`/occupants/${occupant._id}`)}
-              >
-                <span
-                  className={`hf-av w-9 h-9 text-xs ${occupant.isRepresentative ? '' : 'bg-body-tertiary text-secondary border'}`}
-                  aria-hidden="true"
+      {!readOnly && (
+        <section className="flex flex-col gap-2">
+          <SectionTitle icon={BiGroup}>
+            Cư dân đang ở{' '}
+            <span className="fw-normal text-secondary">
+              ({count}
+              {capacity ? `/${capacity}` : ''})
+            </span>
+          </SectionTitle>
+          {count === 0 ? (
+            <div className="hf-ph h-24">Chưa có ai đang ở</div>
+          ) : (
+            <div className="hf-card flex flex-col gap-1 p-2">
+              {state.occupants.map((occupant) => (
+                <Button
+                  key={occupant._id}
+                  variant="secondary"
+                  className="hf-btn-ghost w-full flex items-center gap-3 px-2 py-2 text-start"
+                  onClick={() => navigate(`/occupants/${occupant._id}`)}
                 >
-                  {initialsOf(occupant.name)}
-                </span>
-                <span className="flex flex-col min-w-0 flex-1">
-                  <span className="flex items-center gap-2 min-w-0">
-                    <span className="fw-semibold text-body truncate">{occupant.name}</span>
-                    {occupant.isRepresentative && <span className="hf-badge hf-b-plum">Đại diện</span>}
+                  <span
+                    className={`hf-av w-9 h-9 text-xs ${occupant.isRepresentative ? '' : 'bg-body-tertiary text-secondary border'}`}
+                    aria-hidden="true"
+                  >
+                    {initialsOf(occupant.name)}
                   </span>
-                  <span className="small text-secondary truncate">
-                    {[occupant.isRepresentative ? null : occupant.relationship || 'Ở cùng', occupant.phone]
-                      .filter(Boolean)
-                      .join(' · ')}
+                  <span className="flex flex-col min-w-0 flex-1">
+                    <span className="flex items-center gap-2 min-w-0">
+                      <span className="fw-semibold text-body truncate">{occupant.name}</span>
+                      {occupant.isRepresentative && (
+                        <span className="hf-badge hf-b-plum">Đại diện</span>
+                      )}
+                    </span>
+                    <span className="small text-secondary truncate">
+                      {[
+                        occupant.isRepresentative ? null : occupant.relationship || 'Ở cùng',
+                        occupant.phone,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </span>
                   </span>
-                </span>
-                <BiChevronRight className="text-secondary shrink-0" />
-              </Button>
-            ))}
-          </div>
-        )}
-      </section>
+                  <BiChevronRight className="text-secondary shrink-0" />
+                </Button>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 };

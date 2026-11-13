@@ -542,6 +542,19 @@ export const getContracts = async ({ userId, roleId, query = {} }) => {
                 { representativeCccd: searchRegex },
             ];
         }
+    } else if (roleId === ROLE.ADMIN) {
+        // Admin chỉ xem hợp đồng của một phòng cụ thể (mở từ chi tiết phòng), không có danh sách toàn hệ thống
+        if (!roomId) {
+            throw new AppError('Vui lòng chọn phòng để xem hợp đồng', 400);
+        }
+        const targetRoom = await Room.findOne({ _id: roomId, isDeleted: false }).select('_id').lean();
+        if (!targetRoom) {
+            throw new AppError('Không tìm thấy phòng', 404);
+        }
+        filter.roomId = targetRoom._id;
+        if (statusList && statusList.length > 0) {
+            filter.status = { $in: statusList };
+        }
     } else if (roleId === ROLE.CUSTOMER) {
         // Customer chỉ xem hợp đồng hiện tại của chính mình
         const repOccupants = await Occupant.find({
@@ -683,7 +696,8 @@ export const getContractById = async ({ userId, roleId, contractId }) => {
         if (!isMyContract) {
             throw new AppError('Bạn không có quyền xem hợp đồng này', 403);
         }
-    } else {
+    } else if (roleId !== ROLE.ADMIN) {
+        // Admin được xem mọi hợp đồng (chỉ xem)
         throw new AppError('Bạn không có quyền thực hiện thao tác này', 403);
     }
 
