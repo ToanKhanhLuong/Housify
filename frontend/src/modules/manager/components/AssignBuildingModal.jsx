@@ -183,7 +183,7 @@ const AssignBuildingModal = ({ manager, onHide, onDone }) => {
         <Modal.Footer className="justify-content-start">
           <Button
             type="submit"
-            variant={willReplace ? 'warning' : 'primary'}
+            variant="primary"
             disabled={
               submitting ||
               loadingBuildings ||
