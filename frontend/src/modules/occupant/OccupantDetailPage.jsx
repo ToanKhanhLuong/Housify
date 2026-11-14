@@ -16,6 +16,7 @@ import {
   CONTRACT_STATUS_LABEL,
   CONTRACT_TYPE_LABEL,
   OCCUPANT_STATUS_LABEL,
+  USER_STATUS_LABEL,
 } from '../../constants/statusLabels';
 import { formatDate } from '../../utils/format';
 import occupantApi from './occupant.api';
@@ -141,6 +142,12 @@ const OccupantDetailPage = () => {
                 {occupant.roleLabel}
               </span>
               <StatusBadge map={OCCUPANT_STATUS_LABEL} value={occupant.status} />
+              {occupant.isRepresentative && occupant.userStatus && (
+                <span className="inline-flex items-center gap-1 small text-secondary">
+                  · Tài khoản:
+                  <StatusBadge map={USER_STATUS_LABEL} value={occupant.userStatus} />
+                </span>
+              )}
             </span>
             <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-secondary">
               <span className="flex items-center gap-1">

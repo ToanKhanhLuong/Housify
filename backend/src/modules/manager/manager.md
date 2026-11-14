@@ -1,6 +1,6 @@
 # Module manager
 
-> Vòng đời tài khoản Manager: tạo, xem, sửa, khóa, phân công tòa nhà. **UC-08 (bước 1–5), UC-09, UC-10, UC-11.**
+> Vòng đời tài khoản Manager: tạo, xem, sửa, ngưng hoạt động, phân công tòa nhà. **UC-08 (bước 1–5), UC-09, UC-10, UC-11.**
 > Phần Manager bấm link tự đặt mật khẩu (UC-08 bước 6–8) nằm ở module `activation`.
 
 **Người làm:** BE An · FE Hưng · Iter 1
@@ -10,11 +10,11 @@
 
 ## Ba trạng thái của tài khoản
 
-| Trạng thái                 | Nghĩa là gì                  | Admin làm được gì                                 |
-| ---------------------------- | ------------------------------- | ------------------------------------------------------ |
-| **Chưa kích hoạt**  | Đã tạo, chưa có mật khẩu | Gửi lại link · Xóa tài khoản                     |
-| **Đang hoạt động** | Dùng bình thường            | Sửa thông tin · Khóa · **Phân công tòa** |
-| **Bị khóa**          | Không đăng nhập được     | Sửa thông tin · Mở khóa                           |
+| Trạng thái                 | Nghĩa là gì                  | Admin làm được gì                                              |
+| ---------------------------- | ------------------------------- | ------------------------------------------------------------------- |
+| **Chưa kích hoạt**  | Đã tạo, chưa có mật khẩu | Gửi lại link · Xóa tài khoản                                  |
+| **Đang hoạt động** | Dùng bình thường            | Sửa thông tin · Ngưng hoạt động · **Phân công / Gỡ phân công tòa** |
+| **Ngưng hoạt động** | Không đăng nhập được     | Sửa thông tin · Kích hoạt lại                                     |
 
 **Chỉ tài khoản Đang hoạt động mới được phân công tòa.** Thứ tự bắt buộc là tạo tài khoản → Manager kích hoạt → mới gán tòa.
 
@@ -58,7 +58,7 @@
 
 Hiện **họ tên, email, số điện thoại, trạng thái, tòa đang phụ trách**. Lọc theo trạng thái hoặc tìm theo tên. Chưa có Manager nào thì hiện dòng báo trống.
 
-Mở hồ sơ một người thì thấy thông tin chi tiết, tòa phụ trách, và **số hợp đồng đang hiệu lực của tòa đó** — con số này để Admin cân nhắc trước khi khóa.
+Mở hồ sơ một người thì thấy thông tin chi tiết, tòa phụ trách, và **số hợp đồng / cư dân của tòa đó** — con số này để kiểm tra điều kiện gỡ phân công và ngưng hoạt động.
 
 ### Gửi lại link kích hoạt
 
@@ -72,7 +72,7 @@ Gửi thư lỗi thì báo Admin thử lại sau.
 
 ### Sửa thông tin
 
-**Chỉ dùng cho tài khoản Đang hoạt động hoặc Bị khóa.**
+**Chỉ dùng cho tài khoản Đang hoạt động hoặc Ngưng hoạt động.**
 
 Admin sửa được: họ tên, email, số điện thoại, địa chỉ, ngày sinh, ảnh CCCD hai mặt.
 

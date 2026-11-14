@@ -14,7 +14,7 @@ Bản tóm tắt để code. Chi tiết đầy đủ nằm trong file use case (
 
 **Tài khoản Customer** `ACTIVE → INACTIVE` (24h sau khi kết thúc do thỏa thuận / hết hạn) · `ACTIVE → LOCKED` (24h sau khi kết thúc do đơn phương) · `INACTIVE → ACTIVE` (khách cũ thuê lại). Tài khoản LOCKED không được tạo hợp đồng mới.
 
-**Tài khoản Manager** `PENDING → ACTIVE` (đặt mật khẩu) · `ACTIVE ↔ LOCKED` (UC-10) · PENDING thì được xóa cứng (UC-09)
+**Tài khoản Manager** `PENDING → ACTIVE` (đặt mật khẩu) · `ACTIVE ↔ INACTIVE` (UC-10, chỉ khi chưa phụ trách tòa) · PENDING thì được xóa cứng (UC-09)
 
 **Hóa đơn** `DRAFT → PENDING` (gửi) → `PAID` (SePay) · `DRAFT/PENDING → CANCELLED`
 

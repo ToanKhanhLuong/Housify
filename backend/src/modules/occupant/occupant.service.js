@@ -281,10 +281,12 @@ export const getOccupantById = async ({ userId, roleId, occupantId }) => {
     }
 
     let repEmail = null;
+    let userStatus = null;
     if (occupant.isRepresentative) {
         if (occupant.userId) {
-            const repUser = await User.findById(occupant.userId).select('email').lean();
+            const repUser = await User.findById(occupant.userId).select('email status').lean();
             repEmail = repUser?.email || contract.representativeEmail || null;
+            userStatus = repUser?.status || null;
         } else {
             repEmail = contract.representativeEmail || null;
         }
@@ -294,6 +296,7 @@ export const getOccupantById = async ({ userId, roleId, occupantId }) => {
         _id: occupant._id,
         contractId: occupant.contractId,
         userId: occupant.userId || null,
+        userStatus,
         isRepresentative: occupant.isRepresentative,
         roleLabel: occupant.isRepresentative ? 'Đại diện' : 'Ở cùng',
         name: occupant.name,

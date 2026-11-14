@@ -1,4 +1,4 @@
-// UC-09: Admin sửa thông tin Manager đã kích hoạt (Đang hoạt động / Bị khóa): họ tên, email, SĐT, ngày sinh, địa chỉ, ảnh CCCD
+// UC-09: Admin sửa thông tin Manager đã kích hoạt (Đang hoạt động / Ngưng hoạt động): họ tên, email, SĐT, ngày sinh, địa chỉ, ảnh CCCD
 import { useState } from 'react';
 import { Button, Col, Form, Modal, Row, Spinner } from 'react-bootstrap';
 import { toast } from 'react-toastify';

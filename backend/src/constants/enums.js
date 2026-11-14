@@ -26,9 +26,9 @@ export const ROLE = Object.freeze({
 // Trạng thái tài khoản – users.status
 export const USER_STATUS = Object.freeze({
     ACTIVE: 'ACTIVE', // đang hoạt động
-    INACTIVE: 'INACTIVE', // chỉ Customer: đã trả phòng, thuê lại thì mở lại
+    INACTIVE: 'INACTIVE', // Customer đã trả phòng (thuê lại thì mở lại) hoặc Manager đã ngưng hoạt động
     PENDING: 'PENDING', // Manager chưa kích hoạt
-    LOCKED: 'LOCKED', // Admin khóa Manager / Customer bị chấm dứt đơn phương
+    LOCKED: 'LOCKED', // chỉ Customer bị chấm dứt đơn phương do vi phạm
 });
 
 // Trạng thái OTP và link kích hoạt – otp_tokens.status, activation_tokens.status (để trống = chưa dùng)
@@ -149,10 +149,10 @@ export const INCIDENT_STATUS = Object.freeze({
 
 // Thao tác ghi nhật ký – audit_logs.action
 export const AUDIT_ACTION = Object.freeze({
-    LOCK_USER: 'LOCK_USER', // bắt buộc có reason
+    LOCK_USER: 'LOCK_USER', // khóa Customer sau chấm dứt đơn phương (bắt buộc có reason)
     UNLOCK_USER: 'UNLOCK_USER',
-    DEACTIVATE_USER: 'DEACTIVATE_USER', // Customer → INACTIVE sau trả phòng
-    REACTIVATE_USER: 'REACTIVATE_USER', // Customer thuê lại → ACTIVE
+    DEACTIVATE_USER: 'DEACTIVATE_USER', // Customer → INACTIVE sau trả phòng; Admin cho Manager → INACTIVE
+    REACTIVATE_USER: 'REACTIVATE_USER', // Customer thuê lại → ACTIVE; Admin kích hoạt lại Manager → ACTIVE
     ASSIGN_MANAGER: 'ASSIGN_MANAGER',
     UNASSIGN_MANAGER: 'UNASSIGN_MANAGER',
     RESEND_ACTIVATION: 'RESEND_ACTIVATION',

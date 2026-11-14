@@ -26,9 +26,9 @@ export const validateManagerEdit = (form) => {
   return errors;
 };
 
-// UC-10: lý do khóa bắt buộc
+// UC-10: lý do ngưng hoạt động bắt buộc
 export const validateLockReason = ({ reason }) =>
-  reason.trim() ? {} : { reason: 'Vui lòng nhập lý do khóa' };
+  reason.trim() ? {} : { reason: 'Vui lòng nhập lý do ngưng hoạt động' };
 
 // UC-11
 export const validateAssignBuilding = ({ buildingId }) =>

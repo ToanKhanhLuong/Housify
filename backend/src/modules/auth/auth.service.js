@@ -139,6 +139,9 @@ export const login = async ({ identifier, password, remember = false }) => {
     }
 
     if (user.status === USER_STATUS.INACTIVE) {
+        if (user.roleId === ROLE.MANAGER) {
+            throw new AppError('Tài khoản Manager của bạn đã ngưng hoạt động. Vui lòng liên hệ Admin', 403);
+        }
         throw new AppError('Tài khoản đã ngưng hoạt động. Vui lòng kiểm tra email kích hoạt nếu bạn vừa có hợp đồng mới', 403);
     }
 
