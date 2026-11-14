@@ -90,13 +90,13 @@ const AUDIT_ACTION_META = {
     },
     [AUDIT_ACTION.DEACTIVATE_USER]: {
         category: 'Tài khoản',
-        title: 'Ngưng hoạt động tài khoản sau trả phòng',
+        title: 'Ngưng hoạt động tài khoản người dùng',
         badgeText: 'Ngưng TK',
         badgeTone: 'gray',
     },
     [AUDIT_ACTION.REACTIVATE_USER]: {
         category: 'Tài khoản',
-        title: 'Kích hoạt lại tài khoản khách thuê lại',
+        title: 'Kích hoạt lại tài khoản người dùng',
         badgeText: 'Mở lại TK',
         badgeTone: 'ok',
     },
@@ -366,13 +366,13 @@ const loadDashboardExtras = async (scope, isFilteredByBuilding) => {
 
     const buildingOverview = targetBuilding
         ? {
-              _id: targetBuilding._id,
-              name: targetBuilding.name,
-              address: targetBuilding.address,
-              floorCount: targetBuilding.floorCount,
-              images: targetBuilding.images ?? [],
-              manager: managerInfo,
-          }
+            _id: targetBuilding._id,
+            name: targetBuilding.name,
+            address: targetBuilding.address,
+            floorCount: targetBuilding.floorCount,
+            images: targetBuilding.images ?? [],
+            manager: managerInfo,
+        }
         : null;
 
     // 2. Danh sách phòng kèm ảnh, loại phòng, sức chứa và dữ liệu lịch sử cho biểu đồ
@@ -453,11 +453,11 @@ const loadDashboardExtras = async (scope, isFilteredByBuilding) => {
 
     const auditQuery = isFilteredByBuilding
         ? {
-              $or: [
-                  { targetId: { $in: [...scope.contractIds, ...scope.roomIds, ...buildingIds, ...occupantIds] } },
-                  { actorId: { $in: managerIds } },
-              ],
-          }
+            $or: [
+                { targetId: { $in: [...scope.contractIds, ...scope.roomIds, ...buildingIds, ...occupantIds] } },
+                { actorId: { $in: managerIds } },
+            ],
+        }
         : {};
 
     const auditLogs = await AuditLog.find(auditQuery).sort({ createdAt: -1 }).limit(15).lean();
@@ -673,9 +673,9 @@ export const getAdminDashboard = async ({ query = {} }) => {
     );
     const confirmedTermIds = endedUnrefunded.length > 0
         ? await TerminationRequest.distinct('contractId', {
-              contractId: { $in: endedUnrefunded.map((c) => c._id) },
-              status: TERMINATION_STATUS.CONFIRMED,
-          })
+            contractId: { $in: endedUnrefunded.map((c) => c._id) },
+            status: TERMINATION_STATUS.CONFIRMED,
+        })
         : [];
     const confirmedTermSet = new Set(confirmedTermIds.map(String));
     const pendingRefundContracts = endedUnrefunded.filter(
@@ -742,9 +742,9 @@ export const getManagerDashboard = async ({ managerId }) => {
     );
     const confirmedTermIds = endedUnrefunded.length > 0
         ? await TerminationRequest.distinct('contractId', {
-              contractId: { $in: endedUnrefunded.map((c) => c._id) },
-              status: TERMINATION_STATUS.CONFIRMED,
-          })
+            contractId: { $in: endedUnrefunded.map((c) => c._id) },
+            status: TERMINATION_STATUS.CONFIRMED,
+        })
         : [];
     const confirmedTermSet = new Set(confirmedTermIds.map(String));
     const pendingRefundContracts = endedUnrefunded.filter(

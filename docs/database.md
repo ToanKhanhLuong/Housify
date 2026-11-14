@@ -39,8 +39,8 @@ Hồ sơ nằm ở: Admin → không có · Manager → `managers` · Customer �
 
 - PENDING: Manager chưa kích hoạt, chưa có mật khẩu.
 - ACTIVE: đang hoạt động.
-- INACTIVE: **chỉ Customer** – đã trả phòng (chấm dứt hai bên hoặc hết hạn), hệ thống đặt sau 24h (audit DEACTIVATE_USER). Thuê lại → ACTIVE (audit REACTIVATE_USER).
-- LOCKED: Customer bị chấm dứt đơn phương, hoặc Admin khóa Manager. Lý do lưu ở `audit_logs` (LOCK_USER).
+- INACTIVE: Customer đã trả phòng (chấm dứt hai bên hoặc hết hạn, hệ thống đặt sau 24h) hoặc Manager được Admin cho ngưng hoạt động (audit DEACTIVATE_USER). Khi thuê lại (Customer) hoặc Admin kích hoạt lại (Manager) → ACTIVE (audit REACTIVATE_USER).
+- LOCKED: Customer bị chấm dứt đơn phương do vi phạm (audit LOCK_USER).
 
 Thuê lại (UC-24, UC-06) – CCCD đã có tài khoản: ACTIVE / LOCKED → chặn tạo hợp đồng; INACTIVE → dùng lại user (đặt mật khẩu mới, cập nhật email, → ACTIVE).
 

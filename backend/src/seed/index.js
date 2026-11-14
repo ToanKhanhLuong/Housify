@@ -178,6 +178,8 @@ const MANAGER2_PASSWORD = 'Manager123';
 const MANAGER2_PHONE = '0912000002';
 const PENDING_MANAGER_EMAIL = 'lanphuong104204@gmail.com';
 const PENDING_MANAGER_PHONE = '0912000003';
+const INACTIVE_MANAGER_EMAIL = 'ngunghoatdong@housify.vn';
+const INACTIVE_MANAGER_PHONE = '0912000004';
 const BUILDING2_NAME = 'Tòa Test 2';
 
 // Manager ACTIVE thứ 2: đã kích hoạt, CHƯA có tòa – để test danh sách chọn và phân công (UC-11)
@@ -274,6 +276,96 @@ const seedPendingManager = async (admin) => {
     console.log(`Đã tạo Manager chưa kích hoạt: ${PENDING_MANAGER_EMAIL}`);
 };
 
+// Manager INACTIVE: đã kích hoạt nhưng hiện ngưng hoạt động, không giữ tòa – để test cột Ngưng hoạt động & Kích hoạt lại (UC-10)
+const seedInactiveManager = async (admin) => {
+    if (await User.exists({ email: INACTIVE_MANAGER_EMAIL })) {
+        console.log(`Manager đã tồn tại: ${INACTIVE_MANAGER_EMAIL}, bỏ qua`);
+        return;
+    }
+
+    await withTransaction(async (session) => {
+        const [user] = await User.create(
+            [
+                {
+                    email: INACTIVE_MANAGER_EMAIL,
+                    password: await bcrypt.hash(MANAGER2_PASSWORD, 10),
+                    roleId: ROLE.MANAGER,
+                    status: USER_STATUS.INACTIVE,
+                },
+            ],
+            { session },
+        );
+        await Manager.create(
+            [
+                {
+                    userId: user._id,
+                    name: 'Quản lý Ngưng Hoạt Động',
+                    phone: INACTIVE_MANAGER_PHONE,
+                },
+            ],
+            { session },
+        );
+        await ActivationToken.create(
+            [
+                {
+                    type: ACTIVATION_TYPE.MANAGER_ACTIVATION,
+                    userId: user._id,
+                    token: generateActivationToken().tokenHash,
+                    sentTo: INACTIVE_MANAGER_EMAIL,
+                    status: TOKEN_STATUS.USED,
+                    expiresAt: new Date(Date.now() + ACTIVATION_TOKEN_TTL_MS),
+                    createdBy: admin._id,
+                },
+            ],
+            { session },
+        );
+        await AuditLog.create(
+            [
+                {
+                    actorId: admin._id,
+                    action: AUDIT_ACTION.DEACTIVATE_USER,
+                    targetType: 'users',
+                    targetId: user._id,
+                    reason: 'Đã bàn giao công việc và tạm ngưng công tác',
+                },
+            ],
+            { session },
+        );
+    });
+    console.log(`Đã tạo Manager ngưng hoạt động: ${INACTIVE_MANAGER_EMAIL}`);
+};
+
+// Đồng bộ dữ liệu cũ trong DB: chuyển các Manager từng mang status LOCKED sang INACTIVE và đồng bộ audit_logs
+const syncLegacyManagerStatus = async () => {
+    const managerUsers = await User.find({ roleId: ROLE.MANAGER }).select('_id status').lean();
+    const managerIds = managerUsers.map((u) => u._id);
+
+    const lockedResult = await User.updateMany(
+        { roleId: ROLE.MANAGER, status: USER_STATUS.LOCKED },
+        { $set: { status: USER_STATUS.INACTIVE } },
+    );
+    if (lockedResult.modifiedCount > 0) {
+        console.log(`Đã đồng bộ ${lockedResult.modifiedCount} Manager từ LOCKED sang INACTIVE`);
+    }
+
+    if (managerIds.length > 0) {
+        const [deactivateAuditRes, reactivateAuditRes] = await Promise.all([
+            AuditLog.updateMany(
+                { targetType: 'users', targetId: { $in: managerIds }, action: AUDIT_ACTION.LOCK_USER },
+                { $set: { action: AUDIT_ACTION.DEACTIVATE_USER } },
+            ),
+            AuditLog.updateMany(
+                { targetType: 'users', targetId: { $in: managerIds }, action: AUDIT_ACTION.UNLOCK_USER },
+                { $set: { action: AUDIT_ACTION.REACTIVATE_USER } },
+            ),
+        ]);
+        const updatedAudits = (deactivateAuditRes.modifiedCount ?? 0) + (reactivateAuditRes.modifiedCount ?? 0);
+        if (updatedAudits > 0) {
+            console.log(`Đã đồng bộ ${updatedAudits} bản ghi audit_logs của Manager sang DEACTIVATE_USER / REACTIVATE_USER`);
+        }
+    }
+};
+
 // Tòa thứ 2 chưa có Manager – để test phân công
 const seedBuilding2 = async () => {
     if (await Building.exists({ name: BUILDING2_NAME, isDeleted: false })) {
@@ -295,8 +387,10 @@ const seedManagerTestData = async () => {
         throw new Error('Chưa có admin để làm người tạo Manager');
     }
 
+    await syncLegacyManagerStatus();
     await seedManager2(admin);
     await seedPendingManager(admin);
+    await seedInactiveManager(admin);
     await seedBuilding2();
 };
 

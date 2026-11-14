@@ -24,7 +24,7 @@ export const createManagerSchema = Joi.object({
 
 export const listManagersSchema = Joi.object({
     status: commaSeparatedEnum(
-        [USER_STATUS.ACTIVE, USER_STATUS.PENDING, USER_STATUS.LOCKED],
+        [USER_STATUS.ACTIVE, USER_STATUS.PENDING, USER_STATUS.INACTIVE, USER_STATUS.LOCKED],
         'Trạng thái không hợp lệ',
     ),
     q: Joi.string().trim().allow('').max(100).messages({
@@ -69,10 +69,10 @@ export const updateManagerSchema = Joi.object({
 
 export const lockManagerSchema = Joi.object({
     reason: Joi.string().trim().max(500).required().messages({
-        'string.base': 'Vui lòng nhập lý do khóa',
-        'string.empty': 'Vui lòng nhập lý do khóa',
-        'string.max': 'Lý do khóa tối đa 500 ký tự',
-        'any.required': 'Vui lòng nhập lý do khóa',
+        'string.base': 'Vui lòng nhập lý do ngưng hoạt động',
+        'string.empty': 'Vui lòng nhập lý do ngưng hoạt động',
+        'string.max': 'Lý do ngưng hoạt động tối đa 500 ký tự',
+        'any.required': 'Vui lòng nhập lý do ngưng hoạt động',
     }),
 });
 

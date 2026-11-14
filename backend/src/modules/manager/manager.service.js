@@ -58,19 +58,19 @@ const sendActivationMail = (email, name, token) => sendMail(
 
 const sendLockMail = (email, name, reason) => sendMail(
     email,
-    '[Housify] Tài khoản của bạn đã bị khóa',
+    '[Housify] Tài khoản Manager của bạn đã ngưng hoạt động',
     `<p>Xin chào ${escapeHtml(name)},</p>
-<p>Tài khoản Manager của bạn trên hệ thống Housify đã bị khóa.</p>
+<p>Tài khoản Manager của bạn trên hệ thống Housify đã được chuyển sang trạng thái <b>Ngưng hoạt động</b>.</p>
 <p>Lý do: ${escapeHtml(reason)}</p>
 <p>Nếu cần hỗ trợ, vui lòng liên hệ Admin.</p>`,
 );
 
 const sendUnlockMail = (email, name) => sendMail(
     email,
-    '[Housify] Tài khoản của bạn đã được mở khóa',
+    '[Housify] Tài khoản Manager của bạn đã được kích hoạt lại',
     `<p>Xin chào ${escapeHtml(name)},</p>
-<p>Tài khoản Manager của bạn trên hệ thống Housify đã được mở khóa.</p>
-<p>Bạn có thể đăng nhập lại.</p>`,
+<p>Tài khoản Manager của bạn trên hệ thống Housify đã được kích hoạt hoạt động trở lại.</p>
+<p>Bạn có thể đăng nhập lại hệ thống.</p>`,
 );
 
 const sendAssignMail = (email, name, building) => sendMail(
@@ -81,11 +81,14 @@ const sendAssignMail = (email, name, building) => sendMail(
 <p>Địa chỉ: ${escapeHtml(building.address)}</p>`,
 );
 
-const sendUnassignMail = (email, name, building) => sendMail(
+const sendUnassignMail = (email, name, building, replacementName = null) => sendMail(
     email,
     `[Housify] Bạn không còn phụ trách tòa ${building.name}`,
     `<p>Xin chào ${escapeHtml(name)},</p>
-<p>Bạn không còn phụ trách tòa <b>${escapeHtml(building.name)}</b>.</p>`,
+${replacementName
+        ? `<p>Admin đã chuyển giao quyền phụ trách tòa <b>${escapeHtml(building.name)}</b> sang cho Manager <b>${escapeHtml(replacementName)}</b>.</p>`
+        : `<p>Bạn đã được gỡ phân công khỏi tòa <b>${escapeHtml(building.name)}</b>.</p>`}
+<p>Bạn hiện không còn phụ trách tòa nhà này.</p>`,
 );
 
 // ===== Dùng chung =====
@@ -127,19 +130,55 @@ const ensurePhoneAvailable = async (phone, exceptUserId) => {
     }
 };
 
+// Chuẩn hóa trạng thái Manager: dữ liệu cũ nếu có LOCKED thì quy về INACTIVE (Ngưng hoạt động)
+const normalizeManagerStatus = (status) => (
+    status === USER_STATUS.LOCKED ? USER_STATUS.INACTIVE : status
+);
+
 const toListItem = (user, profile, building) => ({
     _id: user._id,
     name: profile?.name ?? null,
     email: user.email,
     phone: profile?.phone ?? null,
-    status: user.status,
+    status: normalizeManagerStatus(user.status),
     building: building ? { _id: building._id, name: building.name } : null,
     createdAt: user.createdAt,
 });
 
-const countActiveContracts = async (buildingId) => {
-    const roomIds = await Room.find({ buildingId }).distinct('_id');
-    return Contract.countDocuments({ roomId: { $in: roomIds }, status: CONTRACT_STATUS.ACTIVE });
+// Kiểm tra tình trạng hợp đồng và cư dân của tòa để ràng buộc gỡ phân công (UC-09, UC-11)
+const getBuildingOccupancyStats = async (buildingId) => {
+    const roomIds = await Room.find({ buildingId, isDeleted: false }).distinct('_id');
+    if (roomIds.length === 0) {
+        return {
+            activeContractCount: 0,
+            draftContractCount: 0,
+            stayedOccupantCount: 0,
+            canUnassign: true,
+        };
+    }
+
+    const [activeContracts, draftContractCount] = await Promise.all([
+        Contract.find({ roomId: { $in: roomIds }, status: CONTRACT_STATUS.ACTIVE }).select('_id').lean(),
+        Contract.countDocuments({ roomId: { $in: roomIds }, status: CONTRACT_STATUS.DRAFT }),
+    ]);
+
+    const activeContractIds = activeContracts.map((contract) => contract._id);
+    const stayedOccupantCount = activeContractIds.length > 0
+        ? await Occupant.countDocuments({
+            contractId: { $in: activeContractIds },
+            status: OCCUPANT_STATUS.STAYED,
+        })
+        : 0;
+
+    const activeContractCount = activeContracts.length;
+    const canUnassign = activeContractCount === 0 && draftContractCount === 0 && stayedOccupantCount === 0;
+
+    return {
+        activeContractCount,
+        draftContractCount,
+        stayedOccupantCount,
+        canUnassign,
+    };
 };
 
 const buildDetail = async (user, profile) => {
@@ -152,7 +191,7 @@ const buildDetail = async (user, profile) => {
         name: profile.name,
         email: user.email,
         phone: profile.phone,
-        status: user.status,
+        status: normalizeManagerStatus(user.status),
         dateOfBirth: profile.dateOfBirth || null,
         address: profile.address || null,
         cccdFrontImage: profile.cccdFrontImage || null,
@@ -160,13 +199,13 @@ const buildDetail = async (user, profile) => {
         cccdFrontUrl: getSignedUrl(profile.cccdFrontImage),
         cccdBackUrl: getSignedUrl(profile.cccdBackImage),
         createdAt: user.createdAt,
-        // Số hợp đồng ACTIVE để Admin cân nhắc trước khi khóa (manager.md – UC-09)
+        // Số hợp đồng / cư dân của tòa để ràng buộc gỡ phân công và ngưng hoạt động (UC-09..11)
         building: building
             ? {
                 _id: building._id,
                 name: building.name,
                 address: building.address,
-                activeContractCount: await countActiveContracts(building._id),
+                ...(await getBuildingOccupancyStats(building._id)),
             }
             : null,
     };
@@ -236,7 +275,10 @@ export const listManagers = async ({ status, q, assigned } = {}) => {
     const filter = { roleId: ROLE.MANAGER };
 
     if (status && status.length > 0) {
-        filter.status = { $in: status };
+        const expandedStatus = status.includes(USER_STATUS.INACTIVE)
+            ? [...new Set([...status, USER_STATUS.LOCKED])]
+            : status;
+        filter.status = { $in: expandedStatus };
     }
 
     let matchedUserIds = null;
@@ -435,21 +477,31 @@ export const resendActivation = async (adminId, id) => {
     return sent ? null : { warning: 'Gửi email thất bại — thử lại sau' };
 };
 
-// ===== UC-10: khóa / mở khóa =====
+// ===== UC-10: ngưng hoạt động / kích hoạt lại Manager =====
 
 export const lockManager = async (adminId, id, { reason }) => {
     const { user, profile } = await findManager(id);
     if (user.status !== USER_STATUS.ACTIVE) {
-        throw new AppError('Chỉ khóa được tài khoản đang hoạt động', 400);
+        throw new AppError('Chỉ ngưng hoạt động được tài khoản đang hoạt động', 400);
     }
 
-    // BR-028: giữ nguyên phân công tòa và dữ liệu của tòa. Phiên bị đẩy ra nhờ middleware auth đọc lại status (BR-027)
+    // Ràng buộc: không cho ngưng hoạt động Manager đang phụ trách tòa nhà; phải gỡ phân công hoặc chuyển giao tòa trước
+    const assignedBuilding = await Building.findOne({ managerId: user._id, isDeleted: false })
+        .select('name')
+        .lean();
+    if (assignedBuilding) {
+        throw new AppError(
+            `Manager đang phụ trách ${assignedBuilding.name}. Vui lòng gỡ phân công hoặc phân công Manager khác thay thế trước khi cho ngưng hoạt động`,
+            400,
+        );
+    }
+
     await withTransaction(async (session) => {
-        user.status = USER_STATUS.LOCKED;
+        user.status = USER_STATUS.INACTIVE;
         await user.save({ session });
         await audit({
             actorId: adminId,
-            action: AUDIT_ACTION.LOCK_USER,
+            action: AUDIT_ACTION.DEACTIVATE_USER,
             targetType: 'users',
             targetId: user._id,
             reason,
@@ -467,8 +519,8 @@ export const lockManager = async (adminId, id, { reason }) => {
 
 export const unlockManager = async (adminId, id) => {
     const { user, profile } = await findManager(id);
-    if (user.status !== USER_STATUS.LOCKED) {
-        throw new AppError('Tài khoản không ở trạng thái bị khóa', 400);
+    if (user.status !== USER_STATUS.INACTIVE && user.status !== USER_STATUS.LOCKED) {
+        throw new AppError('Tài khoản không ở trạng thái ngưng hoạt động', 400);
     }
 
     await withTransaction(async (session) => {
@@ -476,7 +528,7 @@ export const unlockManager = async (adminId, id) => {
         await user.save({ session });
         await audit({
             actorId: adminId,
-            action: AUDIT_ACTION.UNLOCK_USER,
+            action: AUDIT_ACTION.REACTIVATE_USER,
             targetType: 'users',
             targetId: user._id,
         }, session);
@@ -509,21 +561,23 @@ const notifyAssigned = (adminId, managerId, building, session) => notify({
     createdBy: adminId,
 }, session);
 
-const notifyUnassigned = (adminId, managerId, building, session) => notify({
+const notifyUnassigned = (adminId, managerId, building, session, replacementName = null) => notify({
     userIds: managerId,
     type: NOTIFICATION_TYPE.MANAGER_UNASSIGNED,
     title: 'Gỡ phân công tòa nhà',
-    message: `Bạn không còn phụ trách tòa ${building.name}.`,
+    message: replacementName
+        ? `Bạn không còn phụ trách tòa ${building.name} (đã chuyển giao cho Manager ${replacementName}).`
+        : `Bạn không còn phụ trách tòa ${building.name}.`,
     refId: building._id,
     createdBy: adminId,
 }, session);
 
-const auditAssignment = (adminId, action, managerId, building, session) => audit({
+const auditAssignment = (adminId, action, managerId, building, session, extraMeta = {}) => audit({
     actorId: adminId,
     action,
     targetType: 'users',
     targetId: managerId,
-    metadata: { buildingId: building._id, buildingName: building.name },
+    metadata: { buildingId: building._id, buildingName: building.name, ...extraMeta },
 }, session);
 
 const toAssignmentResult = (building, manager) => ({
@@ -535,6 +589,15 @@ const toAssignmentResult = (building, manager) => ({
 const unassignManager = async (adminId, building) => {
     if (!building.managerId) {
         throw new AppError('Tòa nhà chưa có Manager phụ trách', 400);
+    }
+
+    // Ràng buộc: tòa đang có cư dân hoặc hợp đồng hiệu lực / nháp thì không được để trống Manager
+    const stats = await getBuildingOccupancyStats(building._id);
+    if (!stats.canUnassign) {
+        throw new AppError(
+            `${building.name} đang có cư dân hoặc hợp đồng hoạt động nên không được để trống Manager. Vui lòng phân công một Manager khác đang rảnh vào thay thế`,
+            400,
+        );
     }
 
     const oldManagerId = building.managerId;
@@ -575,8 +638,8 @@ export const assignManager = async (adminId, buildingId, { managerId, confirmRep
     }
 
     const { user, profile } = await findManager(managerId);
-    if (user.status === USER_STATUS.LOCKED) {
-        throw new AppError('Manager đang bị khóa, không thể phân công', 400);
+    if (user.status === USER_STATUS.INACTIVE || user.status === USER_STATUS.LOCKED) {
+        throw new AppError('Manager đang ngưng hoạt động, không thể phân công', 400);
     }
     // Chỉ Manager ACTIVE được gán tòa (docs/database.md – Chỉ mục)
     if (user.status !== USER_STATUS.ACTIVE) {
@@ -601,16 +664,32 @@ export const assignManager = async (adminId, buildingId, { managerId, confirmRep
     await withTransaction(async (session) => {
         await Building.updateOne({ _id: building._id }, { managerId: user._id }, { session });
         if (oldManager) {
-            await notifyUnassigned(adminId, oldManager.user._id, building, session);
-            await auditAssignment(adminId, AUDIT_ACTION.UNASSIGN_MANAGER, oldManager.user._id, building, session);
+            await notifyUnassigned(adminId, oldManager.user._id, building, session, profile.name);
+            await auditAssignment(
+                adminId,
+                AUDIT_ACTION.UNASSIGN_MANAGER,
+                oldManager.user._id,
+                building,
+                session,
+                { replacedByManagerId: user._id, replacedByManagerName: profile.name },
+            );
         }
         await notifyAssigned(adminId, user._id, building, session);
-        await auditAssignment(adminId, AUDIT_ACTION.ASSIGN_MANAGER, user._id, building, session);
+        await auditAssignment(
+            adminId,
+            AUDIT_ACTION.ASSIGN_MANAGER,
+            user._id,
+            building,
+            session,
+            oldManager
+                ? { previousManagerId: oldManager.user._id, previousManagerName: oldManager.profile?.name }
+                : {},
+        );
     });
 
     const assignSent = await sendAssignMail(user.email, profile.name, building);
     const unassignSent = oldManager
-        ? await sendUnassignMail(oldManager.user.email, oldManager.profile?.name, building)
+        ? await sendUnassignMail(oldManager.user.email, oldManager.profile?.name, building, profile.name)
         : true;
 
     const data = toAssignmentResult(building, { _id: user._id, name: profile.name });

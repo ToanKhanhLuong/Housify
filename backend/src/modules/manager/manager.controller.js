@@ -35,12 +35,12 @@ export const resendActivation = asyncHandler(async (request, response) => {
 
 export const lockManager = asyncHandler(async (request, response) => {
     const data = await managerService.lockManager(request.user.id, request.params.id, request.body);
-    return ok(response, data, 'Đã khóa tài khoản Manager');
+    return ok(response, data, 'Đã chuyển Manager sang trạng thái ngưng hoạt động');
 });
 
 export const unlockManager = asyncHandler(async (request, response) => {
     const data = await managerService.unlockManager(request.user.id, request.params.id);
-    return ok(response, data, 'Đã mở khóa tài khoản Manager');
+    return ok(response, data, 'Đã kích hoạt lại tài khoản Manager');
 });
 
 export const assignManager = asyncHandler(async (request, response) => {

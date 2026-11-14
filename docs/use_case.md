@@ -20,7 +20,7 @@ Làm và đẩy lên `main` trước, cả nhóm pull về rồi mới code modu
 | 07 | Tổng quan toàn hệ thống                      | dashboard                           | admin/dashboard                                                      | 3                           | Hiếu | Hiếu |
 | 08 | Tạo & kích hoạt Manager                       | manager, activation                 | admin/managers, public/ManagerActivationPage                         | 1                           | An    | Hưng |
 | 09 | Danh sách & quản lý Manager                   | manager                             | admin/managers                                                       | 1                           | An    | Hưng |
-| 10 | Khóa / mở khóa Manager                        | manager                             | admin/managers/LockManagerModal                                      | 1                           | An    | Hưng |
+| 10 | Ngưng hoạt động / kích hoạt lại Manager     | manager                             | admin/managers/LockManagerModal                                      | 1                           | An    | Hưng |
 | 11 | Phân công Manager                              | manager                             | AssignBuildingModal, AssignManagerModal                              | 1                           | An    | Hưng |
 | 12 | Tạo tòa nhà                                   | building                            | admin/buildings/BuildingFormPage                                     | 1                           | Toàn | Mạnh |
 | 13 | Xem & cập nhật tòa nhà                       | building                            | admin/buildings, manager/building                                    | 1                           | Toàn | Mạnh |

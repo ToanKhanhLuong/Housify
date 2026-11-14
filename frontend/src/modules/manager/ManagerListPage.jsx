@@ -1,6 +1,6 @@
 // UC-09: danh sách Manager (Admin) theo mockup docs/mock/Managers.dc.html. UC-08: nút "Thêm Manager"
 // Thanh ControlBar: tìm theo họ tên / email / SĐT, bộ lọc Trạng thái (chọn nhiều) + Phân công, nhóm theo Trạng thái,
-// đổi Thẻ / Bảng. Dạng thẻ nhóm theo trạng thái thành 3 cột (Đang hoạt động, Chưa kích hoạt, Bị khóa)
+// đổi Thẻ / Bảng. Dạng thẻ nhóm theo trạng thái thành 3 cột (Đang hoạt động, Chưa kích hoạt, Ngưng hoạt động)
 // BE trả mảng trực tiếp, FE tự phân trang client-side 10 dòng/trang (quy ước api.md)
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Card } from 'react-bootstrap';
@@ -24,7 +24,7 @@ import ManagerAvatar from './components/ManagerAvatar';
 const PAGE_SIZE = 10;
 
 // thứ tự cột khi nhóm theo trạng thái (theo mockup)
-const STATUS_ORDER = [USER_STATUS.ACTIVE, USER_STATUS.PENDING, USER_STATUS.LOCKED];
+const STATUS_ORDER = [USER_STATUS.ACTIVE, USER_STATUS.PENDING, USER_STATUS.INACTIVE];
 
 const FILTER_GROUPS = [
   {

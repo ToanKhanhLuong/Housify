@@ -26,9 +26,9 @@ export const ROLE = Object.freeze({
 // Trạng thái tài khoản – users.status
 export const USER_STATUS = Object.freeze({
     ACTIVE: 'ACTIVE', // đang hoạt động
-    INACTIVE: 'INACTIVE', // chỉ Customer: đã trả phòng, thuê lại thì mở lại
+    INACTIVE: 'INACTIVE', // Customer đã trả phòng (thuê lại thì mở lại) hoặc Manager đã ngưng hoạt động
     PENDING: 'PENDING', // Manager chưa kích hoạt
-    LOCKED: 'LOCKED', // Admin khóa Manager / Customer bị chấm dứt đơn phương
+    LOCKED: 'LOCKED', // chỉ Customer bị chấm dứt đơn phương do vi phạm
 });
 
 // Trạng thái OTP và link kích hoạt – otp_tokens.status, activation_tokens.status (để trống = chưa dùng)
@@ -110,21 +110,21 @@ export const INVOICE_STATUS = Object.freeze({
 
 // Loại thông báo – notifications.type (người nhận: xem docs/database.md)
 export const NOTIFICATION_TYPE = Object.freeze({
-    INVOICE_SENT: 'INVOICE_SENT', // UC-35
-    INVOICE_CANCELLED: 'INVOICE_CANCELLED', // UC-37
-    PAYMENT_SUCCESS: 'PAYMENT_SUCCESS', // UC-42
-    PAYMENT_REMINDER: 'PAYMENT_REMINDER', // UC-49
-    CONTRACT_RENEWED: 'CONTRACT_RENEWED', // UC-27
-    CONTRACT_ENDED: 'CONTRACT_ENDED', // UC-45
-    DEPOSIT_REFUNDED: 'DEPOSIT_REFUNDED', // UC-45
-    TERMINATION_REQUEST: 'TERMINATION_REQUEST', // UC-28, UC-29 – cả các lần nhắc ngày 1, 3, 6
-    TERMINATION_CONFIRMED: 'TERMINATION_CONFIRMED',
-    TERMINATION_REJECTED: 'TERMINATION_REJECTED',
-    TERMINATION_CANCELLED: 'TERMINATION_CANCELLED',
-    MANAGER_ASSIGNED: 'MANAGER_ASSIGNED', // UC-11
-    MANAGER_UNASSIGNED: 'MANAGER_UNASSIGNED', // UC-11
-    INCIDENT_UPDATE: 'INCIDENT_UPDATE', // UC-43 sự cố mới, UC-44 đổi trạng thái
-    ANNOUNCEMENT: 'ANNOUNCEMENT', // UC-40, UC-23 nội quy mới
+    INVOICE_SENT: 'INVOICE_SENT',                   // Hóa đơn đã gửi
+    INVOICE_CANCELLED: 'INVOICE_CANCELLED',         // Hủy hóa đơn
+    PAYMENT_SUCCESS: 'PAYMENT_SUCCESS',             // Thanh toán thành công
+    PAYMENT_REMINDER: 'PAYMENT_REMINDER',           // Nhắc nhở thanh toán
+    CONTRACT_RENEWED: 'CONTRACT_RENEWED',           // Gia hạn hợp đồng
+    CONTRACT_ENDED: 'CONTRACT_ENDED',               // Hợp đồng hết hạn
+    DEPOSIT_REFUNDED: 'DEPOSIT_REFUNDED',           // Hoàn tiền đặt cọc
+    TERMINATION_REQUEST: 'TERMINATION_REQUEST',     // YÊU CẦU CHẤM DỨT, Nhắc nhở mỗi ngày
+    TERMINATION_CONFIRMED: 'TERMINATION_CONFIRMED', // Xác nhận chấm dứt hợp đồng
+    TERMINATION_REJECTED: 'TERMINATION_REJECTED',   // Từ chối chấm dứt hợp đồng
+    TERMINATION_CANCELLED: 'TERMINATION_CANCELLED', // Hủy chấm dứt hợp đồng
+    MANAGER_ASSIGNED: 'MANAGER_ASSIGNED',           // Gán quản lý cho tòa nhà
+    MANAGER_UNASSIGNED: 'MANAGER_UNASSIGNED',       // Gỡ quản lý tòa nhà
+    INCIDENT_UPDATE: 'INCIDENT_UPDATE',             // Cập nhật sự cố
+    ANNOUNCEMENT: 'ANNOUNCEMENT',                   // Thông báo chung
 });
 
 // ===== Sự cố =====
@@ -149,10 +149,10 @@ export const INCIDENT_STATUS = Object.freeze({
 
 // Thao tác ghi nhật ký – audit_logs.action
 export const AUDIT_ACTION = Object.freeze({
-    LOCK_USER: 'LOCK_USER', // bắt buộc có reason
+    LOCK_USER: 'LOCK_USER', // khóa Customer sau chấm dứt đơn phương (bắt buộc có reason)
     UNLOCK_USER: 'UNLOCK_USER',
-    DEACTIVATE_USER: 'DEACTIVATE_USER', // Customer → INACTIVE sau trả phòng
-    REACTIVATE_USER: 'REACTIVATE_USER', // Customer thuê lại → ACTIVE
+    DEACTIVATE_USER: 'DEACTIVATE_USER', // Customer → INACTIVE sau trả phòng; Admin cho Manager → INACTIVE
+    REACTIVATE_USER: 'REACTIVATE_USER', // Customer thuê lại → ACTIVE; Admin kích hoạt lại Manager → ACTIVE
     ASSIGN_MANAGER: 'ASSIGN_MANAGER',
     UNASSIGN_MANAGER: 'UNASSIGN_MANAGER',
     RESEND_ACTIVATION: 'RESEND_ACTIVATION',

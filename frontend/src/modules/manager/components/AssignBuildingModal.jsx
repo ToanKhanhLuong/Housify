@@ -18,6 +18,7 @@ const AssignBuildingModal = ({ manager, onHide, onDone }) => {
   const [loadError, setLoadError] = useState(''); // tải danh sách tòa lỗi: ErrorState có nút Thử lại
   const [buildingId, setBuildingId] = useState('');
   const [replaceQuestion, setReplaceQuestion] = useState(''); // câu hỏi BE trả (409) khi tòa vừa có người nhận
+  const [confirmedReplace, setConfirmedReplace] = useState(false);
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
@@ -60,6 +61,7 @@ const AssignBuildingModal = ({ manager, onHide, onDone }) => {
   const handleChangeBuilding = (event) => {
     setBuildingId(event.target.value);
     setReplaceQuestion(''); // đổi tòa thì bỏ câu hỏi thay người của tòa trước
+    setConfirmedReplace(false);
     setErrors({});
   };
 
@@ -68,21 +70,26 @@ const AssignBuildingModal = ({ manager, onHide, onDone }) => {
     const clientErrors = validateAssignBuilding({ buildingId });
     setErrors(clientErrors);
     if (hasErrors(clientErrors)) return;
+    if (willReplace && !confirmedReplace) return;
 
     setSubmitting(true);
     try {
       const response = await managerApi.assignBuilding(buildingId, {
         managerId: manager._id,
-        // đã báo trước là thay Manager cũ (hoặc Admin đã đồng ý câu hỏi của BE) → gửi luôn xác nhận thay
+        // đã tích xác nhận thay Manager cũ → gửi kèm confirmReplace: true
         ...(willReplace && { confirmReplace: true }),
       });
       // gửi mail lỗi: phân công vẫn thành công, thông báo trong ứng dụng vẫn có (UC-11)
       if (response.data?.warning) toast.warning(response.data.warning);
-      else toast.success('Phân công tòa nhà thành công');
+      else toast.success(willReplace ? 'Đã thay thế Manager phụ trách tòa nhà' : 'Phân công tòa nhà thành công');
       onDone();
     } catch (error) {
-      if (error.status === 409 && !willReplace) setReplaceQuestion(error.message);
-      else toast.error(error.message); // vd Manager không còn hoạt động
+      if (error.status === 409 && !willReplace) {
+        setReplaceQuestion(error.message);
+        setConfirmedReplace(false);
+      } else {
+        toast.error(error.message); // vd Manager không còn hoạt động
+      }
       setSubmitting(false);
     }
   };
@@ -107,19 +114,57 @@ const AssignBuildingModal = ({ manager, onHide, onDone }) => {
           value={buildingId}
           onChange={handleChangeBuilding}
           error={errors.buildingId}
-          className={willReplace ? 'mb-3' : 'mb-0'}
+          className={buildingId ? 'mb-3' : 'mb-0'}
           required
         />
-        {currentManager && (
-          <Alert variant="warning" className="mb-0">
-            Tòa này đang do <strong>{currentManager.name}</strong> phụ trách. Lưu sẽ thay Manager
-            cũ; {currentManager.name} nhận thông báo bị gỡ.
+        {buildingId && !willReplace && (
+          <Alert variant="info" className="mb-0 small">
+            Hệ thống sẽ ghi nhật ký thao tác, gửi thông báo và email phân công cho{' '}
+            <strong>{manager.name}</strong>.
           </Alert>
         )}
+        {currentManager && (
+          <>
+            <Alert variant="warning" className="mb-3">
+              <div className="fw-semibold mb-1">
+                Lưu ý khi thay thế Manager phụ trách {selected?.name}:
+              </div>
+              <ul className="mb-0 ps-3 small">
+                <li>
+                  Tòa này hiện đang do <strong>{currentManager.name}</strong> phụ trách.
+                </li>
+                <li>
+                  Hệ thống sẽ gỡ quyền quản lý tòa của <strong>{currentManager.name}</strong> và
+                  chuyển giao ngay cho <strong>{manager.name}</strong>.
+                </li>
+                <li>
+                  Nhật ký hệ thống sẽ ghi lại thay đổi và gửi thông báo + email cho{' '}
+                  <strong>cả 2 Manager</strong>.
+                </li>
+              </ul>
+            </Alert>
+            <Form.Check
+              type="checkbox"
+              id="confirm-replace-manager"
+              checked={confirmedReplace}
+              onChange={(event) => setConfirmedReplace(event.target.checked)}
+              label={`Tôi xác nhận thay thế ${currentManager.name} bằng ${manager.name} phụ trách ${selected?.name}`}
+            />
+          </>
+        )}
         {!currentManager && replaceQuestion && (
-          <Alert variant="warning" className="mb-0">
-            {replaceQuestion}
-          </Alert>
+          <>
+            <Alert variant="warning" className="mb-3">
+              {replaceQuestion}
+            </Alert>
+            <Form.Check
+              type="checkbox"
+              id="confirm-replace-manager-race"
+              checked={confirmedReplace}
+              onChange={(event) => setConfirmedReplace(event.target.checked)}
+              label="Tôi xác nhận đồng ý thay thế Manager hiện tại của tòa nhà"
+            />
+          </>
         )}
       </>
     );
@@ -138,11 +183,17 @@ const AssignBuildingModal = ({ manager, onHide, onDone }) => {
         <Modal.Footer className="justify-content-start">
           <Button
             type="submit"
-            variant="primary"
-            disabled={submitting || loadingBuildings || Boolean(loadError)}
+            variant={willReplace ? 'warning' : 'primary'}
+            disabled={
+              submitting ||
+              loadingBuildings ||
+              Boolean(loadError) ||
+              !buildingId ||
+              (willReplace && !confirmedReplace)
+            }
           >
             {submitting && <Spinner animation="border" size="sm" className="me-2" />}
-            {willReplace ? 'Thay Manager' : 'Phân công'}
+            {willReplace ? 'Xác nhận thay Manager' : 'Phân công'}
           </Button>
           <Button variant="secondary" onClick={onHide} disabled={submitting}>
             Hủy

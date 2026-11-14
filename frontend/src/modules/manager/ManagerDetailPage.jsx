@@ -1,7 +1,7 @@
 // UC-09..11: chi tiết Manager (Admin). Nút theo trạng thái:
-// Chưa kích hoạt: gửi lại link, xóa · Đang hoạt động: sửa, khóa, phân công / gỡ phân công tòa · Bị khóa: sửa, mở khóa
+// Chưa kích hoạt: gửi lại link, xóa · Đang hoạt động: sửa, ngưng hoạt động, phân công / gỡ phân công tòa · Ngưng hoạt động: sửa, kích hoạt lại
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Button, Card } from 'react-bootstrap';
+import { Alert, Button, Card, Form, Modal, Spinner } from 'react-bootstrap';
 import {
   BiBuildings,
   BiCake,
@@ -24,6 +24,7 @@ import PageHeader from '../../components/PageHeader';
 import StatusSteps from '../../components/StatusSteps';
 import FieldRow from '../../components/FieldRow';
 import ConfirmModal from '../../components/ConfirmModal';
+import BlockedBox from '../../components/BlockedBox';
 import Loading from '../../components/Loading';
 import ErrorState from '../../components/ErrorState';
 import StatusBadge from '../../components/StatusBadge';
@@ -70,8 +71,9 @@ const ManagerDetailPage = () => {
   const [manager, setManager] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(''); // tải lỗi: hiện ErrorState có nút Thử lại
-  const [modal, setModal] = useState(null); // 'edit' | 'lock' | 'assign'
-  const [confirming, setConfirming] = useState(null); // 'resend' | 'remove' | 'unlock' | 'unassign'
+  const [modal, setModal] = useState(null); // 'edit' | 'lock' | 'assign' | 'unassign'
+  const [confirming, setConfirming] = useState(null); // 'resend' | 'remove' | 'unlock'
+  const [confirmedUnassign, setConfirmedUnassign] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // dùng .then thay vì await: setState nằm trong callback (luật react-hooks/set-state-in-effect)
@@ -112,7 +114,7 @@ const ManagerDetailPage = () => {
   const { status, building } = manager;
   const isPending = status === USER_STATUS.PENDING;
   const isActive = status === USER_STATUS.ACTIVE;
-  const isLocked = status === USER_STATUS.LOCKED;
+  const isInactive = status === USER_STATUS.INACTIVE || status === USER_STATUS.LOCKED;
 
   // các thao tác chỉ cần hỏi xác nhận, dùng chung 1 ConfirmModal
   const CONFIRM = {
@@ -133,20 +135,12 @@ const ManagerDetailPage = () => {
       success: 'Đã xóa tài khoản Manager',
     },
     unlock: {
-      title: 'Mở khóa tài khoản Manager',
-      message: `Mở khóa tài khoản của ${manager.name}? Manager đăng nhập lại được và nhận email báo.`,
-      confirmText: 'Mở khóa',
+      title: 'Kích hoạt lại tài khoản Manager',
+      message: `Kích hoạt lại tài khoản của ${manager.name}? Hệ thống sẽ ghi nhận nhật ký, gửi email thông báo và cho phép Manager đăng nhập lại.`,
+      confirmText: 'Kích hoạt lại',
       variant: 'primary',
       run: () => managerApi.unlock(manager._id),
-      success: 'Đã mở khóa tài khoản Manager',
-    },
-    unassign: {
-      title: 'Gỡ phân công',
-      message: `Gỡ ${manager.name} khỏi ${building?.name}? Tòa sẽ chưa có người phụ trách.`,
-      confirmText: 'Gỡ phân công',
-      variant: 'danger',
-      run: () => managerApi.assignBuilding(building?._id, { managerId: null }),
-      success: 'Đã gỡ phân công',
+      success: 'Đã kích hoạt lại tài khoản Manager',
     },
   };
   const action = confirming && CONFIRM[confirming];
@@ -168,9 +162,31 @@ const ManagerDetailPage = () => {
     }
   };
 
-  const closeModal = () => setModal(null);
+  const handleUnassign = async (event) => {
+    event.preventDefault();
+    if (!building || building.canUnassign === false || !confirmedUnassign) return;
+    setSubmitting(true);
+    try {
+      const response = await managerApi.assignBuilding(building._id, { managerId: null });
+      if (response.data?.warning) toast.warning(response.data.warning);
+      else toast.success('Đã gỡ phân công Manager');
+      setModal(null);
+      setConfirmedUnassign(false);
+      loadManager();
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const closeModal = () => {
+    setModal(null);
+    setConfirmedUnassign(false);
+  };
   const handleModalDone = () => {
     setModal(null);
+    setConfirmedUnassign(false);
     loadManager();
   };
 
@@ -201,16 +217,16 @@ const ManagerDetailPage = () => {
                 Phân công tòa
               </IconButton>
             )}
-            {isLocked && (
+            {isInactive && (
               <IconButton
                 icon={BiLockOpenAlt}
                 variant="primary"
                 onClick={() => setConfirming('unlock')}
               >
-                Mở khóa
+                Kích hoạt lại
               </IconButton>
             )}
-            {(isActive || isLocked) && (
+            {(isActive || isInactive) && (
               <IconButton icon={BiEditAlt} variant="secondary" onClick={() => setModal('edit')}>
                 Chỉnh sửa
               </IconButton>
@@ -219,14 +235,17 @@ const ManagerDetailPage = () => {
               <IconButton
                 icon={BiUnlink}
                 variant="secondary"
-                onClick={() => setConfirming('unassign')}
+                onClick={() => {
+                  setConfirmedUnassign(false);
+                  setModal('unassign');
+                }}
               >
                 Gỡ phân công
               </IconButton>
             )}
             {isActive && (
               <IconButton icon={BiLockAlt} variant="secondary" onClick={() => setModal('lock')}>
-                Khóa
+                Ngưng hoạt động
               </IconButton>
             )}
           </>
@@ -328,6 +347,88 @@ const ManagerDetailPage = () => {
       )}
       {modal === 'assign' && (
         <AssignBuildingModal manager={manager} onHide={closeModal} onDone={handleModalDone} />
+      )}
+      {modal === 'unassign' && building && (
+        <Modal show onHide={closeModal} centered backdrop="static">
+          <Form onSubmit={handleUnassign} noValidate>
+            <Modal.Header closeButton={!submitting}>
+              <Modal.Title className="h5">Gỡ phân công tòa nhà</Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+              {building.canUnassign === false ? (
+                <BlockedBox title={`Không thể để trống Manager tại ${building.name}`}>
+                  <div>
+                    Tòa <strong>{building.name}</strong> hiện đang có{' '}
+                    <strong>{building.activeContractCount ?? 0}</strong> hợp đồng hiệu lực
+                    {building.stayedOccupantCount > 0 && (
+                      <>
+                        {' '}
+                        (<strong>{building.stayedOccupantCount}</strong> cư dân đang ở)
+                      </>
+                    )}
+                    {building.draftContractCount > 0 && (
+                      <>
+                        {' '}
+                        và <strong>{building.draftContractCount}</strong> hợp đồng nháp
+                      </>
+                    )}
+                    .
+                  </div>
+                  <div className="mt-1">
+                    Theo quy định vận hành, tòa nhà đang có người ở hoặc hợp đồng hoạt động không
+                    được phép trống người phụ trách. Để gỡ <strong>{manager.name}</strong>, vui lòng
+                    chọn một <strong>Manager đang hoạt động và chưa có tòa</strong> để phân công vào{' '}
+                    <strong>{building.name}</strong> thay thế.
+                  </div>
+                </BlockedBox>
+              ) : (
+                <>
+                  <Alert variant="warning" className="mb-3">
+                    <div className="fw-semibold mb-1">
+                      Lưu ý khi gỡ phân công khỏi {building.name}:
+                    </div>
+                    <ul className="mb-0 ps-3 small">
+                      <li>
+                        Tòa <strong>{building.name}</strong> hiện chưa có cư dân ở nên có thể tạm để
+                        trống Manager.
+                      </li>
+                      <li>
+                        Hệ thống sẽ ghi lại nhật ký thao tác, đồng thời gửi thông báo và email cho{' '}
+                        <strong>{manager.name}</strong>.
+                      </li>
+                    </ul>
+                  </Alert>
+                  <Form.Check
+                    type="checkbox"
+                    id="confirm-unassign-manager"
+                    checked={confirmedUnassign}
+                    onChange={(event) => setConfirmedUnassign(event.target.checked)}
+                    label={`Tôi xác nhận gỡ phân công ${manager.name} khỏi ${building.name}`}
+                  />
+                </>
+              )}
+            </Modal.Body>
+            <Modal.Footer className="justify-content-start">
+              {building.canUnassign === false ? (
+                <Button variant="primary" onClick={() => navigate('/managers')}>
+                  Chọn Manager thay thế
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  variant="danger"
+                  disabled={submitting || !confirmedUnassign}
+                >
+                  {submitting && <Spinner animation="border" size="sm" className="me-2" />}
+                  Gỡ phân công
+                </Button>
+              )}
+              <Button variant="secondary" onClick={closeModal} disabled={submitting}>
+                {building.canUnassign === false ? 'Đã hiểu' : 'Hủy'}
+              </Button>
+            </Modal.Footer>
+          </Form>
+        </Modal>
       )}
 
       <ConfirmModal

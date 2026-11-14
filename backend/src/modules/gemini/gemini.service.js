@@ -252,10 +252,14 @@ const buildEntityMaps = ({
         }
     }
 
-    // Lý do khóa tài khoản gần nhất theo userId
+    // Lý do khóa hoặc ngưng hoạt động gần nhất theo userId
     const lockReasonByUserId = new Map();
     for (const log of auditLogs) {
-        if (log.action === AUDIT_ACTION.LOCK_USER && log.targetId && !lockReasonByUserId.has(String(log.targetId))) {
+        if (
+            (log.action === AUDIT_ACTION.LOCK_USER || log.action === AUDIT_ACTION.DEACTIVATE_USER) &&
+            log.targetId &&
+            !lockReasonByUserId.has(String(log.targetId))
+        ) {
             lockReasonByUserId.set(String(log.targetId), log.reason || null);
         }
     }
@@ -1330,7 +1334,10 @@ const buildManagerContext = async (user, currentScreen, intent) => {
             .select('type title message refId createdBy createdAt')
             .sort({ createdAt: -1 })
             .lean(),
-        AuditLog.find({ action: AUDIT_ACTION.LOCK_USER, targetId: { $in: actorIdsList } })
+        AuditLog.find({
+            action: { $in: [AUDIT_ACTION.LOCK_USER, AUDIT_ACTION.DEACTIVATE_USER] },
+            targetId: { $in: actorIdsList },
+        })
             .select('targetId reason createdAt')
             .sort({ createdAt: -1 })
             .lean(),
@@ -1451,7 +1458,7 @@ const buildAdminContext = async (user, currentScreen, intent) => {
             .select('type title message refId createdBy createdAt')
             .sort({ createdAt: -1 })
             .lean(),
-        AuditLog.find({ action: AUDIT_ACTION.LOCK_USER })
+        AuditLog.find({ action: { $in: [AUDIT_ACTION.LOCK_USER, AUDIT_ACTION.DEACTIVATE_USER] } })
             .select('targetId reason createdAt')
             .sort({ createdAt: -1 })
             .lean(),
@@ -1489,14 +1496,15 @@ const buildAdminContext = async (user, currentScreen, intent) => {
     const managersList = managers.map((m) => {
         const u = snapshot.maps.userById.get(String(m.userId));
         const assignedB = buildings.find((b) => String(b.managerId) === String(m.userId));
-        const status = u?.status || USER_STATUS.PENDING;
+        const rawStatus = u?.status || USER_STATUS.PENDING;
+        const status = rawStatus === USER_STATUS.LOCKED ? USER_STATUS.INACTIVE : rawStatus;
         return {
             name: m.name,
             phone: m.phone,
             email: u?.email || '—',
             status,
-            ...(status === USER_STATUS.LOCKED
-                ? { lockReason: snapshot.maps.lockReasonByUserId.get(String(m.userId)) || null }
+            ...(status === USER_STATUS.INACTIVE
+                ? { inactiveReason: snapshot.maps.lockReasonByUserId.get(String(m.userId)) || null }
                 : {}),
             assignedBuilding: assignedB ? assignedB.name : null,
         };
@@ -1530,7 +1538,7 @@ const buildAdminContext = async (user, currentScreen, intent) => {
         managers: {
             total: managers.length,
             activeCount: managersList.filter((m) => m.status === USER_STATUS.ACTIVE).length,
-            lockedCount: managersList.filter((m) => m.status === USER_STATUS.LOCKED).length,
+            inactiveCount: managersList.filter((m) => m.status === USER_STATUS.INACTIVE).length,
             pendingCount: managersList.filter((m) => m.status === USER_STATUS.PENDING).length,
             unassignedBuildings,
             list: managersList,
