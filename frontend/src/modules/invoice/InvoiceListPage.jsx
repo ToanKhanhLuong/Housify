@@ -3,7 +3,7 @@
 // Ô tìm: gõ kỳ "11/2026" (cả 2 vai trò) hoặc mã phòng "101" (Manager) – API không có ?q nên FE đổi sang month / roomId
 // Hóa đơn tăng theo thời gian nên BE phân trang (api.md) → Pager, không nhóm. Chưa có mockup riêng cho hóa đơn
 // Manager: nút "Tạo hóa đơn" (UC-34, trang /invoices/new) và "Tạo hàng loạt" (UC-34 A1, modal)
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button, Card } from 'react-bootstrap';
 import { BiLayerPlus, BiPlus, BiReset } from 'react-icons/bi';
 import { useNavigate } from 'react-router-dom';
@@ -19,6 +19,7 @@ import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
 import { INVOICE_STATUS, ROLE } from '../../constants/enums';
 import { INVOICE_STATUS_LABEL } from '../../constants/statusLabels';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import { useSavedState } from '../../utils/filter';
 import { formatDate } from '../../utils/format';
 import invoiceApi from './invoice.api';
@@ -119,6 +120,19 @@ const InvoiceListPage = () => {
       ignore = true;
     };
   }, [page, statusParam, monthParam, roomId, noMatch, reloadKey]);
+
+  const silentRefresh = useCallback(() => {
+    if (noMatch) return Promise.resolve();
+    const params = { page, limit: LIMIT };
+    if (statusParam) params.status = statusParam;
+    if (monthParam) params.month = monthParam;
+    if (roomId) params.roomId = roomId;
+    return invoiceApi.list(params).then((response) => {
+      if (response.data) setData(response.data);
+    });
+  }, [page, statusParam, monthParam, roomId, noMatch]);
+
+  useAutoRefresh(silentRefresh, { enabled: !loading && !loadError && !showBulk });
 
   // đổi lọc / tìm thì về trang 1
   const handleSearchChange = (value) => {

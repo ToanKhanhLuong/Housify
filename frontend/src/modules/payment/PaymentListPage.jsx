@@ -3,7 +3,7 @@
 // SePay đã khớp hóa đơn (hóa đơn chờ / đã hủy xem ở trang Hóa đơn). Mặc định xem dạng biên lai, đổi được sang Bảng
 // ControlBar (lọc khoảng ngày trả, Manager lọc thêm theo phòng), Pager. Bấm một biên lai → popup "Biên lai thanh toán"
 // Ô tìm: gõ "11/2026" (cả tháng), "3/11/2026" (1 ngày) hoặc mã phòng "201" (Manager) – API không có ?q nên FE đổi sang from / to / roomId
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button, Card } from 'react-bootstrap';
 import { BiReset } from 'react-icons/bi';
 import { useNavigate } from 'react-router-dom';
@@ -16,6 +16,7 @@ import Pager from '../../components/Pager';
 import SkeletonRows from '../../components/SkeletonRows';
 import { useAuth } from '../../context/AuthContext';
 import { ROLE } from '../../constants/enums';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import { useSavedState } from '../../utils/filter';
 import { formatDateTime } from '../../utils/format';
 import paymentApi from './payment.api';
@@ -121,6 +122,19 @@ const PaymentListPage = () => {
       ignore = true;
     };
   }, [page, fromParam, toParam, roomParam, noMatch, reloadKey]);
+
+  const silentRefresh = useCallback(() => {
+    if (noMatch) return Promise.resolve();
+    const params = { page, limit: LIMIT };
+    if (fromParam) params.from = fromParam;
+    if (toParam) params.to = toParam;
+    if (roomParam) params.roomId = roomParam;
+    return paymentApi.list(params).then((response) => {
+      if (response.data) setData(response.data);
+    });
+  }, [page, fromParam, toParam, roomParam, noMatch]);
+
+  useAutoRefresh(silentRefresh, { enabled: !loading && !loadError && !selected });
 
   // đổi lọc / tìm thì về trang 1
   const handleSearchChange = (value) => {

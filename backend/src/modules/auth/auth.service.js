@@ -149,12 +149,17 @@ export const login = async ({ identifier, password, remember = false }) => {
         throw new AppError('Tài khoản không ở trạng thái hoạt động', 403);
     }
 
+    // Cấp mã phiên mới để đá phiên đăng nhập cũ ở thiết bị khác (single active session)
+    const sessionId = crypto.randomUUID();
+    await User.updateOne({ _id: user._id }, { $set: { activeSessionId: sessionId } });
+
     // Cấp token: ghi nhớ đăng nhập theo JWT_REMEMBER_EXPIRES, ngược lại JWT_EXPIRES
     const expiresIn = remember ? env.JWT_REMEMBER_EXPIRES : env.JWT_EXPIRES;
     const token = jwt.sign(
         {
             id: user._id.toString(),
             role: user.roleId,
+            sid: sessionId,
         },
         env.JWT_SECRET,
         { expiresIn },

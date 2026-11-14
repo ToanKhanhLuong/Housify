@@ -14,7 +14,7 @@ import SkeletonRows from '../../components/SkeletonRows';
 import { INVOICE_ITEM_TYPE } from '../../constants/enums';
 import { hasErrors, toFieldErrors } from '../../utils/formErrors';
 import invoiceApi from './invoice.api';
-import { validateInvoiceItems } from './invoice.validate';
+import { hasNegativeInvoiceTotal, validateInvoiceItems } from './invoice.validate';
 import { toDraftItems, toPayloadItems } from './invoiceItems';
 import InvoiceItemsTable from './components/InvoiceItemsTable';
 
@@ -117,6 +117,8 @@ const InvoiceCreatePage = () => {
     }
   };
 
+  const rentItem = prefill?.items.find((item) => item.type === INVOICE_ITEM_TYPE.RENT);
+
   const handleSubmit = (event) => {
     event.preventDefault();
     if (prefill?.hasExistingInvoice) {
@@ -126,10 +128,12 @@ const InvoiceCreatePage = () => {
     const clientErrors = validateInvoiceItems(items);
     setErrors(clientErrors);
     if (hasErrors(clientErrors)) return;
+    if (hasNegativeInvoiceTotal(items, rentItem?.amount)) {
+      toast.error('Tổng tiền hóa đơn sau khi khấu trừ không được âm');
+      return;
+    }
     save();
   };
-
-  const rentItem = prefill?.items.find((item) => item.type === INVOICE_ITEM_TYPE.RENT);
 
   const renderItems = () => {
     if (!contractId || !month) {
@@ -177,6 +181,7 @@ const InvoiceCreatePage = () => {
           onChange={setItems}
           errors={errors}
           disabled={saving}
+          overpaymentCredit={prefill.overpaymentCredit ?? 0}
         />
       </div>
     );

@@ -28,6 +28,10 @@ const userSchema = new Schema(
             enum: values(USER_STATUS),  // [ACTIVE, INACTIVE, PENDING, LOCKED]
             required: true
         },
+        activeSessionId: {
+            type: String,
+            default: null
+        }, // chống 2 thiết bị đăng nhập cùng lúc 1 tài khoản
     },
     { timestamps: true },
 );

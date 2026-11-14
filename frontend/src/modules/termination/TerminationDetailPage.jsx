@@ -21,6 +21,7 @@ import StatusSteps from '../../components/StatusSteps';
 import { useAuth } from '../../context/AuthContext';
 import { ROLE, TERMINATION_STATUS, TERMINATION_TYPE } from '../../constants/enums';
 import { TERMINATION_STATUS_LABEL, TERMINATION_TYPE_LABEL } from '../../constants/statusLabels';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import { formatDate, formatDateTime } from '../../utils/format';
 import terminationApi from './termination.api';
 import ReasonModal from './components/ReasonModal';
@@ -42,23 +43,29 @@ const TerminationDetailPage = () => {
 
   // dùng .then thay vì await: setState nằm trong callback (luật react-hooks/set-state-in-effect)
   const loadTermination = useCallback(
-    () =>
+    (silent = false) =>
       terminationApi
         .detail(id)
         .then((response) => setState({ status: 'ok', termination: response.data, error: '' }))
-        .catch((error) =>
+        .catch((error) => {
+          if (silent) return;
           setState({
             status: error.status === 404 || error.status === 403 ? 'notFound' : 'error',
             termination: null,
             error: error.message,
-          }),
-        ),
+          });
+        }),
     [id],
   );
 
   useEffect(() => {
     loadTermination();
   }, [loadTermination]);
+
+  // Tự làm mới ngầm mỗi 5 giây (vd Manager hủy đơn → bên Admin/Customer thấy ngay không cần F5)
+  useAutoRefresh(() => loadTermination(true), {
+    enabled: state.status === 'ok' && !modal && !busy,
+  });
 
   const termination = state.termination;
   const backTo =

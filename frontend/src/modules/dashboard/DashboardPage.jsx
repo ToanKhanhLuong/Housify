@@ -8,6 +8,7 @@ import ErrorState from '../../components/ErrorState';
 import SkeletonRows from '../../components/SkeletonRows';
 import { useAuth } from '../../context/AuthContext';
 import { ROLE } from '../../constants/enums';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import dashboardApi from './dashboard.api';
 import AdminDashboard from './AdminDashboard';
 import ManagerDashboard from './ManagerDashboard';
@@ -18,23 +19,26 @@ const DashboardPage = () => {
 
   const [state, setState] = useState({ status: 'loading', data: null, error: '' });
 
-  const loadData = useCallback(() => {
+  const loadData = useCallback((silent = false) => {
     const request = isAdmin ? dashboardApi.admin({}) : dashboardApi.manager();
 
     return request
       .then((response) => setState({ status: 'ok', data: response.data, error: '' }))
-      .catch((error) =>
+      .catch((error) => {
+        if (silent) return;
         setState((prev) => ({
           status: error.status === 403 && !isAdmin ? 'noBuilding' : 'error',
           data: prev.data,
           error: error.message,
-        })),
-      );
+        }));
+      });
   }, [isAdmin]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useAutoRefresh(() => loadData(true), { enabled: state.status === 'ok' });
 
   const { status, data, error } = state;
 

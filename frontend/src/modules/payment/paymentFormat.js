@@ -7,8 +7,11 @@ export const monthLabel = (month) => {
   return `${monthNumber}/${year}`;
 };
 
-// BE trả sẵn statusLabel "Đúng hạn" / "Quá hạn X ngày" (tính từ ngày trả so với hạn, không lưu)
-export const onTimeVariant = (statusLabel) => (statusLabel === 'Đúng hạn' ? 'success' : 'warning');
+// BE trả sẵn statusLabel "Đúng hạn" / "Quá hạn X ngày" / "Chuyển thiếu (chưa gạch nợ)"
+export const onTimeVariant = (statusLabel) => {
+  if (statusLabel?.startsWith('Chuyển thiếu')) return 'danger';
+  return statusLabel === 'Đúng hạn' ? 'success' : 'warning';
+};
 
 const pad = (number) => String(number).padStart(2, '0');
 

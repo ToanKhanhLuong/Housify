@@ -15,6 +15,7 @@ import StatusSteps from '../../components/StatusSteps';
 import { useAuth } from '../../context/AuthContext';
 import { CONTRACT_STATUS, ROLE } from '../../constants/enums';
 import { CONTRACT_STATUS_LABEL } from '../../constants/statusLabels';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import contractApi from './contract.api';
 import CancelContractModal from './components/CancelContractModal';
 import ContractPaper from './components/ContractPaper';
@@ -59,23 +60,28 @@ const ContractDetailPage = () => {
 
   // dùng .then thay vì await: setState nằm trong callback (luật react-hooks/set-state-in-effect)
   const loadContract = useCallback(
-    () =>
+    (silent = false) =>
       contractApi
         .detail(id)
         .then((response) => setState({ status: 'ok', contract: response.data, error: '' }))
-        .catch((error) =>
+        .catch((error) => {
+          if (silent) return;
           setState({
             status: error.status === 404 || error.status === 403 ? 'notFound' : 'error',
             contract: null,
             error: error.message,
-          }),
-        ),
+          });
+        }),
     [id],
   );
 
   useEffect(() => {
     loadContract();
   }, [loadContract]);
+
+  useAutoRefresh(() => loadContract(true), {
+    enabled: state.status === 'ok' && !modal && !busy,
+  });
 
   const handleRetry = () => {
     setState({ status: 'loading', contract: null, error: '' });

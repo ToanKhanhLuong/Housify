@@ -124,10 +124,19 @@ export const processSepayWebhook = async (payload) => {
     };
   }
 
-  // 5. Nếu hóa đơn đang PENDING -> Lưu giao dịch và chuyển trạng thái PAID trong 1 transaction
+  // 5. Nếu hóa đơn đang PENDING -> Lưu giao dịch; chỉ gạch nợ PAID khi số tiền >= tổng hóa đơn
+  const isSufficient = amount >= Number(invoice.totalAmount || 0);
+  const previousPayments = await Payment.find({ invoiceId: invoice._id })
+    .select("amount")
+    .lean();
+  const previousPaidTotal = previousPayments.reduce(
+    (sum, p) => sum + Number(p.amount || 0),
+    0,
+  );
+
   let newPayment = null;
   await withTransaction(async (session) => {
-    // 5.1. Tạo bản ghi giao dịch trong bảng payments
+    // 5.1. Tạo bản ghi giao dịch trong bảng payments (kể cả chuyển thiếu để đối chiếu sao kê và tính tiền thừa kỳ sau)
     const [createdPayment] = await Payment.create(
       [
         {
@@ -143,19 +152,81 @@ export const processSepayWebhook = async (payload) => {
     );
     newPayment = createdPayment;
 
-    // 5.2. Cập nhật hóa đơn sang PAID
-    invoice.status = INVOICE_STATUS.PAID;
-    invoice.paidAt = paidAt;
-    await invoice.save({ session });
+    // 5.2. Chỉ cập nhật hóa đơn sang PAID khi số tiền chuyển khoản >= tổng tiền hóa đơn
+    if (isSufficient) {
+      invoice.status = INVOICE_STATUS.PAID;
+      invoice.paidAt = paidAt;
+      await invoice.save({ session });
+    }
   });
 
-  // 6. Tính toán tình trạng thanh toán đúng hạn hay trễ hạn (UC-42)
-  const statusLabel = calculateOverdueLabel(paidAt, invoice.dueDate);
-
-  // 7. Gửi thông báo chuông cho 3 vai trò: Manager, Admin, Customer (UC-42)
+  // 6. Lấy thông tin phòng, tòa, Admin, Customer để gửi thông báo
   const room = invoice.contractId?.roomId;
   const building = room?.buildingId;
   const roomNumber = room?.roomNumber || "Phòng";
+  const adminUsers = await User.find({
+    roleId: ROLE.ADMIN,
+    status: "ACTIVE",
+  }).select("_id");
+  const representative = await Occupant.findOne({
+    contractId: invoice.contractId?._id,
+    isRepresentative: true,
+  });
+
+  // Trường hợp chuyển thiếu (< totalAmount): giữ PENDING và cảnh báo Manager, Admin, Customer
+  if (!isSufficient) {
+    const expectedStr = Number(invoice.totalAmount || 0).toLocaleString("vi-VN");
+    const amountStr = amount.toLocaleString("vi-VN");
+
+    if (building?.managerId) {
+      await notify({
+        userIds: [building.managerId],
+        type: NOTIFICATION_TYPE.PAYMENT_REMINDER,
+        title: `Phòng ${roomNumber} chuyển thiếu tiền hóa đơn`,
+        message: `Phòng ${roomNumber} chuyển ${amountStr} đ cho hóa đơn ${invoice.invoiceCode} (chưa đủ ${expectedStr} đ). Hóa đơn vẫn Chờ thanh toán.`,
+        refId: invoice._id,
+      });
+    }
+
+    if (adminUsers.length > 0) {
+      await notify({
+        userIds: adminUsers.map((a) => a._id),
+        type: NOTIFICATION_TYPE.PAYMENT_REMINDER,
+        title: `Giao dịch chưa đủ tiền — ${invoice.invoiceCode}`,
+        message: `Phòng ${roomNumber} chuyển ${amountStr} đ cho hóa đơn ${invoice.invoiceCode} (tổng ${expectedStr} đ). Hóa đơn chưa được gạch nợ.`,
+        refId: invoice._id,
+      });
+    }
+
+    if (representative?.userId) {
+      await notify({
+        userIds: [representative.userId],
+        type: NOTIFICATION_TYPE.PAYMENT_REMINDER,
+        title: "Số tiền chuyển khoản chưa đủ",
+        message: `Giao dịch ${amountStr} đ cho hóa đơn ${invoice.invoiceCode} chưa đủ số tiền (${expectedStr} đ). Vui lòng quét đúng QR để hoàn tất; khoản dư sẽ được Manager khấu trừ kỳ sau.`,
+        refId: invoice._id,
+      });
+    }
+
+    return {
+      success: true,
+      underpaid: true,
+      message: "Số tiền chuyển khoản chưa đủ so với hóa đơn, giữ trạng thái Chờ thanh toán",
+      invoiceCode,
+      amount,
+      expectedAmount: invoice.totalAmount,
+      payment: newPayment,
+    };
+  }
+
+  // Trường hợp chuyển đủ hoặc thừa (>= totalAmount): hóa đơn thành PAID
+  const statusLabel = calculateOverdueLabel(paidAt, invoice.dueDate);
+  const totalReceived = previousPaidTotal + amount;
+  const overpaidAmount = Math.max(0, totalReceived - Number(invoice.totalAmount || 0));
+  const overpaidSuffix =
+    overpaidAmount > 0
+      ? ` — Dư ${overpaidAmount.toLocaleString("vi-VN")} đ (khấu trừ kỳ sau)`
+      : "";
 
   // 7.1. Báo chuông cho Manager phụ trách tòa
   if (building?.managerId) {
@@ -163,38 +234,29 @@ export const processSepayWebhook = async (payload) => {
       userIds: [building.managerId],
       type: NOTIFICATION_TYPE.PAYMENT_SUCCESS,
       title: "Hóa đơn đã được thanh toán",
-      message: `Phòng ${roomNumber} đã thanh toán hóa đơn tháng ${invoice.month} — ${amount.toLocaleString("vi-VN")} đ (${statusLabel}).`,
+      message: `Phòng ${roomNumber} đã thanh toán hóa đơn tháng ${invoice.month} — ${amount.toLocaleString("vi-VN")} đ (${statusLabel})${overpaidSuffix}.`,
       refId: invoice._id,
     });
   }
 
   // 7.2. Báo chuông cho Admin (chủ nhà)
-  const adminUsers = await User.find({
-    roleId: ROLE.ADMIN,
-    status: "ACTIVE",
-  }).select("_id");
   if (adminUsers.length > 0) {
     await notify({
       userIds: adminUsers.map((a) => a._id),
       type: NOTIFICATION_TYPE.PAYMENT_SUCCESS,
       title: "Tiền về tài khoản",
-      message: `Giao dịch ${amount.toLocaleString("vi-VN")} đ về tài khoản — hóa đơn ${invoice.invoiceCode} phòng ${roomNumber} đã thanh toán (${statusLabel}).`,
+      message: `Giao dịch ${amount.toLocaleString("vi-VN")} đ về tài khoản — hóa đơn ${invoice.invoiceCode} phòng ${roomNumber} đã thanh toán (${statusLabel})${overpaidSuffix}.`,
       refId: invoice._id,
     });
   }
 
   // 7.3. Báo chuông cho Customer (Người đại diện)
-  const representative = await Occupant.findOne({
-    contractId: invoice.contractId?._id,
-    isRepresentative: true,
-  });
-
   if (representative?.userId) {
     await notify({
       userIds: [representative.userId],
       type: NOTIFICATION_TYPE.PAYMENT_SUCCESS,
       title: "Thanh toán thành công",
-      message: `Hóa đơn ${invoice.invoiceCode} tháng ${invoice.month} đã thanh toán thành công — ${amount.toLocaleString("vi-VN")} đ (${statusLabel}).`,
+      message: `Hóa đơn ${invoice.invoiceCode} tháng ${invoice.month} đã thanh toán thành công — ${amount.toLocaleString("vi-VN")} đ (${statusLabel})${overpaidSuffix}.`,
       refId: invoice._id,
     });
   }
@@ -377,7 +439,12 @@ export const getPayments = async (query, user) => {
     const cId = contract?._id?.toString();
     const rep = (cId ? repMap.get(cId) : null) || (contract?.representativeCccd ? userMap.get(contract.representativeCccd) : null);
     const bManager = building?.managerId ? managerMap.get(building.managerId.toString()) : null;
-    const statusLabel = calculateOverdueLabel(p.paidAt, inv?.dueDate);
+    const isUnderpaid = inv && Number(p.amount) < Number(inv.totalAmount);
+    const isOverpaid = inv && Number(p.amount) > Number(inv.totalAmount);
+    const paymentStatus = isUnderpaid ? "UNDERPAID" : isOverpaid ? "OVERPAID" : "EXACT";
+    const statusLabel = isUnderpaid
+      ? "Chuyển thiếu (chưa gạch nợ)"
+      : calculateOverdueLabel(p.paidAt, inv?.dueDate);
 
     return {
       _id: p._id,
@@ -386,7 +453,8 @@ export const getPayments = async (query, user) => {
       bankName: p.bankName,
       transferContent: p.transferContent,
       paidAt: p.paidAt,
-      statusLabel, // "Đúng hạn" hoặc "Quá hạn X ngày"
+      paymentStatus,
+      statusLabel, // "Đúng hạn", "Quá hạn X ngày", hoặc "Chuyển thiếu (chưa gạch nợ)"
       representativeName: rep?.name || "",
       representativePhone: rep?.phone || "",
       invoice: inv
@@ -495,7 +563,12 @@ export const getPaymentById = async (id, user) => {
     ? await Manager.findOne({ userId: building.managerId }).select("name phone")
     : null;
 
-  const statusLabel = calculateOverdueLabel(payment.paidAt, inv?.dueDate);
+  const isUnderpaid = inv && Number(payment.amount) < Number(inv.totalAmount);
+  const isOverpaid = inv && Number(payment.amount) > Number(inv.totalAmount);
+  const paymentStatus = isUnderpaid ? "UNDERPAID" : isOverpaid ? "OVERPAID" : "EXACT";
+  const statusLabel = isUnderpaid
+    ? "Chuyển thiếu (chưa gạch nợ)"
+    : calculateOverdueLabel(payment.paidAt, inv?.dueDate);
 
   return {
     _id: payment._id,
@@ -504,6 +577,7 @@ export const getPaymentById = async (id, user) => {
     bankName: payment.bankName,
     transferContent: payment.transferContent,
     paidAt: payment.paidAt,
+    paymentStatus,
     statusLabel,
     representativeName: rep?.name || userRep?.name || "",
     representativePhone: rep?.phone || userRep?.phone || "",

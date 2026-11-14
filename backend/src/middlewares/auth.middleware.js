@@ -28,6 +28,13 @@ export const auth = async (req, res, next) => {
             throw new AppError(MSG.UNAUTHORIZED, 401);
         }
 
+        // Tài khoản đang bị đăng nhập ở thiết bị / trình duyệt khác
+        if (user.activeSessionId && decoded.sid !== user.activeSessionId) {
+            throw new AppError('Tài khoản đang được đăng nhập ở nơi khác', 401, {
+                code: 'SESSION_REPLACED',
+            });
+        }
+
         if (user.status !== USER_STATUS.ACTIVE) {
 
             // Tài khoản bị khóa

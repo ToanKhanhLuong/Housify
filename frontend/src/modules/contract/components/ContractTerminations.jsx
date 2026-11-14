@@ -2,18 +2,31 @@
 // Lấy các đơn của hợp đồng (GET /terminations?contractId=), mới nhất trước; bấm một đơn → chi tiết đơn
 // Customer có đơn hai bên đang chờ → nổi bật nút "Xem và xác nhận" (thông báo của khách dẫn về trang này)
 // Không có đơn nào thì không hiện gì. Trang cha nhận onLoaded(items) để biết còn đơn đang xử lý (ẩn nút Chấm dứt)
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Alert, Button, Card } from 'react-bootstrap';
 import { BiChevronRight, BiXCircle } from 'react-icons/bi';
 import { Link } from 'react-router-dom';
 import StatusBadge from '../../../components/StatusBadge';
 import { TERMINATION_STATUS, TERMINATION_TYPE } from '../../../constants/enums';
 import { TERMINATION_STATUS_LABEL, TERMINATION_TYPE_LABEL } from '../../../constants/statusLabels';
+import { useAutoRefresh } from '../../../hooks/useAutoRefresh';
 import { formatDate } from '../../../utils/format';
 import contractApi from '../contract.api';
 
 const ContractTerminations = ({ contractId, isCustomer = false, onLoaded }) => {
   const [items, setItems] = useState(null); // null = đang tải
+
+  const loadTerminations = useCallback(
+    () =>
+      contractApi.terminations(contractId).then((response) => {
+        const list = [...(response.data?.items ?? [])].sort(
+          (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
+        );
+        setItems(list);
+        onLoaded?.(list);
+      }),
+    [contractId, onLoaded],
+  );
 
   useEffect(() => {
     let ignore = false;
@@ -32,6 +45,8 @@ const ContractTerminations = ({ contractId, isCustomer = false, onLoaded }) => {
       ignore = true;
     };
   }, [contractId, onLoaded]);
+
+  useAutoRefresh(loadTerminations, { enabled: Boolean(contractId) });
 
   if (!items || items.length === 0) return null;
 

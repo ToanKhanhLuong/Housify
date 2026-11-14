@@ -1,6 +1,6 @@
 // Thẻ "biên lai" của một giao dịch SePay (UC-39): payment là biên lai đã chuyển tiền, khác hóa đơn (khoản phải trả)
 // Trông như ảnh chụp chuyển khoản: dấu đã nhận, số tiền lớn, mã giao dịch, nội dung chuyển khoản; nét đứt như xé biên lai
-import { BiCheckCircle } from 'react-icons/bi';
+import { BiCheckCircle, BiErrorCircle } from 'react-icons/bi';
 import MoneyText from '../../../components/MoneyText';
 import { formatDateTime } from '../../../utils/format';
 import { monthLabel } from '../paymentFormat';
@@ -15,6 +15,9 @@ const Row = ({ label, children }) => (
 
 const ReceiptCard = ({ payment, showRoom, onClick }) => {
   const { invoice } = payment;
+  const isUnderpaid =
+    payment.paymentStatus === 'UNDERPAID' ||
+    (invoice && Number(payment.amount) < Number(invoice.totalAmount));
   return (
     <div
       role="button"
@@ -37,10 +40,17 @@ const ReceiptCard = ({ payment, showRoom, onClick }) => {
 
       {/* đầu biên lai: đã nhận tiền + số tiền */}
       <div className="flex flex-col items-center gap-1 px-3 pt-3 pb-2 text-center">
-        <span className="flex items-center gap-1 small fw-semibold text-success-emphasis">
-          <BiCheckCircle size={18} />
-          Đã nhận tiền
-        </span>
+        {isUnderpaid ? (
+          <span className="flex items-center gap-1 small fw-semibold text-danger">
+            <BiErrorCircle size={18} />
+            Chưa đủ tiền
+          </span>
+        ) : (
+          <span className="flex items-center gap-1 small fw-semibold text-success-emphasis">
+            <BiCheckCircle size={18} />
+            Đã nhận tiền
+          </span>
+        )}
         <span className="fs-4 fw-bold text-body tabular-nums">
           <MoneyText value={payment.amount} />
         </span>

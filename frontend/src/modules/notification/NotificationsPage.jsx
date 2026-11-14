@@ -14,6 +14,7 @@ import SkeletonRows from '../../components/SkeletonRows';
 import StatusBadge from '../../components/StatusBadge';
 import { NOTIFICATION_TYPE_LABEL } from '../../constants/statusLabels';
 import { useAuth } from '../../context/AuthContext';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import { useSavedState } from '../../utils/filter';
 import notificationApi from './notification.api';
 import {
@@ -41,7 +42,7 @@ const NotificationsPage = () => {
 
     // dùng .then thay vì await: setState nằm trong callback (luật react-hooks/set-state-in-effect)
     const loadNotifications = useCallback(
-        () =>
+        (silent = false) =>
             Promise.all([
                 notificationApi.list({ page, limit: LIMIT, unread: unreadOnly || undefined }),
                 notificationApi.unreadCount(),
@@ -51,13 +52,17 @@ const NotificationsPage = () => {
                     setUnreadCount(countResponse.data.count);
                     setLoadError('');
                 })
-                .catch((error) => setLoadError(error.message)), // E: lỗi tải danh sách
+                .catch((error) => {
+                    if (!silent) setLoadError(error.message);
+                }), // E: lỗi tải danh sách
         [page, unreadOnly],
     );
 
     useEffect(() => {
         loadNotifications();
     }, [loadNotifications]);
+
+    useAutoRefresh(() => loadNotifications(true), { enabled: Boolean(data) && !viewing });
 
     // chuông vừa đánh dấu đã đọc (đang đứng ở trang này) thì tải lại cho khớp
     useEffect(() => {

@@ -1,7 +1,7 @@
 // UC-41 bước 1: chuông trên Header. Số đỏ = số chưa đọc; bấm chuông xổ ra bảng 5 thông báo mới nhất (tab Tất cả / Chưa đọc)
 // Bấm 1 thông báo: đánh dấu đã đọc rồi mở trang liên quan; không có trang liên quan thì mở trang Thông báo, hiện sẵn nội dung
 // Số chưa đọc tải lại khi đổi trang, khi vừa đánh dấu đã đọc, và mỗi 30 giây; tab trình duyệt ẩn thì tạm dừng (theo docs/api.md)
-import { forwardRef, useCallback, useEffect, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useRef, useState } from 'react';
 import { Badge, Button, Dropdown, Nav, Spinner } from 'react-bootstrap';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { BiBell } from 'react-icons/bi';
@@ -10,6 +10,8 @@ import EmptyState from '../../../components/EmptyState';
 import ErrorState from '../../../components/ErrorState';
 import SkeletonRows from '../../../components/SkeletonRows';
 import { useAuth } from '../../../context/AuthContext';
+import { emitDataChanged } from '../../../hooks/useAutoRefresh';
+import { getToken } from '../../../utils/session';
 import notificationApi from '../notification.api';
 import {
     NOTIFICATIONS_CHANGED,
@@ -20,7 +22,7 @@ import {
     isRecent,
 } from '../notification.utils';
 
-const REFRESH_MS = 30 * 1000;
+const REFRESH_MS = 5 * 1000;
 const LATEST_LIMIT = 5; // docs/api.md: dropdown dùng ?limit=5
 const TAB = { ALL: 'all', UNREAD: 'unread' };
 
@@ -85,14 +87,24 @@ const NotificationBell = () => {
     const [total, setTotal] = useState(0); // tổng tất cả thông báo, cho nhãn tab "Tất cả (n)"
     const [loadError, setLoadError] = useState('');
     const [markingAll, setMarkingAll] = useState(false);
+    const prevCountRef = useRef(null);
 
     // lỗi thì giữ số cũ: số trên chuông không báo lỗi, bảng xổ xuống mới báo (UC-41 E)
     const loadCount = useCallback(
-        () =>
-            notificationApi
+        () => {
+            if (!getToken()) return Promise.resolve();
+            return notificationApi
                 .unreadCount()
-                .then((response) => setCount(response.data.count))
-                .catch(() => {}),
+                .then((response) => {
+                    const nextCount = response.data.count;
+                    if (prevCountRef.current !== null && nextCount > prevCountRef.current) {
+                        emitDataChanged();
+                    }
+                    prevCountRef.current = nextCount;
+                    setCount(nextCount);
+                })
+                .catch(() => {});
+        },
         [],
     );
 

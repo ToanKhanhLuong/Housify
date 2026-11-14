@@ -20,10 +20,19 @@ api.interceptors.response.use(
   (error) => {
     const status = error.response?.status;
 
-    // đã gửi token mà BE vẫn từ chối → phiên đã chết; AuthContext bắt sự kiện, ProtectedRoute đưa về /login
+    // đã gửi token mà BE vẫn từ chối → phiên đã chết hoặc bị đăng nhập ở nơi khác
     if (status === 401 && error.config?.headers?.Authorization) {
+      const isSessionReplaced = error.response?.data?.errors?.code === 'SESSION_REPLACED';
       clearToken();
-      window.dispatchEvent(new Event('auth:logout'));
+      if (isSessionReplaced) {
+        window.dispatchEvent(
+          new CustomEvent('auth:session-replaced', {
+            detail: error.response?.data?.message || 'Tài khoản đang được đăng nhập ở nơi khác',
+          }),
+        );
+      } else {
+        window.dispatchEvent(new Event('auth:logout'));
+      }
     }
 
 

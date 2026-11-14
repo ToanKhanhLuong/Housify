@@ -2,7 +2,7 @@
 // Khuôn danh sách như Hóa đơn: ControlBar (nút Tạo hợp đồng, tìm phòng / tên, lọc trạng thái / tầng), đổi Thẻ / Bảng, Pager
 // Cột Thời hạn có thanh tiến độ, nhãn còn X ngày (vàng khi sắp hết hạn)
 // Tìm kiếm theo số phòng, tên người đại diện, SĐT, CCCD; lọc trạng thái và tầng
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button, Card } from 'react-bootstrap';
 import { BiLayer, BiListUl, BiPlus, BiReset } from 'react-icons/bi';
 import { useNavigate } from 'react-router-dom';
@@ -17,6 +17,7 @@ import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
 import { CONTRACT_STATUS } from '../../constants/enums';
 import { CONTRACT_STATUS_LABEL, CONTRACT_TYPE_LABEL } from '../../constants/statusLabels';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import { useSavedState } from '../../utils/filter';
 import contractApi from './contract.api';
 import buildingApi from '../building/building.api';
@@ -119,6 +120,18 @@ const ContractListPage = () => {
       ignore = true;
     };
   }, [page, statusParam, floorParam, keyword, reloadKey]);
+
+  const silentRefresh = useCallback(() => {
+    const params = { page, limit: LIMIT };
+    if (statusParam) params.status = statusParam;
+    if (floorParam) params.floor = floorParam;
+    if (keyword) params.q = keyword;
+    return contractApi.list(params).then((response) => {
+      if (response.data) setData(response.data);
+    });
+  }, [page, statusParam, floorParam, keyword]);
+
+  useAutoRefresh(silentRefresh, { enabled: !loading && !loadError });
 
   const handleSearchChange = (value) => {
     setQuery(value);

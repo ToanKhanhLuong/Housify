@@ -16,6 +16,7 @@ import StatusSteps from '../../components/StatusSteps';
 import { useAuth } from '../../context/AuthContext';
 import { INCIDENT_STATUS, ROLE } from '../../constants/enums';
 import { INCIDENT_STATUS_LABEL, INCIDENT_TYPE_LABEL } from '../../constants/statusLabels';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import { formatDateTime } from '../../utils/format';
 import incidentApi from './incident.api';
 import ResultNoteModal from './components/ResultNoteModal';
@@ -43,23 +44,28 @@ const IncidentDetailPage = () => {
 
   // dùng .then thay vì await: setState nằm trong callback (luật react-hooks/set-state-in-effect)
   const loadIncident = useCallback(
-    () =>
+    (silent = false) =>
       incidentApi
         .detail(id)
         .then((response) => setState({ status: 'ok', incident: response.data, error: '' }))
-        .catch((error) =>
+        .catch((error) => {
+          if (silent) return;
           setState({
             status: error.status === 404 || error.status === 403 ? 'notFound' : 'error',
             incident: null,
             error: error.message,
-          }),
-        ),
+          });
+        }),
     [id],
   );
 
   useEffect(() => {
     loadIncident();
   }, [loadIncident]);
+
+  useAutoRefresh(() => loadIncident(true), {
+    enabled: state.status === 'ok' && !modal && !busy,
+  });
 
   // gọi 1 thao tác xử lý đơn, báo kết quả, tải lại đơn; lỗi thì tải lại để thấy trạng thái mới nhất
   const runAction = async (action, successText) => {

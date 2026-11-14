@@ -1,5 +1,6 @@
 // Service xử lý nghiệp vụ cho module invoice
 import Invoice from "../../models/Invoice.js";
+import Payment from "../../models/Payment.js";
 import Contract from "../../models/Contract.js";
 import Room from "../../models/Room.js";
 import Building from "../../models/Building.js";
@@ -185,6 +186,60 @@ const sumAmount = (items) =>
   items.reduce((total, item) => total + item.amount, 0);
 
 /**
+ * Tính số tiền khách đã chuyển thừa còn khả dụng từ các hóa đơn đã thanh toán (PAID) của hợp đồng.
+ * Công thức: Tổng tiền khách đã chuyển vào các hóa đơn PAID − Tổng giá trị các hóa đơn PAID − Tổng đã khấu trừ ở các hóa đơn khác.
+ */
+const getContractOverpaymentCredit = async (
+  contractId,
+  excludeInvoiceId = null,
+) => {
+  const contractInvoices = await Invoice.find({
+    contractId,
+    status: { $ne: INVOICE_STATUS.CANCELLED },
+  })
+    .select("_id status totalAmount items")
+    .lean();
+
+  const otherInvoices = excludeInvoiceId
+    ? contractInvoices.filter(
+        (inv) => String(inv._id) !== String(excludeInvoiceId),
+      )
+    : contractInvoices;
+
+  const paidInvoices = otherInvoices.filter(
+    (inv) => inv.status === INVOICE_STATUS.PAID,
+  );
+  if (paidInvoices.length === 0) return 0;
+
+  const paidInvoiceIds = paidInvoices.map((inv) => inv._id);
+  const payments = await Payment.find({ invoiceId: { $in: paidInvoiceIds } })
+    .select("amount")
+    .lean();
+
+  const totalPaid = payments.reduce(
+    (sum, p) => sum + Number(p.amount || 0),
+    0,
+  );
+  const totalRequired = paidInvoices.reduce(
+    (sum, inv) => sum + Number(inv.totalAmount || 0),
+    0,
+  );
+
+  // Tổng tiền đã khấu trừ ở các hóa đơn khác (không tính hóa đơn bị hủy hoặc hóa đơn đang sửa)
+  const totalDeducted = otherInvoices.reduce((sum, inv) => {
+    const deductedInInv = (inv.items ?? []).reduce((subSum, item) => {
+      if (item.type === INVOICE_ITEM_TYPE.EXTRA && Number(item.amount) < 0) {
+        return subSum + Math.abs(Number(item.amount));
+      }
+      return subSum;
+    }, 0);
+    return sum + deductedInInv;
+  }, 0);
+
+  return Math.max(0, totalPaid - totalRequired - totalDeducted);
+};
+
+/**
  * Dòng gợi ý cho prefill và tạo hàng loạt: tiền phòng, phí cố định, điện nước kèm chỉ số cũ.
  * fillNewReading = true (tạo hàng loạt): chỉ số mới tạm bằng chỉ số cũ, Manager nhập sau.
  */
@@ -233,7 +288,15 @@ const buildSuggestedItems = async ({ contract, month, fillNewReading }) => {
     });
   }
 
-  return { items, warnings, totalAmount: sumAmount(items) };
+  const totalAmount = sumAmount(items);
+  if (totalAmount < 0) {
+    throw new AppError(
+      "Tổng tiền hóa đơn sau khi khấu trừ không được nhỏ hơn 0",
+      400,
+    );
+  }
+
+  return { items, warnings, totalAmount };
 };
 
 const itemError = (index, field, message) =>
@@ -262,6 +325,13 @@ const buildInvoiceItems = async ({
     if (item.type === INVOICE_ITEM_TYPE.EXTRA) {
       const quantity = Number(item.quantity ?? 1);
       const unitPrice = Number(item.unitPrice ?? 0);
+      if (unitPrice === 0) {
+        throw itemError(
+          index,
+          "unitPrice",
+          "Số tiền phát sinh hoặc khấu trừ phải khác 0",
+        );
+      }
       items.push({
         type: INVOICE_ITEM_TYPE.EXTRA,
         description: item.description,
@@ -384,7 +454,15 @@ const buildInvoiceItems = async ({
     });
   }
 
-  return { items, warnings, totalAmount: sumAmount(items) };
+  const totalAmount = sumAmount(items);
+  if (totalAmount < 0) {
+    throw new AppError(
+      "Tổng tiền hóa đơn sau khi khấu trừ không được nhỏ hơn 0",
+      400,
+    );
+  }
+
+  return { items, warnings, totalAmount };
 };
 
 const buildInvoiceMail = (invoice, isReminder) => {
@@ -491,6 +569,8 @@ export const getPrefill = async (query, user) => {
     );
   }
 
+  const overpaymentCredit = await getContractOverpaymentCredit(contractId);
+
   return {
     contract: {
       _id: contract._id,
@@ -503,6 +583,7 @@ export const getPrefill = async (query, user) => {
     existingInvoiceId: existingInvoice ? existingInvoice._id : null,
     existingInvoiceStatus: existingInvoice ? existingInvoice.status : null,
     existingInvoiceCode: existingInvoice ? existingInvoice.invoiceCode : null,
+    overpaymentCredit,
     items,
     warnings,
   };
@@ -893,6 +974,19 @@ export const getInvoiceById = async (id, user) => {
       managerName: bManager?.name || "",
       managerPhone: bManager?.phone || "",
     };
+  }
+
+  if (
+    contractId &&
+    invoice.status === INVOICE_STATUS.DRAFT &&
+    user.role !== ROLE.CUSTOMER
+  ) {
+    formatted.overpaymentCredit = await getContractOverpaymentCredit(
+      contractId,
+      invoice._id,
+    );
+  } else {
+    formatted.overpaymentCredit = 0;
   }
 
   return formatted;

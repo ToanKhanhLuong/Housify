@@ -31,10 +31,34 @@ export const validateInvoiceItems = (items) => {
       if (!String(item.description ?? '').trim())
         errors[key('description')] = 'Tên khoản thu không được để trống';
       if (isBlank(item.unitPrice)) errors[key('unitPrice')] = 'Vui lòng nhập số tiền';
-      else if (Number(item.unitPrice) < 0) errors[key('unitPrice')] = 'Đơn giá không được âm';
+      else if (Number(item.unitPrice) <= 0) errors[key('unitPrice')] = 'Số tiền phải lớn hơn 0';
     }
   });
   return errors;
+};
+
+// Tính tổng tạm tính để chặn gửi hóa đơn có tổng bị âm sau khấu trừ
+export const hasNegativeInvoiceTotal = (items, rentAmount = 0) => {
+  const total =
+    Number(rentAmount || 0) +
+    items.reduce((sum, item) => {
+      if (item.type === INVOICE_ITEM_TYPE.METERED) {
+        return (
+          sum +
+          Math.max(0, Number(item.newReading || 0) - Number(item.oldReading || 0)) *
+            Number(item.unitPrice || 0)
+        );
+      }
+      if (item.type === INVOICE_ITEM_TYPE.FIXED) {
+        return sum + Number(item.quantity || 0) * Number(item.unitPrice || 0);
+      }
+      if (item.type === INVOICE_ITEM_TYPE.EXTRA) {
+        const value = Math.abs(Number(item.unitPrice || 0));
+        return sum + (item.isDeduction ? -value : value);
+      }
+      return sum + Number(item.amount || 0);
+    }, 0);
+  return total < 0;
 };
 
 // UC-37: lý do hủy bắt buộc, tối thiểu 3 ký tự như BE

@@ -6,6 +6,7 @@ import EmptyState from '../../components/EmptyState';
 import ErrorState from '../../components/ErrorState';
 import SkeletonRows from '../../components/SkeletonRows';
 import { CONTRACT_STATUS } from '../../constants/enums';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import contractApi from './contract.api';
 import ContractPaper from './components/ContractPaper';
 import ContractDocumentTab from './components/ContractDocumentTab';
@@ -16,7 +17,7 @@ const MyContractPage = () => {
   const [state, setState] = useState({ status: 'loading', contract: null, error: '' });
 
   const loadContract = useCallback(
-    () =>
+    (silent = false) =>
       contractApi
         .list({ page: 1, limit: 10 })
         .then((response) => {
@@ -27,13 +28,18 @@ const MyContractPage = () => {
             .detail(current._id)
             .then((detail) => setState({ status: 'ok', contract: detail.data, error: '' }));
         })
-        .catch((error) => setState({ status: 'error', contract: null, error: error.message })),
+        .catch((error) => {
+          if (silent) return;
+          setState({ status: 'error', contract: null, error: error.message });
+        }),
     [],
   );
 
   useEffect(() => {
     loadContract();
   }, [loadContract]);
+
+  useAutoRefresh(() => loadContract(true), { enabled: state.status === 'ok' });
 
   const handleRetry = () => {
     setState({ status: 'loading', contract: null, error: '' });

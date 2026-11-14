@@ -19,10 +19,11 @@ import StatusSteps from '../../components/StatusSteps';
 import { useAuth } from '../../context/AuthContext';
 import { INVOICE_ITEM_TYPE, INVOICE_STATUS, ROLE } from '../../constants/enums';
 import { INVOICE_STATUS_LABEL } from '../../constants/statusLabels';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import { formatDate, formatDateTime } from '../../utils/format';
 import { hasErrors, toFieldErrors } from '../../utils/formErrors';
 import invoiceApi from './invoice.api';
-import { validateInvoiceItems } from './invoice.validate';
+import { hasNegativeInvoiceTotal, validateInvoiceItems } from './invoice.validate';
 import { dueStatus, monthLabel, roomOf } from './invoiceFormat';
 import { toDraftItems, toPayloadItems } from './invoiceItems';
 import CancelInvoiceModal from './components/CancelInvoiceModal';
@@ -33,7 +34,6 @@ import SendInvoiceModal from './components/SendInvoiceModal';
 // Customer không thấy nháp nên thanh trạng thái bắt đầu từ Chờ thanh toán. Đã hủy tự hiện ở cuối (StatusSteps)
 const MANAGER_STEPS = [INVOICE_STATUS.DRAFT, INVOICE_STATUS.PENDING, INVOICE_STATUS.PAID];
 const CUSTOMER_STEPS = [INVOICE_STATUS.PENDING, INVOICE_STATUS.PAID];
-const PAYMENT_POLL_MS = 5000; // chu kỳ hỏi lại trạng thái khi hóa đơn đang Chờ thanh toán
 
 // ô "Đã thanh toán": nền xanh lá nhạt, dấu ✓ lớn chìm sau chữ (cùng kiểu ô xác nhận điện tử của hợp đồng)
 // children: dòng mã giao dịch + link "Xem biên lai" (UC-36 bước 3)
@@ -102,17 +102,18 @@ const InvoiceDetailPage = () => {
 
   // dùng .then thay vì await: setState nằm trong callback (luật react-hooks/set-state-in-effect)
   const loadInvoice = useCallback(
-    () =>
+    (silent = false) =>
       invoiceApi
         .detail(id)
         .then((response) => setState({ status: 'ok', invoice: response.data, error: '' }))
-        .catch((error) =>
+        .catch((error) => {
+          if (silent) return;
           setState({
             status: error.status === 404 || error.status === 403 ? 'notFound' : 'error',
             invoice: null,
             error: error.message,
-          }),
-        ),
+          });
+        }),
     [id],
   );
 
@@ -120,32 +121,32 @@ const InvoiceDetailPage = () => {
     loadInvoice();
   }, [loadInvoice]);
 
-  // Đang Chờ thanh toán: cứ 5 giây hỏi lại trạng thái (chỉ khi tab đang mở) để SePay báo tiền về là trang tự
-  // chuyển sang "Đã thanh toán", không cần F5. Không dùng socket cho gọn (AGENTS.md)
+  // Tự động kiểm tra trạng thái ngầm mỗi 5 giây (khi đang mở chi tiết mà không đang sửa/mở modal)
   const currentStatus = state.invoice?.status;
-  useEffect(() => {
-    if (currentStatus !== INVOICE_STATUS.PENDING || editing) return undefined;
-    const checkStatus = () => {
-      if (document.hidden) return;
-      invoiceApi
-        .detail(id)
-        .then((response) => {
-          const latest = response.data;
-          if (latest?.status === INVOICE_STATUS.PENDING) return;
-          setState({ status: 'ok', invoice: latest, error: '' });
-          if (latest?.status === INVOICE_STATUS.PAID) {
+  useAutoRefresh(
+    () =>
+      invoiceApi.detail(id).then((response) => {
+        const latest = response.data;
+        if (!latest) return;
+        setState((prev) => {
+          if (
+            prev.invoice?.status === INVOICE_STATUS.PENDING &&
+            latest.status === INVOICE_STATUS.PAID
+          ) {
             toast.success(`Hóa đơn ${latest.invoiceCode} đã được thanh toán`);
           }
-        })
-        .catch(() => {}); // lỗi mạng tạm thời: lần sau hỏi lại
-    };
-    const timer = setInterval(checkStatus, PAYMENT_POLL_MS);
-    document.addEventListener('visibilitychange', checkStatus);
-    return () => {
-      clearInterval(timer);
-      document.removeEventListener('visibilitychange', checkStatus);
-    };
-  }, [currentStatus, editing, id]);
+          return { status: 'ok', invoice: latest, error: '' };
+        });
+      }),
+    {
+      enabled:
+        state.status === 'ok' &&
+        (currentStatus === INVOICE_STATUS.DRAFT || currentStatus === INVOICE_STATUS.PENDING) &&
+        !editing &&
+        !modal &&
+        !busy,
+    },
+  );
 
   const handleRetry = () => {
     setState({ status: 'loading', invoice: null, error: '' });
@@ -180,6 +181,10 @@ const InvoiceDetailPage = () => {
     const clientErrors = validateInvoiceItems(draftItems);
     setErrors(clientErrors);
     if (hasErrors(clientErrors)) return;
+    if (hasNegativeInvoiceTotal(draftItems, rentItem?.amount)) {
+      toast.error('Tổng tiền hóa đơn sau khi khấu trừ không được âm');
+      return;
+    }
 
     setBusy('save');
     try {
@@ -189,6 +194,7 @@ const InvoiceDetailPage = () => {
       setEditing(false);
       toast.success('Cập nhật hóa đơn thành công');
       warnings.forEach((warning) => toast.warning(warning));
+      loadInvoice(true);
     } catch (error) {
       if (error.errors) setErrors(toFieldErrors(error.errors));
       else handleActionError(error);
@@ -418,6 +424,7 @@ const InvoiceDetailPage = () => {
               onChange={setDraftItems}
               errors={errors}
               disabled={busy === 'save'}
+              overpaymentCredit={invoice.overpaymentCredit ?? 0}
             />
           </div>
           {isPending && <PaymentQr invoice={invoice} isManager={isManager} />}

@@ -90,7 +90,9 @@ const PaymentDetailModal = ({ payment, invoiceBasePath, onHide }) => {
     ? `${invoice.roomNumber}${invoice.floorNumber ? ` · Tầng ${invoice.floorNumber}` : ''}`
     : '—';
 
-  const amountMismatch = invoice && payment.amount !== invoice.totalAmount;
+  const isUnderpaid =
+    payment.paymentStatus === 'UNDERPAID' ||
+    (invoice && Number(payment.amount) < Number(invoice.totalAmount));
   const items = invoice?.items || [];
 
   const handlePrint = () => {
@@ -169,10 +171,25 @@ const PaymentDetailModal = ({ payment, invoiceBasePath, onHide }) => {
               id="housify-receipt-print"
               className="relative bg-white border rounded-lg p-6 shadow-xs [print-color-adjust:exact]"
             >
-              {/* Dấu ĐÃ THANH TOÁN */}
-              <div className="stamp-paid absolute right-8 top-20 px-3 py-1 rounded text-xs font-bold uppercase select-none pointer-events-none">
-                ĐÃ THANH TOÁN
-              </div>
+              {/* Dấu ĐÃ THANH TOÁN hoặc CHUYỂN THIẾU */}
+              {isUnderpaid ? (
+                <div
+                  className="absolute right-8 top-20 px-3 py-1 rounded text-xs font-bold uppercase select-none pointer-events-none"
+                  style={{
+                    transform: 'rotate(-12deg)',
+                    border: '2px dashed #dc2626',
+                    color: '#dc2626',
+                    backgroundColor: 'rgba(254, 242, 242, 0.9)',
+                    letterSpacing: '.06em',
+                  }}
+                >
+                  CHƯA ĐỦ TIỀN
+                </div>
+              ) : (
+                <div className="stamp-paid absolute right-8 top-20 px-3 py-1 rounded text-xs font-bold uppercase select-none pointer-events-none">
+                  ĐÃ THANH TOÁN
+                </div>
+              )}
 
               {/* Đầu biên lai */}
               <div className="flex items-start justify-between gap-4 pb-3 border-b border-gray-200">
@@ -271,8 +288,12 @@ const PaymentDetailModal = ({ payment, invoiceBasePath, onHide }) => {
                           <td className="py-2 px-3 text-center text-gray-500">{idx + 1}</td>
                           <td className="py-2 px-3 font-medium text-gray-900">{it.description}</td>
                           <td className="py-2 px-3 text-center text-gray-700">{formatItemQuantity(it)}</td>
-                          <td className="py-2 px-3 text-right tabular-nums text-gray-700">{formatMoney(it.unitPrice)}</td>
-                          <td className="py-2 px-3 text-right tabular-nums font-semibold text-gray-900">{formatMoney(it.amount)}</td>
+                          <td className={`py-2 px-3 text-right tabular-nums ${Number(it.unitPrice) < 0 ? 'text-danger fw-semibold' : 'text-gray-700'}`}>
+                            {formatMoney(it.unitPrice)}
+                          </td>
+                          <td className={`py-2 px-3 text-right tabular-nums font-semibold ${Number(it.amount) < 0 ? 'text-danger' : 'text-gray-900'}`}>
+                            {formatMoney(it.amount)}
+                          </td>
                         </tr>
                       ))
                     ) : (
@@ -370,8 +391,12 @@ const PaymentDetailModal = ({ payment, invoiceBasePath, onHide }) => {
                         <tr key={it._id || idx}>
                           <td className="py-2.5 px-3 font-medium text-gray-900">{it.description}</td>
                           <td className="py-2.5 px-3 text-center text-gray-700">{formatItemQuantity(it)}</td>
-                          <td className="py-2.5 px-3 text-right tabular-nums text-gray-700">{formatMoney(it.unitPrice)}</td>
-                          <td className="py-2.5 px-3 text-right tabular-nums font-semibold text-gray-900">{formatMoney(it.amount)}</td>
+                          <td className={`py-2.5 px-3 text-right tabular-nums ${Number(it.unitPrice) < 0 ? 'text-danger fw-semibold' : 'text-gray-700'}`}>
+                            {formatMoney(it.unitPrice)}
+                          </td>
+                          <td className={`py-2.5 px-3 text-right tabular-nums font-semibold ${Number(it.amount) < 0 ? 'text-danger' : 'text-gray-900'}`}>
+                            {formatMoney(it.amount)}
+                          </td>
                         </tr>
                       ))
                     ) : (

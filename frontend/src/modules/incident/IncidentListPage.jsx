@@ -1,7 +1,7 @@
 // UC-43, 44: danh sách đơn sự cố. Manager (/incidents) xem đơn cả tòa, lọc trạng thái, loại, thời gian, tìm theo mã phòng
 // Customer (/my-incidents) xem đơn mình gửi, có nút "Tạo báo cáo sự cố". Khuôn như trang Hóa đơn: ControlBar, Thẻ / Bảng, Pager
 // API không có ?q nên mã phòng gõ vào ô tìm được đổi sang roomId
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Button, Card } from 'react-bootstrap';
 import { BiPlus, BiReset } from 'react-icons/bi';
 import { useNavigate } from 'react-router-dom';
@@ -16,6 +16,7 @@ import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
 import { INCIDENT_STATUS, INCIDENT_TYPE, ROLE } from '../../constants/enums';
 import { INCIDENT_STATUS_LABEL, INCIDENT_TYPE_LABEL } from '../../constants/statusLabels';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import { useSavedState } from '../../utils/filter';
 import { formatDate, formatDateTime } from '../../utils/format';
 import incidentApi from './incident.api';
@@ -112,6 +113,21 @@ const IncidentListPage = () => {
       ignore = true;
     };
   }, [page, statusParam, typeParam, roomId, from, to, noMatch, reloadKey]);
+
+  const silentRefresh = useCallback(() => {
+    if (noMatch) return Promise.resolve();
+    const params = { page, limit: LIMIT };
+    if (statusParam) params.status = statusParam;
+    if (typeParam) params.type = typeParam;
+    if (roomId) params.roomId = roomId;
+    if (from) params.from = from;
+    if (to) params.to = to;
+    return incidentApi.list(params).then((response) => {
+      if (response.data) setData(response.data);
+    });
+  }, [page, statusParam, typeParam, roomId, from, to, noMatch]);
+
+  useAutoRefresh(silentRefresh, { enabled: !loading && !loadError && !creating });
 
   const handleSearchChange = (value) => {
     setQuery(value);

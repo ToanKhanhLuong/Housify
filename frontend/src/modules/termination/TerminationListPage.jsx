@@ -2,7 +2,7 @@
 // Lọc trạng thái, loại đơn (bỏ hết = xem tất cả), phân trang (api.md). Bấm một đơn → chi tiết /terminations/:id
 // Manager mở cùng trang thì thấy đơn của tòa mình (BE tự lọc)
 // Sidebar Admin có mục con /terminations?type=MUTUAL | UNILATERAL: trang đọc ?type= và giữ URL khớp bộ lọc Loại đơn
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button, Card } from 'react-bootstrap';
 import { BiReset } from 'react-icons/bi';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -16,6 +16,7 @@ import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
 import { ROLE, TERMINATION_STATUS, TERMINATION_TYPE } from '../../constants/enums';
 import { TERMINATION_STATUS_LABEL, TERMINATION_TYPE_LABEL } from '../../constants/statusLabels';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import { useSavedState } from '../../utils/filter';
 import { formatDate } from '../../utils/format';
 import terminationApi from './termination.api';
@@ -118,6 +119,17 @@ const TerminationListPage = () => {
       ignore = true;
     };
   }, [page, statusParam, typeParam, reloadKey]);
+
+  const silentRefresh = useCallback(() => {
+    const params = { page, limit: LIMIT };
+    if (statusParam) params.status = statusParam;
+    if (typeParam) params.type = typeParam;
+    return terminationApi.list(params).then((response) => {
+      if (response.data) setData(response.data);
+    });
+  }, [page, statusParam, typeParam]);
+
+  useAutoRefresh(silentRefresh, { enabled: !loading && !loadError });
 
   const handleFilterChange = (next) => {
     setFilters({ status: next.status ?? [], type: next.type ?? [] });
