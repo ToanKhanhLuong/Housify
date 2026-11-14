@@ -100,6 +100,18 @@ const AUDIT_ACTION_META = {
         badgeText: 'Mở lại TK',
         badgeTone: 'ok',
     },
+    [AUDIT_ACTION.PAYMENT_UNDERPAID]: {
+        category: 'Thanh toán',
+        title: 'Chuyển thiếu tiền hóa đơn (chưa gạch nợ)',
+        badgeText: 'Chuyển thiếu',
+        badgeTone: 'red',
+    },
+    [AUDIT_ACTION.PAYMENT_OVERPAID]: {
+        category: 'Thanh toán',
+        title: 'Chuyển thừa tiền hóa đơn (chưa gạch nợ)',
+        badgeText: 'Chuyển thừa',
+        badgeTone: 'warn',
+    },
 };
 
 // Đầu và cuối tháng chứa thời điểm now, theo giờ Việt Nam
@@ -511,7 +523,14 @@ const loadDashboardExtras = async (scope, isFilteredByBuilding) => {
             if (targetBuildingDoc) code = targetBuildingDoc.name;
         }
 
-        const actorName = log.actorId ? (actorNameById.get(String(log.actorId)) ?? 'Người dùng') : 'Hệ thống';
+        const isPaymentAudit =
+            log.action === AUDIT_ACTION.PAYMENT_UNDERPAID ||
+            log.action === AUDIT_ACTION.PAYMENT_OVERPAID;
+        const actorName = isPaymentAudit
+            ? 'Hệ thống SePay'
+            : log.actorId
+              ? (actorNameById.get(String(log.actorId)) ?? 'Người dùng')
+              : 'Hệ thống';
 
         return {
             _id: `audit-${log._id}`,
@@ -521,7 +540,11 @@ const loadDashboardExtras = async (scope, isFilteredByBuilding) => {
             actorName,
             badgeText: meta.badgeText,
             badgeTone: meta.badgeTone,
-            detail: log.reason ? `Lý do: ${log.reason}` : `Thực hiện bởi ${actorName}.`,
+            detail: isPaymentAudit
+                ? log.reason || `Ghi nhận giao dịch từ ${actorName}.`
+                : log.reason
+                  ? `Lý do: ${log.reason}`
+                  : `Thực hiện bởi ${actorName}.`,
             createdAt: log.createdAt,
         };
     });

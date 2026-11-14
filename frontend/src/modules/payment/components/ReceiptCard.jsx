@@ -18,6 +18,9 @@ const ReceiptCard = ({ payment, showRoom, onClick }) => {
   const isUnderpaid =
     payment.paymentStatus === 'UNDERPAID' ||
     (invoice && Number(payment.amount) < Number(invoice.totalAmount));
+  const isOverpaid =
+    payment.paymentStatus === 'OVERPAID' ||
+    (invoice && Number(payment.amount) > Number(invoice.totalAmount));
   return (
     <div
       role="button"
@@ -40,10 +43,10 @@ const ReceiptCard = ({ payment, showRoom, onClick }) => {
 
       {/* đầu biên lai: đã nhận tiền + số tiền */}
       <div className="flex flex-col items-center gap-1 px-3 pt-3 pb-2 text-center">
-        {isUnderpaid ? (
+        {isUnderpaid || isOverpaid ? (
           <span className="flex items-center gap-1 small fw-semibold text-danger">
             <BiErrorCircle size={18} />
-            Chưa đủ tiền
+            {isUnderpaid ? 'Chưa đủ tiền' : 'Chuyển thừa'}
           </span>
         ) : (
           <span className="flex items-center gap-1 small fw-semibold text-success-emphasis">

@@ -5,7 +5,7 @@
 // Dữ liệu: GET /me/room-members, rồi GET /contracts/:id (lỗi thì chỉ ẩn phần tóm tắt hợp đồng). Thêm / bớt người do Manager làm
 import { useCallback, useEffect, useState } from 'react';
 import { Card, Image } from 'react-bootstrap';
-import { BiBed, BiBuildings, BiGroup, BiMap } from 'react-icons/bi';
+import { BiBed, BiBuildings, BiChevronLeft, BiChevronRight, BiGroup, BiMap } from 'react-icons/bi';
 import EmptyState from '../../components/EmptyState';
 import ErrorState from '../../components/ErrorState';
 import SkeletonRows from '../../components/SkeletonRows';
@@ -42,6 +42,7 @@ const MyRoomPage = () => {
   const [contractInfo, setContractInfo] = useState({ contract: null, term: null });
   const [selected, setSelected] = useState(null); // thành viên đang xem
   const [editing, setEditing] = useState(null); // thành viên đang sửa
+  const [coverIndex, setCoverIndex] = useState(0); // vị trí ảnh phòng đang xem trên slide
 
   const loadMembers = useCallback(
     () =>
@@ -104,17 +105,71 @@ const MyRoomPage = () => {
   const stayedCount = members.filter((member) => member.status === OCCUPANT_STATUS.STAYED).length;
   const emptySlots = Math.max((room.capacity ?? 0) - stayedCount, 0);
   const roomTypeName = contract?.room?.roomType?.name;
-  // ảnh bìa: ảnh phòng (khi API trả images) → ảnh tòa → icon giường
-  const cover = room.images?.[0] ?? building?.images?.[0];
+  // ảnh bìa: ưu tiên toàn bộ ảnh phòng (lướt slide nếu nhiều ảnh) → ảnh tòa → icon giường
+  const coverImages =
+    room.images?.length > 0
+      ? room.images
+      : building?.images?.[0]
+        ? [building.images[0]]
+        : [];
+  const safeCoverIndex = coverImages.length > 0 ? coverIndex % coverImages.length : 0;
+  const cover = coverImages[safeCoverIndex];
+  const hasMultipleCovers = coverImages.length > 1;
+  const handlePrevCover = () =>
+    setCoverIndex((prev) => (prev - 1 + coverImages.length) % coverImages.length);
+  const handleNextCover = () =>
+    setCoverIndex((prev) => (prev + 1) % coverImages.length);
 
   return (
     <>
       <div className="grid xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4 w-full">
         <div className="flex flex-col gap-4">
-          {/* phòng: ảnh bìa + thông tin phòng */}
+          {/* phòng: ảnh bìa (carousel nếu có nhiều ảnh) + thông tin phòng */}
           <Card className="overflow-hidden">
             {cover ? (
-              <Image src={cover} alt={`Phòng ${room.roomNumber}`} className="h-64 w-full object-cover" />
+              <div className="relative h-64 w-full bg-body-tertiary">
+                <Image
+                  src={cover}
+                  alt={`Phòng ${room.roomNumber} - ảnh ${safeCoverIndex + 1}`}
+                  className="h-full w-full object-cover"
+                />
+                {hasMultipleCovers && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handlePrevCover}
+                      aria-label="Ảnh phòng trước"
+                      className="absolute left-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-black/50 text-white border-0 hover:bg-black/70 transition-colors"
+                    >
+                      <BiChevronLeft size={22} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleNextCover}
+                      aria-label="Ảnh phòng tiếp theo"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-black/50 text-white border-0 hover:bg-black/70 transition-colors"
+                    >
+                      <BiChevronRight size={22} />
+                    </button>
+                    <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-black/45 px-2.5 py-1">
+                      {coverImages.map((imgUrl, idx) => (
+                        <button
+                          key={imgUrl}
+                          type="button"
+                          onClick={() => setCoverIndex(idx)}
+                          aria-label={`Xem ảnh ${idx + 1}`}
+                          className={`h-2 rounded-full border-0 transition-all ${
+                            idx === safeCoverIndex ? 'w-5 bg-white' : 'w-2 bg-white/55 hover:bg-white/80'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <span className="absolute bottom-2.5 right-3 rounded bg-black/55 px-2 py-0.5 text-xs font-medium text-white tabular-nums">
+                      {safeCoverIndex + 1}/{coverImages.length}
+                    </span>
+                  </>
+                )}
+              </div>
             ) : (
               <div className="hf-cover h-56 rounded-none">
                 <BiBed size={88} />

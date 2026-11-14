@@ -2,10 +2,9 @@
 // Có 3 tab: Biên lai (tờ in chuẩn A5/A4), Giao dịch SePay, Khoản thu (chi tiết hóa đơn gốc)
 // Hỗ trợ in trực tiếp / xuất PDF qua window.print(), quy ước "Xác nhận điện tử"
 import { useEffect, useState } from 'react';
-import { Alert, Button, Modal, Nav } from 'react-bootstrap';
-import { BiCheckCircle, BiPrinter, BiReceipt, BiX } from 'react-icons/bi';
+import { Button, Modal, Nav } from 'react-bootstrap';
+import { BiPrinter, BiReceipt } from 'react-icons/bi';
 import { useNavigate } from 'react-router-dom';
-import MoneyText from '../../../components/MoneyText';
 import { formatDate, formatDateTime, formatMoney } from '../../../utils/format';
 import { moneyInWords } from '../../../utils/moneyInWords';
 import invoiceApi from '../../invoice/invoice.api';
@@ -93,6 +92,9 @@ const PaymentDetailModal = ({ payment, invoiceBasePath, onHide }) => {
   const isUnderpaid =
     payment.paymentStatus === 'UNDERPAID' ||
     (invoice && Number(payment.amount) < Number(invoice.totalAmount));
+  const isOverpaid =
+    payment.paymentStatus === 'OVERPAID' ||
+    (invoice && Number(payment.amount) > Number(invoice.totalAmount));
   const items = invoice?.items || [];
 
   const handlePrint = () => {
@@ -171,8 +173,8 @@ const PaymentDetailModal = ({ payment, invoiceBasePath, onHide }) => {
               id="housify-receipt-print"
               className="relative bg-white border rounded-lg p-6 shadow-xs [print-color-adjust:exact]"
             >
-              {/* Dấu ĐÃ THANH TOÁN hoặc CHUYỂN THIẾU */}
-              {isUnderpaid ? (
+              {/* Dấu ĐÃ THANH TOÁN hoặc CHƯA ĐỦ TIỀN / CHUYỂN THỪA */}
+              {isUnderpaid || isOverpaid ? (
                 <div
                   className="absolute right-8 top-20 px-3 py-1 rounded text-xs font-bold uppercase select-none pointer-events-none"
                   style={{
@@ -183,7 +185,7 @@ const PaymentDetailModal = ({ payment, invoiceBasePath, onHide }) => {
                     letterSpacing: '.06em',
                   }}
                 >
-                  CHƯA ĐỦ TIỀN
+                  {isUnderpaid ? 'CHƯA ĐỦ TIỀN' : 'CHUYỂN THỪA'}
                 </div>
               ) : (
                 <div className="stamp-paid absolute right-8 top-20 px-3 py-1 rounded text-xs font-bold uppercase select-none pointer-events-none">
@@ -317,13 +319,20 @@ const PaymentDetailModal = ({ payment, invoiceBasePath, onHide }) => {
                     <span className="font-bold text-gray-900 tabular-nums">{formatMoney(invoice?.totalAmount || payment.amount)}</span>
                   </div>
                   <div className="flex justify-between py-1 text-emerald-700 font-semibold border-t border-gray-200/60">
-                    <span>Đã thanh toán:</span>
+                    <span>{isUnderpaid || isOverpaid ? 'Số tiền đã chuyển:' : 'Đã thanh toán:'}</span>
                     <span className="tabular-nums">{formatMoney(payment.amount)}</span>
                   </div>
-                  <div className="flex justify-between py-1 text-gray-500 border-t border-gray-200/60">
-                    <span>Còn lại:</span>
-                    <span className="tabular-nums">{formatMoney(Math.max(0, (invoice?.totalAmount || payment.amount) - payment.amount))}</span>
-                  </div>
+                  {isOverpaid ? (
+                    <div className="flex justify-between py-1 text-danger border-t border-gray-200/60 font-medium">
+                      <span>Tiền thừa (chưa gạch nợ):</span>
+                      <span className="tabular-nums">{formatMoney(Math.max(0, Number(payment.amount) - Number(invoice?.totalAmount || payment.amount)))}</span>
+                    </div>
+                  ) : (
+                    <div className="flex justify-between py-1 text-gray-500 border-t border-gray-200/60">
+                      <span>Còn lại:</span>
+                      <span className="tabular-nums">{formatMoney(Math.max(0, (invoice?.totalAmount || payment.amount) - payment.amount))}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 

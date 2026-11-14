@@ -884,18 +884,44 @@ export const cancelTermination = async ({ managerId, terminationId, data }) => {
         termination.cancelReason = cleanReason;
         await termination.save({ session });
 
-        if (repOccupant?.userId) {
-            await notify(
-                {
-                    userIds: repOccupant.userId,
-                    type: NOTIFICATION_TYPE.TERMINATION_CANCELLED,
-                    title: `Đã hủy đơn chấm dứt hợp đồng phòng ${room.roomNumber}`,
-                    message: `Manager đã hủy đơn chấm dứt hợp đồng phòng ${room.roomNumber} (${building.name}). Lý do: ${cleanReason}`,
-                    refId: termination._id,
-                    createdBy: managerId,
-                },
-                session,
-            );
+        if (termination.type === TERMINATION_TYPE.MUTUAL) {
+            if (repOccupant?.userId) {
+                await notify(
+                    {
+                        userIds: repOccupant.userId,
+                        type: NOTIFICATION_TYPE.TERMINATION_CANCELLED,
+                        title: `Đã hủy đơn chấm dứt hợp đồng phòng ${room.roomNumber}`,
+                        message: `Manager đã hủy đơn chấm dứt hợp đồng phòng ${room.roomNumber} (${building.name}). Lý do: ${cleanReason}`,
+                        refId: termination._id,
+                        createdBy: managerId,
+                    },
+                    session,
+                );
+            }
+        } else {
+            // Đơn phương (UNILATERAL): chỉ thông báo cho Admin đang chờ duyệt, không gửi cho Khách thuê
+            const admins = await User.find({
+                roleId: ROLE.ADMIN,
+                status: USER_STATUS.ACTIVE,
+            })
+                .select('_id')
+                .session(session)
+                .lean();
+
+            const adminIds = admins.map((a) => a._id);
+            if (adminIds.length > 0) {
+                await notify(
+                    {
+                        userIds: adminIds,
+                        type: NOTIFICATION_TYPE.TERMINATION_CANCELLED,
+                        title: `Đơn chấm dứt đơn phương phòng ${room.roomNumber} đã bị hủy`,
+                        message: `Manager đã hủy đơn chấm dứt hợp đồng đơn phương phòng ${room.roomNumber} (${building.name}). Lý do: ${cleanReason}`,
+                        refId: termination._id,
+                        createdBy: managerId,
+                    },
+                    session,
+                );
+            }
         }
     });
 

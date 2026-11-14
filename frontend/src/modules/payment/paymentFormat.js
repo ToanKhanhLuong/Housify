@@ -7,9 +7,11 @@ export const monthLabel = (month) => {
   return `${monthNumber}/${year}`;
 };
 
-// BE trả sẵn statusLabel "Đúng hạn" / "Quá hạn X ngày" / "Chuyển thiếu (chưa gạch nợ)"
+// BE trả sẵn statusLabel "Đúng hạn" / "Quá hạn X ngày" / "Chuyển thiếu (chưa gạch nợ)" / "Chuyển thừa (chưa gạch nợ)"
 export const onTimeVariant = (statusLabel) => {
-  if (statusLabel?.startsWith('Chuyển thiếu')) return 'danger';
+  if (statusLabel?.startsWith('Chuyển thiếu') || statusLabel?.startsWith('Chuyển thừa')) {
+    return 'danger';
+  }
   return statusLabel === 'Đúng hạn' ? 'success' : 'warning';
 };
 

@@ -37,30 +37,6 @@ export const validateInvoiceItems = (items) => {
   return errors;
 };
 
-// Tính tổng tạm tính để chặn gửi hóa đơn có tổng bị âm sau khấu trừ
-export const hasNegativeInvoiceTotal = (items, rentAmount = 0) => {
-  const total =
-    Number(rentAmount || 0) +
-    items.reduce((sum, item) => {
-      if (item.type === INVOICE_ITEM_TYPE.METERED) {
-        return (
-          sum +
-          Math.max(0, Number(item.newReading || 0) - Number(item.oldReading || 0)) *
-            Number(item.unitPrice || 0)
-        );
-      }
-      if (item.type === INVOICE_ITEM_TYPE.FIXED) {
-        return sum + Number(item.quantity || 0) * Number(item.unitPrice || 0);
-      }
-      if (item.type === INVOICE_ITEM_TYPE.EXTRA) {
-        const value = Math.abs(Number(item.unitPrice || 0));
-        return sum + (item.isDeduction ? -value : value);
-      }
-      return sum + Number(item.amount || 0);
-    }, 0);
-  return total < 0;
-};
-
 // UC-37: lý do hủy bắt buộc, tối thiểu 3 ký tự như BE
 export const validateCancelReason = (reason) => {
   const value = reason.trim();

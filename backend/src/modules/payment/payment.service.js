@@ -10,12 +10,14 @@ import User from "../../models/User.js";
 import { withTransaction } from "../../helpers/withTransaction.js";
 import { endOfVietnamDay, startOfVietnamDay } from "../../helpers/date.js";
 import { notify } from "../../helpers/notify.js";
+import { audit } from "../../helpers/audit.js";
 import { sendMail } from "../../config/mail.js";
 import { AppError } from "../../utils/AppError.js";
 import {
   ROLE,
   INVOICE_STATUS,
   NOTIFICATION_TYPE,
+  AUDIT_ACTION,
 } from "../../constants/enums.js";
 
 
@@ -60,8 +62,21 @@ export const processSepayWebhook = async (payload) => {
   const paidAt = parseSepayDate(payload.transactionDate);
 
   console.log(
-    `[SePay Webhook] Nhận giao dịch ${sepayTxnId}: ${amount} đ, nội dung: "${transferContent}"`,
+    `[SePay Webhook] Nhận giao dịch ${sepayTxnId}: ${amount} đ, loại: "${payload.transferType || 'in'}", nội dung: "${transferContent}"`,
   );
+
+  // 0. Chỉ xử lý giao dịch tiền VÀO tài khoản (bỏ qua giao dịch tiền ra như hoàn tiền / chuyển khoản đi)
+  if (payload.transferType && payload.transferType !== "in") {
+    console.log(
+      `[SePay Webhook] Bỏ qua giao dịch tiền ra (${payload.transferType}) mã ${sepayTxnId}.`,
+    );
+    return {
+      success: true,
+      message: `Bỏ qua giao dịch tiền ra (${payload.transferType})`,
+      sepayTxnId,
+      ignored: true,
+    };
+  }
 
   // 1. Chống xử lý trùng giao dịch (BR-105)
   const existingPayment = await Payment.findOne({ sepayTxnId });
@@ -124,19 +139,15 @@ export const processSepayWebhook = async (payload) => {
     };
   }
 
-  // 5. Nếu hóa đơn đang PENDING -> Lưu giao dịch; chỉ gạch nợ PAID khi số tiền >= tổng hóa đơn
-  const isSufficient = amount >= Number(invoice.totalAmount || 0);
-  const previousPayments = await Payment.find({ invoiceId: invoice._id })
-    .select("amount")
-    .lean();
-  const previousPaidTotal = previousPayments.reduce(
-    (sum, p) => sum + Number(p.amount || 0),
-    0,
-  );
+  // 5. Nếu hóa đơn đang PENDING -> Lưu giao dịch; chỉ gạch nợ PAID khi số tiền khớp chính xác tổng hóa đơn
+  const expectedAmount = Number(invoice.totalAmount || 0);
+  const isExactAmount = amount === expectedAmount;
+  const isUnderpaid = amount < expectedAmount;
+  const isOverpaid = amount > expectedAmount;
 
   let newPayment = null;
   await withTransaction(async (session) => {
-    // 5.1. Tạo bản ghi giao dịch trong bảng payments (kể cả chuyển thiếu để đối chiếu sao kê và tính tiền thừa kỳ sau)
+    // 5.1. Tạo bản ghi giao dịch trong bảng payments (kể cả chuyển thiếu/thừa để đối chiếu sao kê)
     const [createdPayment] = await Payment.create(
       [
         {
@@ -152,11 +163,34 @@ export const processSepayWebhook = async (payload) => {
     );
     newPayment = createdPayment;
 
-    // 5.2. Chỉ cập nhật hóa đơn sang PAID khi số tiền chuyển khoản >= tổng tiền hóa đơn
-    if (isSufficient) {
+    // 5.2. Chỉ cập nhật hóa đơn sang PAID khi số tiền chuyển khoản khớp chính xác tổng tiền hóa đơn
+    if (isExactAmount) {
       invoice.status = INVOICE_STATUS.PAID;
       invoice.paidAt = paidAt;
       await invoice.save({ session });
+    } else if (invoice.contractId?._id) {
+      const amountStr = amount.toLocaleString("vi-VN");
+      const expectedStr = expectedAmount.toLocaleString("vi-VN");
+      await audit(
+        {
+          action: isUnderpaid
+            ? AUDIT_ACTION.PAYMENT_UNDERPAID
+            : AUDIT_ACTION.PAYMENT_OVERPAID,
+          targetType: "contracts",
+          targetId: invoice.contractId._id,
+          reason: isUnderpaid
+            ? `Hóa đơn ${invoice.invoiceCode}: chuyển ${amountStr} đ (thiếu so với ${expectedStr} đ) — Mã GD ${sepayTxnId}`
+            : `Hóa đơn ${invoice.invoiceCode}: chuyển ${amountStr} đ (thừa so với ${expectedStr} đ) — Mã GD ${sepayTxnId}`,
+          metadata: {
+            invoiceId: invoice._id,
+            invoiceCode: invoice.invoiceCode,
+            sepayTxnId,
+            amount,
+            expectedAmount,
+          },
+        },
+        session,
+      );
     }
   });
 
@@ -173,17 +207,38 @@ export const processSepayWebhook = async (payload) => {
     isRepresentative: true,
   });
 
-  // Trường hợp chuyển thiếu (< totalAmount): giữ PENDING và cảnh báo Manager, Admin, Customer
-  if (!isSufficient) {
-    const expectedStr = Number(invoice.totalAmount || 0).toLocaleString("vi-VN");
+  // Trường hợp chuyển thiếu hoặc thừa (!== totalAmount): giữ PENDING và cảnh báo Manager, Admin, Customer
+  if (!isExactAmount) {
+    const expectedStr = expectedAmount.toLocaleString("vi-VN");
     const amountStr = amount.toLocaleString("vi-VN");
+
+    const managerTitle = isUnderpaid
+      ? `Phòng ${roomNumber} chuyển thiếu tiền hóa đơn`
+      : `Phòng ${roomNumber} chuyển thừa tiền hóa đơn`;
+    const managerMessage = isUnderpaid
+      ? `Phòng ${roomNumber} chuyển ${amountStr} đ cho hóa đơn ${invoice.invoiceCode} (chưa đủ ${expectedStr} đ). Hóa đơn vẫn Chờ thanh toán.`
+      : `Phòng ${roomNumber} chuyển ${amountStr} đ cho hóa đơn ${invoice.invoiceCode} (vượt quá ${expectedStr} đ). Hóa đơn chưa được gạch nợ, vui lòng liên hệ khách xử lý hoàn tiền thừa.`;
+
+    const adminTitle = isUnderpaid
+      ? `Giao dịch chưa đủ tiền — ${invoice.invoiceCode}`
+      : `Giao dịch chuyển thừa tiền — ${invoice.invoiceCode}`;
+    const adminMessage = isUnderpaid
+      ? `Phòng ${roomNumber} chuyển ${amountStr} đ cho hóa đơn ${invoice.invoiceCode} (tổng ${expectedStr} đ). Hóa đơn chưa được gạch nợ.`
+      : `Phòng ${roomNumber} chuyển ${amountStr} đ cho hóa đơn ${invoice.invoiceCode} (tổng ${expectedStr} đ). Hóa đơn chưa được gạch nợ do sai lệch số tiền.`;
+
+    const customerTitle = isUnderpaid
+      ? "Số tiền chuyển khoản chưa đủ"
+      : "Số tiền chuyển khoản không khớp hóa đơn";
+    const customerMessage = isUnderpaid
+      ? `Giao dịch ${amountStr} đ cho hóa đơn ${invoice.invoiceCode} chưa đủ số tiền (${expectedStr} đ). Hóa đơn chưa được gạch nợ, vui lòng chuyển đúng số tiền theo mã QR.`
+      : `Giao dịch ${amountStr} đ cho hóa đơn ${invoice.invoiceCode} vượt quá số tiền hóa đơn (${expectedStr} đ). Hóa đơn chưa được gạch nợ, vui lòng liên hệ quản lý để được hỗ trợ.`;
 
     if (building?.managerId) {
       await notify({
         userIds: [building.managerId],
         type: NOTIFICATION_TYPE.PAYMENT_REMINDER,
-        title: `Phòng ${roomNumber} chuyển thiếu tiền hóa đơn`,
-        message: `Phòng ${roomNumber} chuyển ${amountStr} đ cho hóa đơn ${invoice.invoiceCode} (chưa đủ ${expectedStr} đ). Hóa đơn vẫn Chờ thanh toán.`,
+        title: managerTitle,
+        message: managerMessage,
         refId: invoice._id,
       });
     }
@@ -192,8 +247,8 @@ export const processSepayWebhook = async (payload) => {
       await notify({
         userIds: adminUsers.map((a) => a._id),
         type: NOTIFICATION_TYPE.PAYMENT_REMINDER,
-        title: `Giao dịch chưa đủ tiền — ${invoice.invoiceCode}`,
-        message: `Phòng ${roomNumber} chuyển ${amountStr} đ cho hóa đơn ${invoice.invoiceCode} (tổng ${expectedStr} đ). Hóa đơn chưa được gạch nợ.`,
+        title: adminTitle,
+        message: adminMessage,
         refId: invoice._id,
       });
     }
@@ -202,31 +257,28 @@ export const processSepayWebhook = async (payload) => {
       await notify({
         userIds: [representative.userId],
         type: NOTIFICATION_TYPE.PAYMENT_REMINDER,
-        title: "Số tiền chuyển khoản chưa đủ",
-        message: `Giao dịch ${amountStr} đ cho hóa đơn ${invoice.invoiceCode} chưa đủ số tiền (${expectedStr} đ). Vui lòng quét đúng QR để hoàn tất; khoản dư sẽ được Manager khấu trừ kỳ sau.`,
+        title: customerTitle,
+        message: customerMessage,
         refId: invoice._id,
       });
     }
 
     return {
       success: true,
-      underpaid: true,
-      message: "Số tiền chuyển khoản chưa đủ so với hóa đơn, giữ trạng thái Chờ thanh toán",
+      underpaid: isUnderpaid,
+      overpaid: isOverpaid,
+      message: isUnderpaid
+        ? "Số tiền chuyển khoản chưa đủ so với hóa đơn, giữ trạng thái Chờ thanh toán"
+        : "Số tiền chuyển khoản vượt quá hóa đơn, giữ trạng thái Chờ thanh toán",
       invoiceCode,
       amount,
-      expectedAmount: invoice.totalAmount,
+      expectedAmount,
       payment: newPayment,
     };
   }
 
-  // Trường hợp chuyển đủ hoặc thừa (>= totalAmount): hóa đơn thành PAID
+  // Trường hợp chuyển khớp chính xác (=== totalAmount): hóa đơn thành PAID
   const statusLabel = calculateOverdueLabel(paidAt, invoice.dueDate);
-  const totalReceived = previousPaidTotal + amount;
-  const overpaidAmount = Math.max(0, totalReceived - Number(invoice.totalAmount || 0));
-  const overpaidSuffix =
-    overpaidAmount > 0
-      ? ` — Dư ${overpaidAmount.toLocaleString("vi-VN")} đ (khấu trừ kỳ sau)`
-      : "";
 
   // 7.1. Báo chuông cho Manager phụ trách tòa
   if (building?.managerId) {
@@ -234,7 +286,7 @@ export const processSepayWebhook = async (payload) => {
       userIds: [building.managerId],
       type: NOTIFICATION_TYPE.PAYMENT_SUCCESS,
       title: "Hóa đơn đã được thanh toán",
-      message: `Phòng ${roomNumber} đã thanh toán hóa đơn tháng ${invoice.month} — ${amount.toLocaleString("vi-VN")} đ (${statusLabel})${overpaidSuffix}.`,
+      message: `Phòng ${roomNumber} đã thanh toán hóa đơn tháng ${invoice.month} — ${amount.toLocaleString("vi-VN")} đ (${statusLabel}).`,
       refId: invoice._id,
     });
   }
@@ -245,7 +297,7 @@ export const processSepayWebhook = async (payload) => {
       userIds: adminUsers.map((a) => a._id),
       type: NOTIFICATION_TYPE.PAYMENT_SUCCESS,
       title: "Tiền về tài khoản",
-      message: `Giao dịch ${amount.toLocaleString("vi-VN")} đ về tài khoản — hóa đơn ${invoice.invoiceCode} phòng ${roomNumber} đã thanh toán (${statusLabel})${overpaidSuffix}.`,
+      message: `Giao dịch ${amount.toLocaleString("vi-VN")} đ về tài khoản — hóa đơn ${invoice.invoiceCode} phòng ${roomNumber} đã thanh toán (${statusLabel}).`,
       refId: invoice._id,
     });
   }
@@ -256,7 +308,7 @@ export const processSepayWebhook = async (payload) => {
       userIds: [representative.userId],
       type: NOTIFICATION_TYPE.PAYMENT_SUCCESS,
       title: "Thanh toán thành công",
-      message: `Hóa đơn ${invoice.invoiceCode} tháng ${invoice.month} đã thanh toán thành công — ${amount.toLocaleString("vi-VN")} đ (${statusLabel})${overpaidSuffix}.`,
+      message: `Hóa đơn ${invoice.invoiceCode} tháng ${invoice.month} đã thanh toán thành công — ${amount.toLocaleString("vi-VN")} đ (${statusLabel}).`,
       refId: invoice._id,
     });
   }
@@ -444,7 +496,9 @@ export const getPayments = async (query, user) => {
     const paymentStatus = isUnderpaid ? "UNDERPAID" : isOverpaid ? "OVERPAID" : "EXACT";
     const statusLabel = isUnderpaid
       ? "Chuyển thiếu (chưa gạch nợ)"
-      : calculateOverdueLabel(p.paidAt, inv?.dueDate);
+      : isOverpaid
+        ? "Chuyển thừa (chưa gạch nợ)"
+        : calculateOverdueLabel(p.paidAt, inv?.dueDate);
 
     return {
       _id: p._id,
@@ -568,7 +622,9 @@ export const getPaymentById = async (id, user) => {
   const paymentStatus = isUnderpaid ? "UNDERPAID" : isOverpaid ? "OVERPAID" : "EXACT";
   const statusLabel = isUnderpaid
     ? "Chuyển thiếu (chưa gạch nợ)"
-    : calculateOverdueLabel(payment.paidAt, inv?.dueDate);
+    : isOverpaid
+      ? "Chuyển thừa (chưa gạch nợ)"
+      : calculateOverdueLabel(payment.paidAt, inv?.dueDate);
 
   return {
     _id: payment._id,

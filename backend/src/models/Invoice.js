@@ -36,11 +36,13 @@ const invoiceItemSchema = new Schema(
         },
         unitPrice: {
             type: Number,
-            required: true
-        }, // có thể âm khi type = EXTRA để khấu trừ tiền chuyển thừa kỳ trước
+            required: true,
+            min: 0
+        },
         amount: {
             type: Number,
-            required: true
+            required: true,
+            min: 0
         },
     },
     { _id: false },

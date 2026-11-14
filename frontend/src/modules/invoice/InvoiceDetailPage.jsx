@@ -23,7 +23,7 @@ import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import { formatDate, formatDateTime } from '../../utils/format';
 import { hasErrors, toFieldErrors } from '../../utils/formErrors';
 import invoiceApi from './invoice.api';
-import { hasNegativeInvoiceTotal, validateInvoiceItems } from './invoice.validate';
+import { validateInvoiceItems } from './invoice.validate';
 import { dueStatus, monthLabel, roomOf } from './invoiceFormat';
 import { toDraftItems, toPayloadItems } from './invoiceItems';
 import CancelInvoiceModal from './components/CancelInvoiceModal';
@@ -181,10 +181,6 @@ const InvoiceDetailPage = () => {
     const clientErrors = validateInvoiceItems(draftItems);
     setErrors(clientErrors);
     if (hasErrors(clientErrors)) return;
-    if (hasNegativeInvoiceTotal(draftItems, rentItem?.amount)) {
-      toast.error('Tổng tiền hóa đơn sau khi khấu trừ không được âm');
-      return;
-    }
 
     setBusy('save');
     try {
@@ -424,7 +420,6 @@ const InvoiceDetailPage = () => {
               onChange={setDraftItems}
               errors={errors}
               disabled={busy === 'save'}
-              overpaymentCredit={invoice.overpaymentCredit ?? 0}
             />
           </div>
           {isPending && <PaymentQr invoice={invoice} isManager={isManager} />}

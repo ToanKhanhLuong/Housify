@@ -162,6 +162,8 @@ export const AUDIT_ACTION = Object.freeze({
     ADD_OCCUPANT: 'ADD_OCCUPANT',
     UPDATE_OCCUPANT: 'UPDATE_OCCUPANT',
     REMOVE_OCCUPANT: 'REMOVE_OCCUPANT',
+    PAYMENT_UNDERPAID: 'PAYMENT_UNDERPAID', // khách chuyển thiếu tiền hóa đơn qua SePay (chưa gạch nợ)
+    PAYMENT_OVERPAID: 'PAYMENT_OVERPAID', // khách chuyển thừa tiền hóa đơn qua SePay (chưa gạch nợ)
 });
 
 

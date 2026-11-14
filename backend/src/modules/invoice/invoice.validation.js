@@ -56,8 +56,9 @@ const invoiceItemSchema = Joi.object({
   quantity: Joi.number().min(0).default(1).messages({
     "number.min": "Số lượng không được âm",
   }),
-  unitPrice: Joi.number().default(0).messages({
+  unitPrice: Joi.number().min(0).default(0).messages({
     "number.base": "Đơn giá phải là số",
+    "number.min": "Đơn giá không được âm",
   }),
 });
 

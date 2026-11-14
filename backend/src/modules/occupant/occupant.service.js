@@ -199,7 +199,9 @@ export const getMyRoomMembers = async ({ userId }) => {
     }
 
     const [room, user, occupants] = await Promise.all([
-        Room.findById(activeContract.roomId).select('_id roomNumber floorNumber status roomTypeId').lean(),
+        Room.findById(activeContract.roomId)
+            .select('_id roomNumber floorNumber status roomTypeId images')
+            .lean(),
         User.findById(userId).select('email').lean(),
         Occupant.find({ contractId: activeContract._id })
             .sort({ isRepresentative: -1, joinDate: 1 })
@@ -239,6 +241,7 @@ export const getMyRoomMembers = async ({ userId }) => {
                 floorNumber: room.floorNumber,
                 status: room.status,
                 capacity: roomType?.capacity || null,
+                images: room.images ?? [],
             }
             : null,
         items,

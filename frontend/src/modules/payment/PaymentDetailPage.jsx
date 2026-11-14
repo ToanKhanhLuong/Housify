@@ -2,10 +2,9 @@
 // Có thể in trực tiếp hoặc lưu file PDF qua nút "In biên lai / Tải PDF"
 // Tuân thủ quy ước: "Xác nhận điện tử", không ghi chữ ký số
 import { useEffect, useState } from 'react';
-import { Alert, Button, Card, Spinner } from 'react-bootstrap';
+import { Button, Spinner } from 'react-bootstrap';
 import { BiArrowBack, BiPrinter, BiReceipt } from 'react-icons/bi';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import EmptyState from '../../components/EmptyState';
 import ErrorState from '../../components/ErrorState';
 import { useAuth } from '../../context/AuthContext';
 import { ROLE } from '../../constants/enums';
@@ -137,6 +136,13 @@ const PaymentDetailPage = () => {
     : '—';
   const items = invoice?.items || [];
   const receiptCode = invoice?.invoiceCode || payment.sepayTxnId || '—';
+  const isUnderpaid =
+    payment.paymentStatus === 'UNDERPAID' ||
+    (invoice && Number(payment.amount) < Number(invoice.totalAmount));
+  const isOverpaid =
+    payment.paymentStatus === 'OVERPAID' ||
+    (invoice && Number(payment.amount) > Number(invoice.totalAmount));
+  const overpaidAmount = invoice ? Math.max(0, Number(payment.amount) - Number(invoice.totalAmount)) : 0;
 
   return (
     <>
@@ -247,10 +253,25 @@ const PaymentDetailPage = () => {
           id="housify-receipt-print"
           className="relative bg-white border rounded-xl p-8 sm:p-10 shadow-sm print:p-0 print:border-0 print:shadow-none [print-color-adjust:exact]"
         >
-          {/* Dấu ĐÃ THANH TOÁN */}
-          <div className="stamp-paid absolute right-8 top-16 sm:top-20 px-3.5 py-1 rounded text-xs sm:text-sm font-bold uppercase select-none pointer-events-none print:right-4 print:top-12 print:text-xs print:px-2.5 print:py-0.5">
-            ĐÃ THANH TOÁN
-          </div>
+          {/* Dấu ĐÃ THANH TOÁN hoặc CHƯA ĐỦ TIỀN / CHUYỂN THỪA */}
+          {isUnderpaid || isOverpaid ? (
+            <div
+              className="absolute right-8 top-16 sm:top-20 px-3.5 py-1 rounded text-xs sm:text-sm font-bold uppercase select-none pointer-events-none print:right-4 print:top-12 print:text-xs print:px-2.5 print:py-0.5"
+              style={{
+                transform: 'rotate(-12deg)',
+                border: '2px dashed #dc2626',
+                color: '#dc2626',
+                backgroundColor: 'rgba(254, 242, 242, 0.9)',
+                letterSpacing: '.06em',
+              }}
+            >
+              {isUnderpaid ? 'CHƯA ĐỦ TIỀN' : 'CHUYỂN THỪA'}
+            </div>
+          ) : (
+            <div className="stamp-paid absolute right-8 top-16 sm:top-20 px-3.5 py-1 rounded text-xs sm:text-sm font-bold uppercase select-none pointer-events-none print:right-4 print:top-12 print:text-xs print:px-2.5 print:py-0.5">
+              ĐÃ THANH TOÁN
+            </div>
+          )}
 
           {/* Đầu biên lai */}
           <div className="flex items-start justify-between gap-4 pb-4 border-b border-gray-200 print:pb-2.5 print:mb-2">
@@ -376,13 +397,20 @@ const PaymentDetailPage = () => {
                 <span className="font-bold text-gray-900 tabular-nums text-sm sm:text-base print:text-xs">{formatMoney(invoice?.totalAmount || payment.amount)}</span>
               </div>
               <div className="flex justify-between py-1 text-emerald-700 font-bold border-t border-gray-200/70 print:py-0.5">
-                <span>Đã thanh toán:</span>
+                <span>{isUnderpaid || isOverpaid ? 'Số tiền đã chuyển:' : 'Đã thanh toán:'}</span>
                 <span className="tabular-nums text-sm sm:text-base print:text-xs">{formatMoney(payment.amount)}</span>
               </div>
-              <div className="flex justify-between py-1 text-gray-500 border-t border-gray-200/70 font-medium print:py-0.5">
-                <span>Còn lại:</span>
-                <span className="tabular-nums font-semibold">{formatMoney(Math.max(0, (invoice?.totalAmount || payment.amount) - payment.amount))}</span>
-              </div>
+              {isOverpaid ? (
+                <div className="flex justify-between py-1 text-danger border-t border-gray-200/70 font-medium print:py-0.5">
+                  <span>Tiền thừa (chưa gạch nợ):</span>
+                  <span className="tabular-nums font-semibold">{formatMoney(overpaidAmount)}</span>
+                </div>
+              ) : (
+                <div className="flex justify-between py-1 text-gray-500 border-t border-gray-200/70 font-medium print:py-0.5">
+                  <span>Còn lại:</span>
+                  <span className="tabular-nums font-semibold">{formatMoney(Math.max(0, (invoice?.totalAmount || payment.amount) - payment.amount))}</span>
+                </div>
+              )}
             </div>
           </div>
 

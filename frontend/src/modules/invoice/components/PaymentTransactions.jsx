@@ -25,11 +25,14 @@ const PaymentTransactions = ({ invoice, isManager }) => {
       })
       .then((response) => {
         if (ignore) return;
-        setCodes(
-          (response.data?.items ?? [])
-            .filter((payment) => String(payment.invoice?._id) === String(invoice._id))
-            .map((payment) => payment.sepayTxnId),
+        const matchedPayments = (response.data?.items ?? []).filter(
+          (payment) => String(payment.invoice?._id) === String(invoice._id),
         );
+        const exactPayments = matchedPayments.filter(
+          (payment) => !payment.paymentStatus || payment.paymentStatus === 'EXACT',
+        );
+        const list = exactPayments.length > 0 ? exactPayments : matchedPayments;
+        setCodes(list.map((payment) => payment.sepayTxnId));
       })
       .catch(() => !ignore && setCodes([]));
     return () => {
