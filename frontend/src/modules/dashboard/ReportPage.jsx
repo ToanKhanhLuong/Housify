@@ -330,13 +330,15 @@ const ReportPage = () => {
         options={PERIOD_OPTIONS}
         value={period.type}
         onChange={(event) => setPeriod({ ...period, type: event.target.value })}
-        className="w-40"
+        // nhãn "Kỳ" chiếm chỗ bên trái, ô chọn còn lại phải đủ cho chữ "Tháng" và mũi tên
+        className="w-48"
       />
       {period.type === PERIOD_TYPE.MONTH && (
         <Form.Control
           type="month"
           aria-label="Tháng"
-          className="w-44"
+          // đủ chỗ cho tên tháng dài nhất kèm năm ("Tháng Mười Hai 2026") và icon lịch, không bị cắt
+          className="w-56"
           value={period.month}
           onChange={(event) =>
             event.target.value && setPeriod({ ...period, month: event.target.value })
