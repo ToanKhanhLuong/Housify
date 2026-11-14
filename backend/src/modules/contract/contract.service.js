@@ -93,6 +93,9 @@ const verifyManagerContractScope = async (managerId, contract) => {
     return { room, building };
 };
 
+const fieldError = (field, message, statusCode = 400) =>
+    new AppError(message, statusCode, [{ field, message }]);
+
 /**
  * Kiểm tra CCCD và Email của người đại diện khi tạo hoặc sửa hợp đồng nháp (UC-24, UC-26)
  */
@@ -108,50 +111,56 @@ const validateRepresentativeCccdAndEmail = async (cleanRepCccd, cleanRepEmail, e
 
     const activeOccupant = await Occupant.findOne(stayedFilter);
     if (activeOccupant) {
-        throw new AppError('Khách hàng này hiện đang thuê phòng khác', 400);
+        throw fieldError(
+            'representativeCccd',
+            'Số CCCD này hiện đang thuê phòng khác',
+        );
     }
 
     // 2. Chặn nếu tài khoản gắn với CCCD đã bị khóa do vi phạm (LOCKED) hoặc từng bị chấm dứt đơn phương đã duyệt
     const repOccupants = await Occupant.find({ cccd: cleanRepCccd, isRepresentative: true }).lean();
     const occupantRep = repOccupants.find((o) => o.userId) || repOccupants[0] || null;
-    if (occupantRep?.userId) {
-        const user = await User.findById(occupantRep.userId);
-        if (user?.status === USER_STATUS.LOCKED) {
-            throw new AppError('Tài khoản khách hàng này đã bị khóa do vi phạm, không thể tạo hợp đồng mới', 400);
-        }
-    }
     if (repOccupants.length > 0) {
-        const repContractIds = repOccupants.map((o) => o.contractId);
-        const hasConfirmedUnilateral = await TerminationRequest.exists({
-            contractId: { $in: repContractIds },
-            type: TERMINATION_TYPE.UNILATERAL,
-            status: TERMINATION_STATUS.CONFIRMED,
-        });
-        if (hasConfirmedUnilateral) {
-            throw new AppError('Tài khoản khách hàng này đã bị khóa do vi phạm, không thể tạo hợp đồng mới', 400);
+        const [repUser, hasConfirmedUnilateral] = await Promise.all([
+            occupantRep?.userId ? User.findById(occupantRep.userId).select('status').lean() : null,
+            TerminationRequest.exists({
+                contractId: { $in: repOccupants.map((o) => o.contractId) },
+                type: TERMINATION_TYPE.UNILATERAL,
+                status: TERMINATION_STATUS.CONFIRMED,
+            }),
+        ]);
+        if (repUser?.status === USER_STATUS.LOCKED || hasConfirmedUnilateral) {
+            throw fieldError(
+                'representativeCccd',
+                'Tài khoản khách hàng này đã bị khóa do vi phạm, không thể tạo hợp đồng mới',
+            );
         }
     }
 
     // 3. Kiểm tra Email người đại diện
-    const existingUserByEmail = await User.findOne({ email: cleanRepEmail });
+    const existingUserByEmail = await User.findOne({ email: cleanRepEmail }).select('_id roleId status').lean();
     if (existingUserByEmail) {
-        if (existingUserByEmail.roleId !== ROLE.CUSTOMER) {
-            throw new AppError('Email này thuộc về tài khoản quản trị/quản lý trong hệ thống', 400);
-        }
         if (existingUserByEmail.status === USER_STATUS.LOCKED) {
-            throw new AppError('Tài khoản gắn với email này đã bị khóa', 400);
+            throw fieldError(
+                'representativeEmail',
+                'Email này hiện không khả dụng để tạo hợp đồng mới',
+            );
         }
-        // Nếu CCCD đã có tài khoản nhưng khác với tài khoản của email này
-        if (occupantRep && String(occupantRep.userId) !== String(existingUserByEmail._id)) {
-            throw new AppError('Email đã được đăng ký cho khách hàng khác trong hệ thống', 400);
-        }
-        // Nếu email đã gắn với một khách hàng đại diện khác có CCCD khác
-        const occupantOfEmail = await Occupant.findOne({
-            userId: existingUserByEmail._id,
-            isRepresentative: true,
-        });
-        if (occupantOfEmail && occupantOfEmail.cccd !== cleanRepCccd) {
-            throw new AppError('Email đã được đăng ký cho khách hàng khác trong hệ thống', 400);
+
+        const isDifferentUser =
+            existingUserByEmail.roleId !== ROLE.CUSTOMER ||
+            (occupantRep?.userId && String(occupantRep.userId) !== String(existingUserByEmail._id));
+        const occupantOfEmail = !isDifferentUser
+            ? await Occupant.findOne({ userId: existingUserByEmail._id, isRepresentative: true })
+                  .select('cccd')
+                  .lean()
+            : null;
+
+        if (isDifferentUser || (occupantOfEmail && occupantOfEmail.cccd !== cleanRepCccd)) {
+            throw fieldError(
+                'representativeEmail',
+                'Email này đã được sử dụng bởi người dùng khác trong hệ thống',
+            );
         }
     }
 };
@@ -842,7 +851,11 @@ export const updateContract = async ({ managerId, contractId, data }) => {
             cccd: nextRepCccd,
         });
         if (dupCoOccupant) {
-            throw new AppError(`Số CCCD ${nextRepCccd} bị trùng lặp trong hợp đồng`, 422);
+            throw fieldError(
+                'representativeCccd',
+                `Số CCCD ${nextRepCccd} bị trùng lặp trong hợp đồng`,
+                422,
+            );
         }
     }
 

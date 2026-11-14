@@ -135,7 +135,7 @@ const ContractCreatePage = () => {
     } catch (error) {
       setSubmitting(false);
       if (error.errors) setErrors(toFieldErrors(error.errors));
-      else setSubmitError(error.message); // vd khách đang thuê phòng khác, vượt sức chứa, phòng không còn trống
+      setSubmitError(error.message);
     }
   };
 

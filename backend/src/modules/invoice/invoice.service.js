@@ -236,7 +236,7 @@ const buildSuggestedItems = async ({ contract, month, fillNewReading }) => {
   const totalAmount = sumAmount(items);
   if (totalAmount < 0) {
     throw new AppError(
-      "Tổng tiền hóa đơn sau khi khấu trừ không được nhỏ hơn 0",
+      "Tổng tiền hóa đơn không được nhỏ hơn 0",
       400,
     );
   }
@@ -402,7 +402,7 @@ const buildInvoiceItems = async ({
   const totalAmount = sumAmount(items);
   if (totalAmount < 0) {
     throw new AppError(
-      "Tổng tiền hóa đơn sau khi khấu trừ không được nhỏ hơn 0",
+      "Tổng tiền hóa đơn không được nhỏ hơn 0",
       400,
     );
   }

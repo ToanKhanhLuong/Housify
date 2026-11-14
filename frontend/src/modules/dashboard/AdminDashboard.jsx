@@ -317,7 +317,13 @@ const AdminDashboard = ({ data }) => {
                               ? 'bg-emerald-50 text-emerald-600'
                               : item.badgeTone === 'warn'
                                 ? 'bg-amber-50 text-amber-600'
-                                : 'bg-purple-50 text-purple-600'
+                                : item.badgeTone === 'red'
+                                  ? 'bg-rose-50 text-rose-600'
+                                  : item.badgeTone === 'info'
+                                    ? 'bg-sky-50 text-sky-600'
+                                    : item.badgeTone === 'gray'
+                                      ? 'bg-slate-100 text-slate-600'
+                                      : 'bg-purple-50 text-purple-600'
                           }`}
                         >
                           {item.badgeText || 'Hoạt động'}

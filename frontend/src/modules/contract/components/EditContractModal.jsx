@@ -76,7 +76,7 @@ const EditContractModal = ({ contract, onHide, onSaved }) => {
       onSaved();
     } catch (error) {
       setErrors(toFieldErrors(error.errors));
-      if (!error.errors) toast.error(error.message);
+      if (error.message) toast.error(error.message);
       setSubmitting(false);
     }
   };

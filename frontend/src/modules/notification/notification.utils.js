@@ -37,7 +37,10 @@ const LINKS = {
         [ROLE.ADMIN]: (id) => `/terminations/${id}`,
     },
     [TYPE.TERMINATION_CONFIRMED]: { [ROLE.CUSTOMER]: () => '/my-contract' },
-    [TYPE.TERMINATION_CANCELLED]: { [ROLE.CUSTOMER]: () => '/my-contract' },
+    [TYPE.TERMINATION_CANCELLED]: {
+        [ROLE.CUSTOMER]: () => '/my-contract',
+        [ROLE.ADMIN]: (id) => `/terminations/${id}`,
+    },
     [TYPE.MANAGER_ASSIGNED]: { [ROLE.MANAGER]: () => '/my-building' },
     [TYPE.INCIDENT_UPDATE]: {
         [ROLE.CUSTOMER]: (id) => `/my-incidents/${id}`,
