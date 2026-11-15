@@ -102,6 +102,7 @@ export const uploadCccd = async (file) => {
 // Chưa có ảnh thì trả null
 export const getSignedUrl = (publicId) => {
   if (!publicId) return null;
+  if (/^https?:\/\//i.test(publicId)) return publicId;
   const expiresAt = Math.floor(Date.now() / 1000) + 600; // 10 phút
   return cloudinary.url(publicId, {
     type: 'authenticated',
