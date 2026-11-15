@@ -8,6 +8,7 @@ import {
     ROLE,
     ROOM_STATUS,
     TERMINATION_STATUS,
+    TERMINATION_TYPE,
     USER_STATUS,
 } from '../../constants/enums.js';
 import { endOfVietnamDay, startOfVietnamDay, VIETNAM_OFFSET_MS } from '../../helpers/date.js';
@@ -26,6 +27,42 @@ import User from '../../models/User.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const OPEN_INCIDENT_STATUSES = [INCIDENT_STATUS.PENDING, INCIDENT_STATUS.IN_PROGRESS];
+
+// Đếm đơn chấm dứt theo loại (MUTUAL / UNILATERAL) và trạng thái trong phạm vi hợp đồng
+const summarizeTerminations = async (contractIds) => {
+    const summary = {
+        total: 0,
+        mutual: { total: 0, pending: 0, confirmed: 0, cancelled: 0 },
+        unilateral: { total: 0, pending: 0, confirmed: 0, rejected: 0, cancelled: 0 },
+    };
+    if (!contractIds || contractIds.length === 0) return summary;
+
+    const rows = await TerminationRequest.aggregate([
+        { $match: { contractId: { $in: contractIds } } },
+        { $group: { _id: { type: '$type', status: '$status' }, count: { $sum: 1 } } },
+    ]);
+
+    for (const row of rows) {
+        const count = row.count || 0;
+        const type = row._id?.type;
+        const status = row._id?.status;
+        summary.total += count;
+        if (type === TERMINATION_TYPE.MUTUAL) {
+            summary.mutual.total += count;
+            if (status === TERMINATION_STATUS.PENDING) summary.mutual.pending += count;
+            else if (status === TERMINATION_STATUS.CONFIRMED) summary.mutual.confirmed += count;
+            else if (status === TERMINATION_STATUS.CANCELLED) summary.mutual.cancelled += count;
+        } else if (type === TERMINATION_TYPE.UNILATERAL) {
+            summary.unilateral.total += count;
+            if (status === TERMINATION_STATUS.PENDING) summary.unilateral.pending += count;
+            else if (status === TERMINATION_STATUS.CONFIRMED) summary.unilateral.confirmed += count;
+            else if (status === TERMINATION_STATUS.REJECTED) summary.unilateral.rejected += count;
+            else if (status === TERMINATION_STATUS.CANCELLED) summary.unilateral.cancelled += count;
+        }
+    }
+
+    return summary;
+};
 
 const AUDIT_ACTION_META = {
     [AUDIT_ACTION.ADD_OCCUPANT]: {
@@ -667,7 +704,7 @@ export const getAdminDashboard = async ({ query = {} }) => {
         };
     });
 
-    const [monthlyRevenue, openIncidents, users, residents, movedIn, movedOut, totalLeft, extras] = await Promise.all([
+    const [monthlyRevenue, openIncidents, users, residents, movedIn, movedOut, totalLeft, terminations, extras] = await Promise.all([
         sumRevenue(scope.contractIds, start, end),
         countOpenIncidents(scope.roomIds),
         countUsers(scope, buildingId),
@@ -688,6 +725,7 @@ export const getAdminDashboard = async ({ query = {} }) => {
             contractId: { $in: scope.contractIds },
             status: OCCUPANT_STATUS.LEFT,
         }),
+        summarizeTerminations(scope.contractIds),
         loadDashboardExtras(scope, Boolean(buildingId)),
     ]);
 
@@ -727,6 +765,7 @@ export const getAdminDashboard = async ({ query = {} }) => {
         movedIn,
         movedOut,
         totalLeft,
+        terminations,
         ...extras,
     };
 };
@@ -775,7 +814,7 @@ export const getManagerDashboard = async ({ managerId }) => {
     ).length;
     const draftContracts = scope.contracts.filter((c) => c.status === CONTRACT_STATUS.DRAFT).length;
 
-    const [monthlyRevenue, openIncidents, residents, movedIn, movedOut, totalLeft, extras] = await Promise.all([
+    const [monthlyRevenue, openIncidents, residents, movedIn, movedOut, totalLeft, terminations, extras] = await Promise.all([
         sumRevenue(scope.contractIds, start, end),
         countOpenIncidents(scope.roomIds),
         Occupant.countDocuments({
@@ -795,6 +834,7 @@ export const getManagerDashboard = async ({ managerId }) => {
             contractId: { $in: scope.contractIds },
             status: OCCUPANT_STATUS.LEFT,
         }),
+        summarizeTerminations(scope.contractIds),
         loadDashboardExtras(scope, true),
     ]);
 
@@ -816,6 +856,7 @@ export const getManagerDashboard = async ({ managerId }) => {
         movedIn,
         movedOut,
         totalLeft,
+        terminations,
         ...extras,
     };
 };

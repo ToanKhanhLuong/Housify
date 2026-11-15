@@ -28,12 +28,7 @@ const isMenuLinkActive = (menuPath, currentPath, role) => {
     if (currentPath.startsWith('/contracts') && role === ROLE.ADMIN && menuPath === '/buildings') {
         return true;
     }
-    // Đơn chấm dứt hợp đồng (/terminations, /terminations/new, /terminations/:id):
-    // - Manager: thuộc mục "Hợp đồng" (/contracts)
-    if (currentPath.startsWith('/terminations') && role === ROLE.MANAGER && menuPath === '/contracts') {
-        return true;
-    }
-    // - Customer: /my-terminations/:id thuộc mục "Hợp đồng của tôi" (/my-contract)
+    // Đơn chấm dứt hợp đồng của Customer (/my-terminations/:id) thuộc mục "Hợp đồng của tôi" (/my-contract)
     if (currentPath.startsWith('/my-terminations') && role === ROLE.CUSTOMER && menuPath === '/my-contract') {
         return true;
     }

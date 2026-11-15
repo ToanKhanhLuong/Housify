@@ -7,6 +7,7 @@ import {
   BiBell,
   BiBuildings,
   BiCalendarExclamation,
+  BiCheckCircle,
   BiCheckDouble,
   BiCreditCard,
   BiErrorCircle,
@@ -21,6 +22,7 @@ import {
   BiWrench,
   BiXCircle,
 } from 'react-icons/bi';
+import { Link } from 'react-router-dom';
 import { Cell, Pie, PieChart, ResponsiveContainer } from 'recharts';
 import MoneyText from '../../components/MoneyText';
 import { useAuth } from '../../context/AuthContext';
@@ -88,7 +90,21 @@ const AdminDashboard = ({ data }) => {
   );
 
   const noManagerNames = (extras.noManager ?? []).map((building) => building.name).join(', ');
-  const totalTasks = (extras.unilateral ?? 0) + (extras.noManager?.length ?? 0) + overdueCount;
+  const terminations = data?.terminations ?? {
+    total: 0,
+    mutual: { total: 0, pending: 0, confirmed: 0, cancelled: 0 },
+    unilateral: { total: 0, pending: 0, confirmed: 0, rejected: 0, cancelled: 0 },
+  };
+  const mutualStats = terminations.mutual ?? { total: 0, pending: 0, confirmed: 0, cancelled: 0 };
+  const unilateralStats = terminations.unilateral ?? {
+    total: 0,
+    pending: 0,
+    confirmed: 0,
+    rejected: 0,
+    cancelled: 0,
+  };
+  const unilateralPending = data?.terminations ? unilateralStats.pending : extras.unilateral;
+  const totalTasks = (unilateralPending ?? 0) + (extras.noManager?.length ?? 0) + overdueCount;
 
   return (
     <div className="flex flex-col gap-3">
@@ -208,13 +224,13 @@ const AdminDashboard = ({ data }) => {
                   iconClass="bg-rose-50 text-rose-600"
                   title="Đơn chấm dứt đơn phương chờ duyệt"
                   description={
-                    extras.unilateral === null
+                    unilateralPending === null
                       ? 'Bấm để mở danh sách đơn chấm dứt'
-                      : extras.unilateral > 0
-                        ? `${extras.unilateral} đơn đang chờ Admin phê duyệt hoặc từ chối`
+                      : unilateralPending > 0
+                        ? `${unilateralPending} đơn đang chờ Admin phê duyệt hoặc từ chối`
                         : 'Không có đơn nào chờ duyệt'
                   }
-                  badge={extras.unilateral > 0 && `${extras.unilateral} đơn`}
+                  badge={unilateralPending > 0 && `${unilateralPending} đơn`}
                   badgeTone="red"
                 />
 
@@ -458,6 +474,45 @@ const AdminDashboard = ({ data }) => {
                   </span>
                   <strong className="text-teal-700">{pendingRefundContracts} hợp đồng</strong>
                 </div>
+              </div>
+
+              {/* Thống kê đơn chấm dứt toàn hệ thống theo quyền Admin (duyệt đơn phương + giám sát hai bên) */}
+              <div className="flex flex-col gap-2 pt-2 border-t border-slate-100 text-xs">
+                <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+                  Đơn chấm dứt toàn hệ thống
+                </span>
+
+                <Link
+                  to={`/terminations?type=${TERMINATION_TYPE.UNILATERAL}`}
+                  className="flex items-center justify-between gap-2 p-2 rounded-xl bg-rose-50/50 border border-rose-100 no-underline hover:bg-rose-50 transition-colors"
+                >
+                  <div className="min-w-0">
+                    <span className="flex items-center gap-1.5 text-slate-700 font-medium">
+                      <BiXCircle className="text-rose-600 shrink-0" size={15} /> Đơn phương (Admin duyệt)
+                    </span>
+                    <span className="text-[11px] text-slate-500 block mt-0.5 truncate">
+                      {unilateralStats.pending} chờ duyệt · {unilateralStats.confirmed} đã duyệt ·{' '}
+                      {unilateralStats.rejected + unilateralStats.cancelled} từ chối/hủy
+                    </span>
+                  </div>
+                  <strong className="text-rose-700 shrink-0">{unilateralStats.total} đơn</strong>
+                </Link>
+
+                <Link
+                  to={`/terminations?type=${TERMINATION_TYPE.MUTUAL}`}
+                  className="flex items-center justify-between gap-2 p-2 rounded-xl bg-amber-50/50 border border-amber-100 no-underline hover:bg-amber-50 transition-colors"
+                >
+                  <div className="min-w-0">
+                    <span className="flex items-center gap-1.5 text-slate-700 font-medium">
+                      <BiCheckCircle className="text-amber-600 shrink-0" size={15} /> Thỏa thuận hai bên (Giám sát)
+                    </span>
+                    <span className="text-[11px] text-slate-500 block mt-0.5 truncate">
+                      {mutualStats.pending} chờ khách · {mutualStats.confirmed} đã xác nhận · {mutualStats.cancelled}{' '}
+                      đã hủy
+                    </span>
+                  </div>
+                  <strong className="text-amber-700 shrink-0">{mutualStats.total} đơn</strong>
+                </Link>
               </div>
             </Card.Body>
           </Card>

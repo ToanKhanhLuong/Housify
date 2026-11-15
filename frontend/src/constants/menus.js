@@ -17,6 +17,20 @@ export const HOME_PATH = {
 export const NO_BUILDING_PATHS = ['/profile', '/change-password', '/notifications'];
 
 // Thông báo (UC-41) không nằm trong menu: vào bằng chuông trên Header → "Xem tất cả" (/notifications)
+// Menu con cho mục Đơn chấm dứt (dùng chung cho Admin và Manager; BE tự lọc theo phạm vi quyền)
+const TERMINATION_MENU_ITEM = {
+    label: 'Đơn chấm dứt',
+    path: '/terminations',
+    icon: BiXCircle,
+    disabled: false,
+    // sổ xuống: mở nhanh danh sách đã lọc sẵn theo loại đơn (TerminationListPage đọc ?type=)
+    children: Object.values(TERMINATION_TYPE).map((type) => ({
+        label: TERMINATION_TYPE_LABEL[type].label,
+        icon: TERMINATION_TYPE_LABEL[type].icon,
+        path: `/terminations?type=${type}`,
+    })),
+};
+
 // Mục có disabled: true là thuộc Iter 2–3 (chưa làm, hiển thị mờ theo Sidebar.dc.html)
 // Mục có children: [{ label, path, icon? }] thì sổ xuống các mục con (path con được kèm ?query) – xem Sidebar.jsx
 export const MENUS = {
@@ -26,24 +40,14 @@ export const MENUS = {
         { label: 'Loại phòng', path: '/room-types', icon: BiCategory, disabled: false }, // UC-20
         { label: 'Dịch vụ', path: '/services', icon: BiPlug, disabled: false }, // UC-21, 22 (/services/prices)
         { label: 'Quản lý Manager', path: '/managers', icon: BiIdCard, disabled: false }, // UC-08→11
-        {
-            label: 'Đơn chấm dứt',
-            path: '/terminations',
-            icon: BiXCircle,
-            disabled: false,
-            // sổ xuống: mở nhanh danh sách đã lọc sẵn theo loại đơn (TerminationListPage đọc ?type=)
-            children: Object.values(TERMINATION_TYPE).map((type) => ({
-                label: TERMINATION_TYPE_LABEL[type].label,
-                icon: TERMINATION_TYPE_LABEL[type].icon,
-                path: `/terminations?type=${type}`,
-            })),
-        }, // UC-28, 29
+        TERMINATION_MENU_ITEM, // UC-28, 29
         { label: 'Báo cáo', path: '/reports', icon: BiBarChartAlt2, disabled: false }, // UC-48
     ],
     [ROLE.MANAGER]: [
         { label: 'Tổng quan', path: '/dashboard', icon: BiGridAlt, disabled: false }, // UC-47
         { label: 'Tòa của tôi', path: '/my-building', icon: BiBuildings, disabled: false }, // UC-13 chỉ xem
         { label: 'Hợp đồng', path: '/contracts', icon: BiFile, disabled: false }, // UC-24→29, 45, 46
+        TERMINATION_MENU_ITEM, // UC-28, 29 (đơn trong tòa phụ trách)
         { label: 'Cư dân', path: '/occupants', icon: BiGroup, disabled: false }, // UC-30→33
         { label: 'Hóa đơn', path: '/invoices', icon: BiReceipt, disabled: false }, // UC-34→37
         { label: 'Thanh toán', path: '/payments', icon: BiCreditCard, disabled: false }, // UC-39

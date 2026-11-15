@@ -1,8 +1,7 @@
 // UC-47: Tổng quan điều hành thực tế cho Manager
 // Hiển thị toàn diện: Tỷ lệ lấp đầy phòng, Nhân khẩu cư dân (Đang ở / Mới vào / Đã chuyển đi), Tiến độ thu tài chính,
-// Công việc cần xử lý (Hóa đơn quá hạn, Hợp đồng sắp hết hạn, Chờ hoàn cọc, Sự cố, Đơn thỏa thuận chờ khách xác nhận)
+// Thống kê & Công việc cần xử lý (Hóa đơn quá hạn, Hợp đồng sắp hết hạn, Chờ hoàn cọc, Sự cố, Đơn thỏa thuận & Đơn phương)
 // và Lối tắt thao tác nhanh. Trang VẬN HÀNH: không chọn kỳ (phân tích theo kỳ ở /reports)
-import { useEffect, useState } from 'react';
 import { Button, Card, ProgressBar } from 'react-bootstrap';
 import {
   BiBell,
@@ -10,6 +9,7 @@ import {
   BiBuilding,
   BiCalendarExclamation,
   BiCheck,
+  BiCheckCircle,
   BiCreditCard,
   BiDoorOpen,
   BiErrorCircle,
@@ -23,13 +23,13 @@ import {
   BiUserPlus,
   BiWallet,
   BiWrench,
+  BiXCircle,
 } from 'react-icons/bi';
 import { Link } from 'react-router-dom';
 import MoneyText from '../../components/MoneyText';
 import { useAuth } from '../../context/AuthContext';
-import { TERMINATION_STATUS, TERMINATION_TYPE } from '../../constants/enums';
+import { TERMINATION_TYPE } from '../../constants/enums';
 import { formatDateTime } from '../../utils/format';
-import dashboardApi from './dashboard.api';
 import TaskRow from './components/TaskRow';
 
 const ManagerDashboard = ({ data }) => {
@@ -61,18 +61,30 @@ const ManagerDashboard = ({ data }) => {
   const collectionRate =
     totalExpectedMonth > 0 ? Math.round((monthlyRevenue / totalExpectedMonth) * 100) : 100;
 
-  // UC-28: đơn thỏa thuận đã gửi, đang chờ người đại diện xác nhận (quá 7 ngày tự xác nhận) – lỗi thì để null
-  const [pendingMutual, setPendingMutual] = useState(null);
-
-  useEffect(() => {
-    dashboardApi
-      .terminations({ type: TERMINATION_TYPE.MUTUAL, status: TERMINATION_STATUS.PENDING, page: 1, limit: 1 })
-      .then((response) => setPendingMutual(response.data.total))
-      .catch(() => setPendingMutual(null));
-  }, []);
+  // UC-28, UC-29: thống kê đơn chấm dứt theo loại (hai bên thỏa thuận / đơn phương gửi Admin) trong tòa phụ trách
+  const terminations = data?.terminations ?? {
+    total: 0,
+    mutual: { total: 0, pending: 0, confirmed: 0, cancelled: 0 },
+    unilateral: { total: 0, pending: 0, confirmed: 0, rejected: 0, cancelled: 0 },
+  };
+  const mutualStats = terminations.mutual ?? { total: 0, pending: 0, confirmed: 0, cancelled: 0 };
+  const unilateralStats = terminations.unilateral ?? {
+    total: 0,
+    pending: 0,
+    confirmed: 0,
+    rejected: 0,
+    cancelled: 0,
+  };
+  const pendingMutual = mutualStats.pending ?? 0;
+  const pendingUnilateral = unilateralStats.pending ?? 0;
 
   const totalTasks =
-    overdueCount + openIncidentsCount + expiringContracts + pendingRefundContracts + (pendingMutual ?? 0);
+    overdueCount +
+    openIncidentsCount +
+    expiringContracts +
+    pendingRefundContracts +
+    pendingMutual +
+    pendingUnilateral;
 
   const buildingName = data?.buildingOverview?.name || 'Tòa nhà phụ trách';
   const recentActivities = Array.isArray(data?.recentActivities) ? data.recentActivities : [];
@@ -333,6 +345,40 @@ const ManagerDashboard = ({ data }) => {
                   </span>
                 </Link>
               </div>
+
+              {/* 2 Ô thống kê đơn chấm dứt trong tòa (xem nhanh cả đơn thỏa thuận và đơn phương gửi Admin) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-slate-100">
+                <Link
+                  to={`/terminations?type=${TERMINATION_TYPE.MUTUAL}`}
+                  className="p-2.5 rounded-xl bg-amber-50/50 border border-amber-100 flex items-center justify-between gap-2 no-underline hover:bg-amber-50 transition-colors"
+                >
+                  <div className="min-w-0">
+                    <span className="text-[11px] text-slate-600 flex items-center gap-1 font-medium">
+                      <BiCheckCircle className="text-amber-600 shrink-0" size={14} /> Đơn thỏa thuận hai bên
+                    </span>
+                    <span className="text-[11px] text-slate-500 block mt-0.5 truncate">
+                      {mutualStats.pending} chờ khách · {mutualStats.confirmed} xác nhận · {mutualStats.cancelled} hủy
+                    </span>
+                  </div>
+                  <span className="text-sm fw-bold text-amber-700 shrink-0">{mutualStats.total} đơn</span>
+                </Link>
+
+                <Link
+                  to={`/terminations?type=${TERMINATION_TYPE.UNILATERAL}`}
+                  className="p-2.5 rounded-xl bg-rose-50/50 border border-rose-100 flex items-center justify-between gap-2 no-underline hover:bg-rose-50 transition-colors"
+                >
+                  <div className="min-w-0">
+                    <span className="text-[11px] text-slate-600 flex items-center gap-1 font-medium">
+                      <BiXCircle className="text-rose-600 shrink-0" size={14} /> Đơn phương (gửi Admin)
+                    </span>
+                    <span className="text-[11px] text-slate-500 block mt-0.5 truncate">
+                      {unilateralStats.pending} chờ duyệt · {unilateralStats.confirmed} đã duyệt ·{' '}
+                      {unilateralStats.rejected + unilateralStats.cancelled} từ chối/hủy
+                    </span>
+                  </div>
+                  <span className="text-sm fw-bold text-rose-700 shrink-0">{unilateralStats.total} đơn</span>
+                </Link>
+              </div>
             </Card.Body>
           </Card>
 
@@ -471,14 +517,27 @@ const ManagerDashboard = ({ data }) => {
                   iconClass="bg-slate-100 text-slate-700"
                   title="Đơn thỏa thuận chờ khách xác nhận"
                   description={
-                    pendingMutual === null
-                      ? 'Bấm để mở danh sách đơn chấm dứt'
-                      : pendingMutual > 0
-                        ? `${pendingMutual} đơn đang chờ người đại diện xác nhận điện tử`
-                        : 'Không có đơn nào đang chờ khách xác nhận'
+                    pendingMutual > 0
+                      ? `${pendingMutual} đơn đang chờ người đại diện xác nhận điện tử`
+                      : 'Không có đơn nào đang chờ khách xác nhận'
                   }
                   badge={pendingMutual > 0 && `${pendingMutual} đơn`}
                   badgeTone="gray"
+                />
+
+                {/* UC-29: đơn phương Manager đã gửi lên Admin, đang chờ Admin phê duyệt hoặc từ chối */}
+                <TaskRow
+                  to={`/terminations?type=${TERMINATION_TYPE.UNILATERAL}`}
+                  icon={BiXCircle}
+                  iconClass="bg-purple-50 text-purple-600"
+                  title="Đơn phương chờ Admin duyệt"
+                  description={
+                    pendingUnilateral > 0
+                      ? `${pendingUnilateral} đơn đã gửi lên Admin đang chờ phê duyệt`
+                      : 'Không có đơn phương nào đang chờ Admin duyệt'
+                  }
+                  badge={pendingUnilateral > 0 && `${pendingUnilateral} chờ duyệt`}
+                  badgeTone="plum"
                 />
 
                 <TaskRow
