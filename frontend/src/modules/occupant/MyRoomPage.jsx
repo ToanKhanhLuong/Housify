@@ -4,8 +4,8 @@
 // - Phải: tóm tắt hợp đồng (giá, thời hạn, còn bao nhiêu ngày), quản lý tòa (gọi điện), lối tắt
 // Dữ liệu: GET /me/room-members, rồi GET /contracts/:id (lỗi thì chỉ ẩn phần tóm tắt hợp đồng). Thêm / bớt người do Manager làm
 import { useCallback, useEffect, useState } from 'react';
-import { Card, Image } from 'react-bootstrap';
-import { BiBed, BiBuildings, BiChevronLeft, BiChevronRight, BiGroup, BiMap } from 'react-icons/bi';
+import { Button, Card, Col, Image, Modal, Row } from 'react-bootstrap';
+import { BiBed, BiBuildings, BiChevronLeft, BiChevronRight, BiExpandAlt, BiGroup, BiMap } from 'react-icons/bi';
 import EmptyState from '../../components/EmptyState';
 import ErrorState from '../../components/ErrorState';
 import SkeletonRows from '../../components/SkeletonRows';
@@ -43,6 +43,7 @@ const MyRoomPage = () => {
   const [selected, setSelected] = useState(null); // thành viên đang xem
   const [editing, setEditing] = useState(null); // thành viên đang sửa
   const [coverIndex, setCoverIndex] = useState(0); // vị trí ảnh phòng đang xem trên slide
+  const [showPreview, setShowPreview] = useState(false); // mở modal xem phóng to ảnh phòng
 
   const loadMembers = useCallback(
     () =>
@@ -115,88 +116,137 @@ const MyRoomPage = () => {
   const safeCoverIndex = coverImages.length > 0 ? coverIndex % coverImages.length : 0;
   const cover = coverImages[safeCoverIndex];
   const hasMultipleCovers = coverImages.length > 1;
-  const handlePrevCover = () =>
+  const handlePrevCover = (event) => {
+    event?.stopPropagation();
     setCoverIndex((prev) => (prev - 1 + coverImages.length) % coverImages.length);
-  const handleNextCover = () =>
+  };
+  const handleNextCover = (event) => {
+    event?.stopPropagation();
     setCoverIndex((prev) => (prev + 1) % coverImages.length);
+  };
 
   return (
     <>
-      <div className="grid xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4 w-full">
+      <div className="grid xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-4 w-full">
         <div className="flex flex-col gap-4">
-          {/* phòng: ảnh bìa (carousel nếu có nhiều ảnh) + thông tin phòng */}
-          <Card className="overflow-hidden">
-            {cover ? (
-              <div className="relative h-64 w-full bg-body-tertiary">
-                <Image
-                  src={cover}
-                  alt={`Phòng ${room.roomNumber} - ảnh ${safeCoverIndex + 1}`}
-                  className="h-full w-full object-cover"
-                />
-                {hasMultipleCovers && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={handlePrevCover}
-                      aria-label="Ảnh phòng trước"
-                      className="absolute left-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-black/50 text-white border-0 hover:bg-black/70 transition-colors"
-                    >
-                      <BiChevronLeft size={22} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleNextCover}
-                      aria-label="Ảnh phòng tiếp theo"
-                      className="absolute right-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-black/50 text-white border-0 hover:bg-black/70 transition-colors"
-                    >
-                      <BiChevronRight size={22} />
-                    </button>
-                    <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-black/45 px-2.5 py-1">
-                      {coverImages.map((imgUrl, idx) => (
-                        <button
-                          key={`${imgUrl}-${idx}`}
-                          type="button"
-                          onClick={() => setCoverIndex(idx)}
-                          aria-label={`Xem ảnh ${idx + 1}`}
-                          className={`h-2 rounded-full border-0 transition-all ${
-                            idx === safeCoverIndex ? 'w-5 bg-white' : 'w-2 bg-white/55 hover:bg-white/80'
-                          }`}
+          {/* phòng: ảnh 4:3 bên trái (bấm mở xem phóng to) + thông tin phòng bên phải */}
+          <Card>
+            <Card.Body className="p-4">
+              <Row className="g-4 align-items-stretch">
+                <Col md={6}>
+                  {cover ? (
+                    <div className="flex flex-col gap-2">
+                      <div className="relative aspect-[4/3] w-full overflow-hidden rounded border bg-body-tertiary">
+                        <Image
+                          src={cover}
+                          alt={`Phòng ${room.roomNumber} - ảnh ${safeCoverIndex + 1}`}
+                          role="button"
+                          onClick={() => setShowPreview(true)}
+                          className="h-full w-full object-cover cursor-pointer transition-transform duration-200 hover:scale-105 motion-reduce:transition-none"
+                          title="Bấm để phóng to ảnh"
                         />
-                      ))}
+                        {hasMultipleCovers && (
+                          <>
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              onClick={handlePrevCover}
+                              aria-label="Ảnh phòng trước"
+                              className="position-absolute start-0 top-50 translate-middle-y ms-2 rounded-circle p-1 d-inline-flex align-items-center justify-content-center"
+                            >
+                              <BiChevronLeft size={20} />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              onClick={handleNextCover}
+                              aria-label="Ảnh phòng tiếp theo"
+                              className="position-absolute end-0 top-50 translate-middle-y me-2 rounded-circle p-1 d-inline-flex align-items-center justify-content-center"
+                            >
+                              <BiChevronRight size={20} />
+                            </Button>
+                          </>
+                        )}
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setShowPreview(true)}
+                          aria-label="Phóng to ảnh phòng"
+                          title="Phóng to ảnh"
+                          className="position-absolute bottom-0 end-0 m-2 d-inline-flex align-items-center gap-1"
+                        >
+                          <BiExpandAlt size={15} />
+                          <span className="tabular-nums">
+                            {safeCoverIndex + 1}/{coverImages.length}
+                          </span>
+                        </Button>
+                      </div>
+
+                      {hasMultipleCovers && (
+                        <div className="flex flex-wrap gap-2">
+                          {coverImages.map((imgUrl, idx) => (
+                            <Button
+                              key={`${imgUrl}-${idx}`}
+                              type="button"
+                              variant="secondary"
+                              onClick={() => setCoverIndex(idx)}
+                              aria-label={`Xem ảnh ${idx + 1}`}
+                              className={`p-0 w-16 h-12 overflow-hidden rounded ${
+                                idx === safeCoverIndex ? 'border-2 border-primary' : 'border opacity-75'
+                              }`}
+                            >
+                              <Image
+                                src={imgUrl}
+                                alt={`Phòng ${room.roomNumber} - thu nhỏ ${idx + 1}`}
+                                className="h-full w-full object-cover"
+                              />
+                            </Button>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <span className="absolute bottom-2.5 right-3 rounded bg-black/55 px-2 py-0.5 text-xs font-medium text-white tabular-nums">
-                      {safeCoverIndex + 1}/{coverImages.length}
+                  ) : (
+                    <div className="hf-cover aspect-[4/3] w-full rounded">
+                      <BiBed size={72} />
+                    </div>
+                  )}
+                </Col>
+
+                <Col md={6} className="flex flex-col justify-between gap-3">
+                  <div className="flex flex-col gap-2">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <h1 className="h2 fw-bold mb-0">Phòng {room.roomNumber}</h1>
+                      <StatusBadge map={ROOM_STATUS_LABEL} value={room.status} />
                     </span>
-                  </>
-                )}
-              </div>
-            ) : (
-              <div className="hf-cover h-56 rounded-none">
-                <BiBed size={88} />
-              </div>
-            )}
-            <Card.Body className="flex flex-wrap items-start justify-between gap-4 p-4">
-              <div className="flex flex-col gap-2">
-                <span className="flex flex-wrap items-center gap-3">
-                  <h1 className="display-6 fw-bold mb-0">Phòng {room.roomNumber}</h1>
-                  <StatusBadge map={ROOM_STATUS_LABEL} value={room.status} />
-                </span>
-                <span className="flex items-center gap-2 fs-6 text-secondary">
-                  <BiBuildings />
-                  {building?.name ? `${building.name} · ` : ''}Tầng {room.floorNumber}
-                  {roomTypeName ? ` · ${roomTypeName}` : ''}
-                </span>
-                {building?.address && (
-                  <span className="flex items-center gap-2 text-secondary">
-                    <BiMap />
-                    {building.address}
-                  </span>
-                )}
-              </div>
-              <div className="flex flex-col items-end gap-1">
-                <CapacityDots count={stayedCount} capacity={room.capacity} size="lg" />
-                <span className="text-secondary">người đang ở / sức chứa</span>
-              </div>
+                    <span className="flex items-center gap-2 fs-6 text-secondary">
+                      <BiBuildings />
+                      {building?.name ? `${building.name} · ` : ''}Tầng {room.floorNumber}
+                      {roomTypeName ? ` · ${roomTypeName}` : ''}
+                    </span>
+                    {building?.address && (
+                      <span className="flex items-center gap-2 text-secondary">
+                        <BiMap />
+                        {building.address}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col gap-2 border-top pt-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-secondary">Người đang ở / sức chứa</span>
+                      <CapacityDots count={stayedCount} capacity={room.capacity} size="lg" />
+                    </div>
+                    {cover && (
+                      <span className="small text-secondary">
+                        Bấm vào ảnh phòng để mở xem phóng to.
+                      </span>
+                    )}
+                  </div>
+                </Col>
+              </Row>
             </Card.Body>
           </Card>
 
@@ -244,6 +294,88 @@ const MyRoomPage = () => {
             loadMembers();
           }}
         />
+      )}
+      {cover && (
+        <Modal
+          show={showPreview}
+          onHide={() => setShowPreview(false)}
+          centered
+          size="xl"
+        >
+          <Modal.Header closeButton>
+            <Modal.Title className="h5">
+              Phòng {room.roomNumber} · Ảnh {safeCoverIndex + 1}/{coverImages.length}
+            </Modal.Title>
+          </Modal.Header>
+          <Modal.Body className="bg-body-tertiary p-3">
+            <div className="relative flex items-center justify-center min-h-80">
+              {hasMultipleCovers && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={handlePrevCover}
+                  aria-label="Ảnh phòng trước"
+                  className="position-absolute start-0 top-50 translate-middle-y ms-2 rounded-circle p-2 d-inline-flex align-items-center justify-content-center"
+                >
+                  <BiChevronLeft size={22} />
+                </Button>
+              )}
+              <Image
+                src={cover}
+                alt={`Phòng ${room.roomNumber} - ảnh ${safeCoverIndex + 1}`}
+                className="max-h-[70vh] w-auto max-w-full rounded object-contain"
+              />
+              {hasMultipleCovers && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={handleNextCover}
+                  aria-label="Ảnh phòng tiếp theo"
+                  className="position-absolute end-0 top-50 translate-middle-y me-2 rounded-circle p-2 d-inline-flex align-items-center justify-content-center"
+                >
+                  <BiChevronRight size={22} />
+                </Button>
+              )}
+            </div>
+            {hasMultipleCovers && (
+              <div className="flex flex-wrap justify-center gap-2 mt-3">
+                {coverImages.map((imgUrl, idx) => (
+                  <Button
+                    key={`modal-${imgUrl}-${idx}`}
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setCoverIndex(idx)}
+                    aria-label={`Chọn ảnh ${idx + 1}`}
+                    className={`p-0 w-16 h-12 overflow-hidden rounded ${
+                      idx === safeCoverIndex ? 'border-2 border-primary' : 'border opacity-75'
+                    }`}
+                  >
+                    <Image
+                      src={imgUrl}
+                      alt={`Phòng ${room.roomNumber} - thu nhỏ ${idx + 1}`}
+                      className="h-full w-full object-cover"
+                    />
+                  </Button>
+                ))}
+              </div>
+            )}
+          </Modal.Body>
+          <Modal.Footer className="justify-content-start">
+            <Button type="button" variant="primary" onClick={() => setShowPreview(false)}>
+              Đóng
+            </Button>
+            <Button
+              as="a"
+              href={cover}
+              target="_blank"
+              rel="noreferrer"
+              variant="secondary"
+              className="no-underline"
+            >
+              Mở ảnh gốc
+            </Button>
+          </Modal.Footer>
+        </Modal>
       )}
     </>
   );
