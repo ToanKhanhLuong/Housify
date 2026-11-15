@@ -387,6 +387,10 @@ const buildMonthlySeries = (now, monthsCount, contracts, occupants, paidInvoices
 };
 
 // Tổng hợp thông tin tòa đang chọn, danh sách phòng kèm ảnh, hoạt động gần đây và chuỗi thời gian linh hoạt
+// Hoạt động gần đây (tối đa 20 mục) gộp từ 3 nguồn:
+// - AuditLog (15): cư dân (thêm/sửa/rút), hợp đồng (sửa/gửi lại link), SePay chuyển thiếu/thừa, khóa/ngưng/mở TK, quản lý Manager
+// - Hợp đồng đã kích hoạt (10) và Sự cố phòng (10) mới nhất
+// - Phạm vi: Admin (không lọc tòa) xem toàn hệ thống gồm cả log cron; Manager chỉ xem theo tòa/người trong tòa phụ trách
 const loadDashboardExtras = async (scope, isFilteredByBuilding) => {
     const now = new Date();
     const buildingById = new Map(scope.buildings.map((building) => [String(building._id), building]));
