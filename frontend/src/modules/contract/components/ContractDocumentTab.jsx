@@ -36,17 +36,20 @@ const toDocument = (contract, rules, manager) => ({
 
 const ContractDocumentTab = ({ contract }) => {
   const { user } = useAuth();
-  const [rules, setRules] = useState('');
+  const embeddedRules = contract.room?.building?.rules;
+  const [fetchedRules, setFetchedRules] = useState('');
   const buildingId = contract.room?.building?._id;
 
-  // nội quy là mục 3 của hợp đồng; lỗi tải thì vẫn hiện văn bản ("chưa ban hành nội quy")
+  // nội quy là mục 3 của hợp đồng; ưu tiên nội quy đi kèm chi tiết hợp đồng, fallback gọi API khi thiếu
   useEffect(() => {
-    if (!buildingId) return;
+    if (!buildingId || embeddedRules !== undefined) return;
     contractApi
       .buildingRules(buildingId)
-      .then((response) => setRules(response.data?.rules ?? ''))
-      .catch(() => setRules(''));
-  }, [buildingId]);
+      .then((response) => setFetchedRules(response.data?.rules ?? ''))
+      .catch(() => setFetchedRules(''));
+  }, [buildingId, embeddedRules]);
+
+  const rules = embeddedRules ?? fetchedRules;
 
   // BE chưa trả manager (bản cũ) thì dùng cách cũ: Manager xem → chính mình, Customer xem → Manager của tòa
   const manager =

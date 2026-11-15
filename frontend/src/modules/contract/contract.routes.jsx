@@ -3,6 +3,7 @@ import { ROLE } from '../../constants/enums';
 import ContractListPage from './ContractListPage';
 import ContractCreatePage from './ContractCreatePage';
 import ContractDetailPage from './ContractDetailPage';
+import MyContractHistoryPage from './MyContractHistoryPage';
 import MyContractPage from './MyContractPage';
 
 const contractRoutes = [
@@ -11,6 +12,8 @@ const contractRoutes = [
   // Admin chỉ xem (mở từ chi tiết phòng), không có nút thao tác
   { path: '/contracts/:id', element: <ContractDetailPage />, roles: [ROLE.ADMIN, ROLE.MANAGER] },
   { path: '/my-contract', element: <MyContractPage />, roles: [ROLE.CUSTOMER] },
+  { path: '/my-contract/history', element: <MyContractHistoryPage />, roles: [ROLE.CUSTOMER] },
+  { path: '/my-contract/:id', element: <MyContractPage />, roles: [ROLE.CUSTOMER] },
 ];
 
 export default contractRoutes;

@@ -52,26 +52,39 @@ export const Term = ({ contract, now }) => {
 };
 
 // thẻ hợp đồng (chế độ Thẻ): phòng + trạng thái, người đại diện, giá thuê, thời hạn, loại + số người
-export const ContractCard = ({ contract, now }) => (
-  <Link to={`/contracts/${contract._id}`} className="hf-tcard no-underline gap-3">
-    <span className="flex items-start justify-between gap-2">
-      <span className="flex flex-col">
-        <span className="fs-5 fw-bold leading-tight">Phòng {contract.room?.roomNumber ?? '—'}</span>
-        <span className="small text-secondary">
-          {CONTRACT_TYPE_LABEL[contract.contractType]?.label ?? 'Hợp đồng'} · Tầng {contract.room?.floorNumber ?? '—'}
+export const ContractCard = ({ contract, now, basePath = '/contracts', showBuilding = false }) => {
+  const buildingPrefix =
+    showBuilding && contract.room?.buildingName ? `${contract.room.buildingName} · ` : '';
+  const footerText =
+    contract.status === CONTRACT_STATUS.ENDED
+      ? `${contract.totalOccupantCount ?? contract.occupantCount ?? 0} cư dân từng ở`
+      : contract.status === CONTRACT_STATUS.CANCELLED
+        ? 'Đã hủy trước khi kích hoạt'
+        : `${contract.occupantCount ?? 0} người đang ở`;
+
+  return (
+    <Link to={`${basePath}/${contract._id}`} className="hf-tcard no-underline gap-3">
+      <span className="flex items-start justify-between gap-2">
+        <span className="flex flex-col">
+          <span className="fs-5 fw-bold leading-tight">Phòng {contract.room?.roomNumber ?? '—'}</span>
+          <span className="small text-secondary">
+            {buildingPrefix}
+            {CONTRACT_TYPE_LABEL[contract.contractType]?.label ?? 'Hợp đồng'} · Tầng{' '}
+            {contract.room?.floorNumber ?? '—'}
+          </span>
         </span>
+        <StatusBadge map={CONTRACT_STATUS_LABEL} value={contract.status} />
       </span>
-      <StatusBadge map={CONTRACT_STATUS_LABEL} value={contract.status} />
-    </span>
-    <Representative contract={contract} />
-    <span className="fs-6 fw-bold">
-      <MoneyText value={contract.rentPrice} />
-      <span className="small fw-normal text-secondary"> / tháng</span>
-    </span>
-    <Term contract={contract} now={now} />
-    <span className="flex items-center gap-1 small text-secondary pt-2 border-top mt-auto">
-      <BiGroup />
-      {contract.occupantCount ?? 0} người đang ở
-    </span>
-  </Link>
-);
+      <Representative contract={contract} />
+      <span className="fs-6 fw-bold">
+        <MoneyText value={contract.rentPrice} />
+        <span className="small fw-normal text-secondary"> / tháng</span>
+      </span>
+      <Term contract={contract} now={now} />
+      <span className="flex items-center gap-1 small text-secondary pt-2 border-top mt-auto">
+        <BiGroup />
+        {footerText}
+      </span>
+    </Link>
+  );
+};

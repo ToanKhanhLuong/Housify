@@ -1,38 +1,80 @@
-// UC-25 (Customer): xem hợp đồng của mình – ưu tiên hợp đồng Đang hiệu lực, chưa có thì hợp đồng mới nhất
-// GET /contracts (BE chỉ trả hợp đồng Customer đại diện) → GET /contracts/:id để có phòng, tòa, cư dân. Chỉ xem
+// UC-25 (Customer): xem hợp đồng của mình – ưu tiên hợp đồng Đang hiệu lực, chưa có thì hợp đồng mới nhất; hỗ trợ /:id từ lịch sử
+// GET /contracts (BE trả hợp đồng ACTIVE / ENDED mà Customer đại diện) → GET /contracts/:id để có phòng, tòa, cư dân. Chỉ xem
 import { useCallback, useEffect, useState } from 'react';
-import { Card, Tab, Tabs } from 'react-bootstrap';
+import { Alert, Button, Card, Tab, Tabs } from 'react-bootstrap';
+import { BiHistory } from 'react-icons/bi';
+import { Link, useParams } from 'react-router-dom';
 import EmptyState from '../../components/EmptyState';
 import ErrorState from '../../components/ErrorState';
+import PageHeader from '../../components/PageHeader';
 import SkeletonRows from '../../components/SkeletonRows';
 import { CONTRACT_STATUS } from '../../constants/enums';
 import { useAutoRefresh } from '../../hooks/useAutoRefresh';
+import { formatDateTime } from '../../utils/format';
 import contractApi from './contract.api';
 import ContractPaper from './components/ContractPaper';
 import ContractDocumentTab from './components/ContractDocumentTab';
 import ContractTerminations from './components/ContractTerminations';
 
 const MyContractPage = () => {
+  const { id } = useParams();
   // loading → ok | empty | error
-  const [state, setState] = useState({ status: 'loading', contract: null, error: '' });
+  const [state, setState] = useState({
+    status: 'loading',
+    contract: null,
+    hasActive: true,
+    totalContracts: 0,
+    error: '',
+  });
 
   const loadContract = useCallback(
-    (silent = false) =>
-      contractApi
-        .list({ page: 1, limit: 10 })
+    (silent = false) => {
+      if (id) {
+        return contractApi
+          .detail(id)
+          .then((detail) =>
+            setState({
+              status: 'ok',
+              contract: detail.data,
+              hasActive: detail.data?.status === CONTRACT_STATUS.ACTIVE,
+              totalContracts: 0,
+              error: '',
+            }),
+          )
+          .catch((error) => {
+            if (silent) return;
+            setState({ status: 'error', contract: null, hasActive: true, totalContracts: 0, error: error.message });
+          });
+      }
+
+      return contractApi
+        .list({ page: 1, limit: 50 })
         .then((response) => {
           const items = response.data?.items ?? [];
-          const current = items.find((item) => item.status === CONTRACT_STATUS.ACTIVE) ?? items[0];
-          if (!current) return setState({ status: 'empty', contract: null, error: '' });
+          const totalContracts = response.data?.total ?? items.length;
+          const activeContract = items.find((item) => item.status === CONTRACT_STATUS.ACTIVE);
+          const current = activeContract ?? items[0];
+          if (!current) {
+            return setState({ status: 'empty', contract: null, hasActive: false, totalContracts: 0, error: '' });
+          }
           return contractApi
             .detail(current._id)
-            .then((detail) => setState({ status: 'ok', contract: detail.data, error: '' }));
+            .then((detail) =>
+              setState({
+                status: 'ok',
+                contract: detail.data,
+                hasActive: Boolean(activeContract),
+                totalContracts,
+                error: '',
+              }),
+            );
         })
         .catch((error) => {
           if (silent) return;
-          setState({ status: 'error', contract: null, error: error.message });
-        }),
-    [],
+          setState({ status: 'error', contract: null, hasActive: true, totalContracts: 0, error: error.message });
+        });
+    },
+    [id],
   );
 
   useEffect(() => {
@@ -42,7 +84,7 @@ const MyContractPage = () => {
   useAutoRefresh(() => loadContract(true), { enabled: state.status === 'ok' });
 
   const handleRetry = () => {
-    setState({ status: 'loading', contract: null, error: '' });
+    setState({ status: 'loading', contract: null, hasActive: true, totalContracts: 0, error: '' });
     loadContract();
   };
 
@@ -57,21 +99,68 @@ const MyContractPage = () => {
   }
   if (state.status === 'error') {
     return (
-      <ErrorState
-        message="Không tải được hợp đồng của bạn"
-        detail={state.error}
-        onRetry={handleRetry}
-      />
+      <div className="flex flex-col gap-3">
+        {id && (
+          <PageHeader
+            backTo="/my-contract/history"
+            breadcrumbs={[{ label: 'Hợp đồng của tôi', to: '/my-contract' }, { label: 'Lịch sử hợp đồng', to: '/my-contract/history' }, 'Chi tiết']}
+          />
+        )}
+        <ErrorState
+          message="Không tải được hợp đồng của bạn"
+          detail={state.error}
+          onRetry={handleRetry}
+        />
+      </div>
     );
   }
-  if (state.status === 'empty')
+  if (state.status === 'empty') {
     return <EmptyState message="Bạn chưa có hợp đồng thuê phòng nào." />;
+  }
+
+  const isEnded = state.contract.status === CONTRACT_STATUS.ENDED;
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="small text-secondary print:hidden">
-        Cần thêm người ở cùng hoặc sửa thông tin hợp đồng, vui lòng liên hệ Manager của tòa.
-      </div>
+      {id ? (
+        <PageHeader
+          backTo="/my-contract/history"
+          breadcrumbs={[
+            { label: 'Hợp đồng của tôi', to: '/my-contract' },
+            { label: 'Lịch sử hợp đồng', to: '/my-contract/history' },
+            `Phòng ${state.contract.room?.roomNumber ?? ''}`,
+          ]}
+        />
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
+          <span className="small text-secondary">
+            {isEnded
+              ? 'Hợp đồng đã kết thúc — bạn chỉ có thể xem lại thông tin và văn bản đã xác nhận.'
+              : 'Cần thêm người ở cùng hoặc sửa thông tin hợp đồng, vui lòng liên hệ Manager của tòa.'}
+          </span>
+          <Button
+            as={Link}
+            to="/my-contract/history"
+            variant="secondary"
+            className="flex items-center gap-1 no-underline"
+          >
+            <BiHistory />
+            Lịch sử hợp đồng ({state.totalContracts})
+          </Button>
+        </div>
+      )}
+
+      {isEnded && (
+        <Alert variant="info" className="mb-0 print:hidden">
+          {!id && !state.hasActive
+            ? 'Hiện tại bạn không có hợp đồng đang hiệu lực. Dưới đây là hợp đồng đã kết thúc gần nhất (chỉ xem).'
+            : 'Đây là hợp đồng đã kết thúc (chỉ xem). Bạn không thể chỉnh sửa hay gửi yêu cầu trên hợp đồng này.'}
+          {state.contract.depositRefundedAt && (
+            <> Tiền cọc đã được hoàn trả lúc {formatDateTime(state.contract.depositRefundedAt)}.</>
+          )}
+        </Alert>
+      )}
+
       {/* UC-28: đơn chấm dứt của hợp đồng – đơn hai bên đang chờ thì nổi bật nút "Xem và xác nhận" */}
       <ContractTerminations contractId={state.contract._id} isCustomer />
       <Tabs defaultActiveKey="info" className="mb-3 print:hidden" mountOnEnter>

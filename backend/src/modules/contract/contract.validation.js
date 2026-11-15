@@ -19,6 +19,7 @@ export const contractIdParamSchema = Joi.object({
 // Schema lọc danh sách hợp đồng (UC-25)
 export const listContractsSchema = Joi.object({
     status: commaSeparatedEnum(values(CONTRACT_STATUS), 'Trạng thái hợp đồng không hợp lệ'),
+    contractType: commaSeparatedEnum(values(CONTRACT_TYPE), 'Loại hợp đồng không hợp lệ'),
     roomId: Joi.string()
         .trim()
         .pattern(OBJECT_ID_REGEX)
@@ -26,6 +27,18 @@ export const listContractsSchema = Joi.object({
             'string.pattern.base': 'Mã phòng không hợp lệ',
         }),
     floor: commaSeparatedIntegers({ min: 1, message: 'Tầng không hợp lệ' }),
+    from: Joi.date()
+        .iso()
+        .messages({
+            'date.base': 'Ngày bắt đầu không hợp lệ',
+            'date.format': 'Ngày bắt đầu phải có định dạng YYYY-MM-DD',
+        }),
+    to: Joi.date()
+        .iso()
+        .messages({
+            'date.base': 'Ngày kết thúc không hợp lệ',
+            'date.format': 'Ngày kết thúc phải có định dạng YYYY-MM-DD',
+        }),
     q: Joi.string().trim().max(100).allow(''),
     page: Joi.number()
         .integer()

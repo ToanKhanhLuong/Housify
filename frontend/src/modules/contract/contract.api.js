@@ -3,7 +3,7 @@
 import api from '../../api/axios';
 
 const contractApi = {
-  // UC-25: Manager xem hợp đồng tòa mình, Customer xem của mình. ?status=DRAFT,ACTIVE&roomId=&page=&limit=
+  // UC-25: Manager xem hợp đồng tòa mình, Customer xem của mình. ?status=&contractType=&from=&to=&roomId=&page=&limit=
   list: (params) => api.get('/contracts', { params }),
 
   // UC-25: chi tiết kèm room (roomType, building), representative, occupants[]

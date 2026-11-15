@@ -454,21 +454,27 @@ export const resendInvite = async ({ managerId, contractId }) => {
     };
 };
 
+// Tách tham số CSV hoặc mảng thành danh sách chuỗi sạch
+const parseListParam = (value) => {
+    if (Array.isArray(value)) return value.filter(Boolean);
+    if (typeof value === 'string' && value.trim()) {
+        return value.split(',').map((item) => item.trim()).filter(Boolean);
+    }
+    return null;
+};
+
 /**
  * Xem danh sách hợp đồng (UC-25)
- * - Manager: danh sách hợp đồng thuộc tòa mình, lọc theo status và roomId, có phân trang
- * - Customer: xem hợp đồng hiện tại của chính mình
+ * - Manager: danh sách hợp đồng thuộc tòa mình, lọc theo status, contractType, ngày bắt đầu và roomId, có phân trang
+ * - Customer: xem hợp đồng đang hiệu lực và lịch sử hợp đồng cũ đã từng đại diện (chỉ xem)
  */
 export const getContracts = async ({ userId, roleId, query = {} }) => {
-    const { status, roomId, floor, q, page = 1, limit = 10 } = query;
+    const { status, contractType, roomId, floor, from, to, q, page = 1, limit = 10 } = query;
     const pageNum = Number(page) || 1;
     const limitNum = Number(limit) || 10;
 
-    const statusList = Array.isArray(status)
-        ? status
-        : typeof status === 'string' && status.trim()
-            ? status.split(',').map((s) => s.trim()).filter(Boolean)
-            : null;
+    const statusList = parseListParam(status);
+    const contractTypeList = parseListParam(contractType);
 
     const floorList = Array.isArray(floor)
         ? floor.map(Number).filter(Boolean)
@@ -565,12 +571,12 @@ export const getContracts = async ({ userId, roleId, query = {} }) => {
             filter.status = { $in: statusList };
         }
     } else if (roleId === ROLE.CUSTOMER) {
-        // Customer chỉ xem hợp đồng hiện tại của chính mình
+        // Customer xem hợp đồng đang hiệu lực và các hợp đồng cũ mà chính mình từng đứng đại diện (chỉ xem)
         const repOccupants = await Occupant.find({
             userId,
             isRepresentative: true,
         })
-            .select('contractId status')
+            .select('contractId')
             .lean();
 
         if (repOccupants.length === 0) {
@@ -580,11 +586,15 @@ export const getContracts = async ({ userId, roleId, query = {} }) => {
         const myContractIds = repOccupants.map((o) => o.contractId);
         filter._id = { $in: myContractIds };
 
+        const customerAllowedStatuses = [CONTRACT_STATUS.ACTIVE, CONTRACT_STATUS.ENDED];
         if (statusList && statusList.length > 0) {
-            filter.status = { $in: statusList };
+            const allowedRequested = statusList.filter((s) => customerAllowedStatuses.includes(s));
+            if (allowedRequested.length === 0) {
+                return { items: [], total: 0, page: pageNum, limit: limitNum, totalPages: 0 };
+            }
+            filter.status = { $in: allowedRequested };
         } else {
-            // Mặc định lấy hợp đồng đang hiệu lực (hợp đồng hiện tại của phòng mình)
-            filter.status = CONTRACT_STATUS.ACTIVE;
+            filter.status = { $in: customerAllowedStatuses };
         }
 
         if (roomId) {
@@ -594,13 +604,47 @@ export const getContracts = async ({ userId, roleId, query = {} }) => {
         if (q && q.trim()) {
             const keyword = q.trim();
             const searchRegex = new RegExp(escapeRegex(keyword), 'i');
+
+            const myContracts = await Contract.find({ _id: { $in: myContractIds } })
+                .select('roomId')
+                .lean();
+            const myRoomIds = [...new Set(myContracts.map((c) => c.roomId).filter(Boolean))];
+            const matchedBuildings = await Building.find({ name: searchRegex, isDeleted: false })
+                .select('_id')
+                .lean();
+            const matchedRooms = myRoomIds.length > 0
+                ? await Room.find({
+                    _id: { $in: myRoomIds },
+                    $or: [
+                        { roomNumber: searchRegex },
+                        ...(matchedBuildings.length > 0
+                            ? [{ buildingId: { $in: matchedBuildings.map((b) => b._id) } }]
+                            : []),
+                    ],
+                })
+                    .select('_id')
+                    .lean()
+                : [];
+            const matchedRoomIds = matchedRooms.map((r) => r._id);
+
             filter.$or = [
+                ...(matchedRoomIds.length > 0 ? [{ roomId: { $in: matchedRoomIds } }] : []),
                 { representativeEmail: searchRegex },
                 { representativeCccd: searchRegex },
             ];
         }
     } else {
         throw new AppError('Bạn không có quyền thực hiện thao tác này', 403);
+    }
+
+    // Bộ lọc chung cho tất cả vai trò: loại hợp đồng và khoảng ngày bắt đầu
+    if (contractTypeList && contractTypeList.length > 0) {
+        filter.contractType = { $in: contractTypeList };
+    }
+    if (from || to) {
+        filter.startDate = {};
+        if (from) filter.startDate.$gte = startOfVietnamDay(from);
+        if (to) filter.startDate.$lte = endOfVietnamDay(to);
     }
 
     const result = await paginate(Contract, filter, {
@@ -616,7 +660,7 @@ export const getContracts = async ({ userId, roleId, query = {} }) => {
         };
     }
 
-    // Bổ sung thông tin phòng, người đại diện và số lượng cư dân cho từng hợp đồng
+    // Bổ sung thông tin phòng, tòa nhà, người đại diện và số lượng cư dân cho từng hợp đồng
     const contractIds = result.items.map((c) => c._id);
     const roomIds = [...new Set(result.items.map((c) => String(c.roomId)))];
 
@@ -626,6 +670,12 @@ export const getContracts = async ({ userId, roleId, query = {} }) => {
             .select('_id contractId isRepresentative name cccd phone status')
             .lean(),
     ]);
+
+    const buildingIds = [...new Set(rooms.map((r) => String(r.buildingId)).filter(Boolean))];
+    const buildings = buildingIds.length > 0
+        ? await Building.find({ _id: { $in: buildingIds } }).select('_id name').lean()
+        : [];
+    const buildingMap = new Map(buildings.map((b) => [String(b._id), b]));
 
     const roomMap = new Map(rooms.map((r) => [String(r._id), r]));
     const occupantsByContract = new Map();
@@ -639,6 +689,7 @@ export const getContracts = async ({ userId, roleId, query = {} }) => {
 
     const enrichedItems = result.items.map((contract) => {
         const room = roomMap.get(String(contract.roomId)) || null;
+        const building = room ? buildingMap.get(String(room.buildingId)) : null;
         const contractOccupants = occupantsByContract.get(String(contract._id)) || [];
         const repOccupant = contractOccupants.find((o) => o.isRepresentative);
         const stayedCount = contractOccupants.filter((o) => o.status === OCCUPANT_STATUS.STAYED).length;
@@ -664,10 +715,12 @@ export const getContracts = async ({ userId, roleId, query = {} }) => {
                     roomNumber: room.roomNumber,
                     floorNumber: room.floorNumber,
                     status: room.status,
+                    buildingName: building?.name || '',
                 }
                 : null,
             representative,
             occupantCount: stayedCount,
+            totalOccupantCount: contractOccupants.length,
         };
     });
 
@@ -697,7 +750,8 @@ export const getContractById = async ({ userId, roleId, contractId }) => {
             throw new AppError('Bạn không có quyền thực hiện thao tác này', 403);
         }
     } else if (roleId === ROLE.CUSTOMER) {
-        const isMyContract = await Occupant.exists({
+        const isAllowedStatus = [CONTRACT_STATUS.ACTIVE, CONTRACT_STATUS.ENDED].includes(contract.status);
+        const isMyContract = isAllowedStatus && await Occupant.exists({
             contractId: contract._id,
             userId,
             isRepresentative: true,
@@ -750,7 +804,12 @@ export const getContractById = async ({ userId, roleId, contractId }) => {
                     ? { _id: roomType._id, name: roomType.name, capacity: roomType.capacity }
                     : null,
                 building: building
-                    ? { _id: building._id, name: building.name, address: building.address }
+                    ? {
+                        _id: building._id,
+                        name: building.name,
+                        address: building.address,
+                        rules: building.rules || '',
+                    }
                     : null,
             }
             : null,

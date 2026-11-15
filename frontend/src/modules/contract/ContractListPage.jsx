@@ -15,7 +15,7 @@ import Pager from '../../components/Pager';
 import SkeletonRows from '../../components/SkeletonRows';
 import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
-import { CONTRACT_STATUS } from '../../constants/enums';
+import { CONTRACT_STATUS, CONTRACT_TYPE } from '../../constants/enums';
 import { CONTRACT_STATUS_LABEL, CONTRACT_TYPE_LABEL } from '../../constants/statusLabels';
 import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import { useSavedState } from '../../utils/filter';
@@ -30,6 +30,8 @@ const VIEW_OPTIONS = [
   { id: 'table', icon: BiListUl, title: 'Dạng bảng' },
 ];
 
+const EMPTY_FILTERS = { status: [], contractType: [], floor: [], from: '', to: '' };
+
 const ContractListPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -39,7 +41,7 @@ const ContractListPage = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [query, setQuery] = useSavedState('contracts:query', '');
-  const [filters, setFilters] = useSavedState('contracts:filters', { status: [], floor: [] });
+  const [filters, setFilters] = useSavedState('contracts:filters', EMPTY_FILTERS);
   const [page, setPage] = useSavedState('contracts:page', 1);
   const [view, setView] = useSavedState('contracts:view', 'cards');
   const [reloadKey, setReloadKey] = useState(0);
@@ -73,6 +75,16 @@ const ContractListPage = () => {
           label: CONTRACT_STATUS_LABEL[status].label,
         })),
       },
+      {
+        id: 'contractType',
+        label: 'Loại hợp đồng',
+        type: 'checkbox',
+        beside: true,
+        options: Object.values(CONTRACT_TYPE).map((type) => ({
+          value: type,
+          label: CONTRACT_TYPE_LABEL[type].label,
+        })),
+      },
     ];
 
     if (totalFloors > 0) {
@@ -80,7 +92,6 @@ const ContractListPage = () => {
         id: 'floor',
         label: 'Tầng',
         type: 'checkbox',
-        beside: true,
         maxVisible: 5,
         options: Array.from({ length: totalFloors }, (_, index) => ({
           value: String(index + 1),
@@ -89,19 +100,36 @@ const ContractListPage = () => {
       });
     }
 
+    groups.push({
+      id: 'startDate',
+      label: 'Ngày bắt đầu',
+      type: 'dateRange',
+      minField: 'from',
+      maxField: 'to',
+    });
+
     return groups;
   }, [totalFloors]);
 
   const keyword = query.trim();
-  const statusParam = filters.status.join(',');
-  const floorParam = filters.floor.join(',');
+  const statusList = filters.status ?? [];
+  const contractTypeList = filters.contractType ?? [];
+  const floorList = filters.floor ?? [];
+  const statusParam = statusList.join(',');
+  const contractTypeParam = contractTypeList.join(',');
+  const floorParam = floorList.join(',');
+  const fromParam = filters.from || '';
+  const toParam = filters.to || '';
 
   // ignore: bỏ kết quả lần gọi cũ khi bộ lọc đã đổi tiếp
   useEffect(() => {
     let ignore = false;
     const params = { page, limit: LIMIT };
     if (statusParam) params.status = statusParam;
+    if (contractTypeParam) params.contractType = contractTypeParam;
     if (floorParam) params.floor = floorParam;
+    if (fromParam) params.from = fromParam;
+    if (toParam) params.to = toParam;
     if (keyword) params.q = keyword;
     contractApi
       .list(params)
@@ -119,17 +147,20 @@ const ContractListPage = () => {
     return () => {
       ignore = true;
     };
-  }, [page, statusParam, floorParam, keyword, reloadKey]);
+  }, [page, statusParam, contractTypeParam, floorParam, fromParam, toParam, keyword, reloadKey]);
 
   const silentRefresh = useCallback(() => {
     const params = { page, limit: LIMIT };
     if (statusParam) params.status = statusParam;
+    if (contractTypeParam) params.contractType = contractTypeParam;
     if (floorParam) params.floor = floorParam;
+    if (fromParam) params.from = fromParam;
+    if (toParam) params.to = toParam;
     if (keyword) params.q = keyword;
     return contractApi.list(params).then((response) => {
       if (response.data) setData(response.data);
     });
-  }, [page, statusParam, floorParam, keyword]);
+  }, [page, statusParam, contractTypeParam, floorParam, fromParam, toParam, keyword]);
 
   useAutoRefresh(silentRefresh, { enabled: !loading && !loadError });
 
@@ -141,7 +172,10 @@ const ContractListPage = () => {
   const handleFilterChange = (next) => {
     setFilters({
       status: next.status ?? [],
+      contractType: next.contractType ?? [],
       floor: next.floor ?? [],
+      from: next.from ?? '',
+      to: next.to ?? '',
     });
     setPage(1);
     setRefreshing(true);
@@ -152,7 +186,7 @@ const ContractListPage = () => {
   };
   const handleResetFilters = () => {
     setQuery('');
-    setFilters({ status: [], floor: [] });
+    setFilters(EMPTY_FILTERS);
     setPage(1);
     setRefreshing(true);
   };
@@ -161,7 +195,9 @@ const ContractListPage = () => {
     setReloadKey((key) => key + 1);
   };
 
-  const isFiltering = Boolean(keyword || filters.status.length || filters.floor.length);
+  const isFiltering = Boolean(
+    keyword || statusList.length || contractTypeList.length || floorList.length || fromParam || toParam,
+  );
   const items = data.items;
   const total = data.total;
 
