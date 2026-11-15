@@ -1,10 +1,48 @@
 // Component Trợ lý AI Housify - Tối giản, thanh lịch chuẩn mẫu VKho / Odoo Plum (#714b67)
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { BiRefresh, BiSend, BiX } from 'react-icons/bi';
 import { BsStars } from 'react-icons/bs';
 import { ROLE } from '../../../constants/enums';
 import { useAuth } from '../../../context/AuthContext';
 import geminiApi from '../gemini.api';
+
+const FAB_SIZE = 56; // w-14 h-14
+const EDGE_MARGIN = 12;
+const DEFAULT_MARGIN = 24;
+const PANEL_GAP = 14;
+const PANEL_MAX_WIDTH = 380;
+const PANEL_MAX_HEIGHT = 540;
+const DRAG_THRESHOLD = 5;
+const STORAGE_KEY = 'housify:ai-widget-pos';
+
+const getViewport = () =>
+  typeof window === 'undefined'
+    ? { width: 1280, height: 720 }
+    : { width: window.innerWidth, height: window.innerHeight };
+
+const clampPosition = (pos, viewport) => ({
+  x: Math.min(Math.max(EDGE_MARGIN, pos.x), Math.max(EDGE_MARGIN, viewport.width - FAB_SIZE - EDGE_MARGIN)),
+  y: Math.min(Math.max(EDGE_MARGIN, pos.y), Math.max(EDGE_MARGIN, viewport.height - FAB_SIZE - EDGE_MARGIN)),
+});
+
+const getInitialPosition = (viewport) => {
+  const fallback = {
+    x: viewport.width - FAB_SIZE - DEFAULT_MARGIN,
+    y: viewport.height - FAB_SIZE - DEFAULT_MARGIN,
+  };
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return clampPosition(fallback, viewport);
+    const parsed = JSON.parse(raw);
+    if (Number.isFinite(parsed?.x) && Number.isFinite(parsed?.y)) {
+      return clampPosition({ x: parsed.x, y: parsed.y }, viewport);
+    }
+  } catch {
+    // bỏ qua nếu localStorage bị chặn hoặc lỗi JSON
+  }
+  return clampPosition(fallback, viewport);
+};
 
 const ROLE_CONFIGS = {
   [ROLE.CUSTOMER]: {
@@ -129,9 +167,122 @@ const HousifyAiWidget = () => {
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState([]); // Khởi tạo rỗng để hiển thị màn hình gợi ý VKho
+  const [viewport, setViewport] = useState(getViewport);
+  const [position, setPosition] = useState(() => getInitialPosition(getViewport()));
+  const [isDragging, setIsDragging] = useState(false);
   const messagesEndRef = useRef(null);
+  const dragRef = useRef(null);
+  const suppressClickRef = useRef(false);
 
   const roleConfig = ROLE_CONFIGS[user?.role] || ROLE_CONFIGS[ROLE.CUSTOMER];
+
+  // Giữ nút luôn nằm gọn trong màn hình khi co giãn cửa sổ
+  useEffect(() => {
+    const handleResize = () => {
+      const nextViewport = getViewport();
+      setViewport(nextViewport);
+      setPosition((prev) => clampPosition(prev, nextViewport));
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const persistPosition = useCallback((pos) => {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(pos));
+    } catch {
+      // bỏ qua nếu trình duyệt chặn localStorage
+    }
+  }, []);
+
+  const handleFabPointerDown = (event) => {
+    // Chỉ kéo bằng chuột trái hoặc cảm ứng / bút
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    suppressClickRef.current = false;
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: position.x,
+      originY: position.y,
+      moved: false,
+    };
+
+    const handlePointerMove = (moveEvent) => {
+      const drag = dragRef.current;
+      if (!drag || moveEvent.pointerId !== drag.pointerId) return;
+      const dx = moveEvent.clientX - drag.startX;
+      const dy = moveEvent.clientY - drag.startY;
+      if (!drag.moved && Math.hypot(dx, dy) >= DRAG_THRESHOLD) {
+        drag.moved = true;
+        setIsDragging(true);
+      }
+      if (drag.moved) {
+        const nextPos = clampPosition(
+          { x: drag.originX + dx, y: drag.originY + dy },
+          getViewport(),
+        );
+        setPosition(nextPos);
+      }
+    };
+
+    const stopDragging = (endEvent) => {
+      const drag = dragRef.current;
+      if (!drag || endEvent.pointerId !== drag.pointerId) return;
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', stopDragging);
+      window.removeEventListener('pointercancel', stopDragging);
+
+      if (drag.moved) {
+        suppressClickRef.current = true;
+        const finalPos = clampPosition(
+          {
+            x: drag.originX + (endEvent.clientX - drag.startX),
+            y: drag.originY + (endEvent.clientY - drag.startY),
+          },
+          getViewport(),
+        );
+        setPosition(finalPos);
+        persistPosition(finalPos);
+      }
+      dragRef.current = null;
+      setIsDragging(false);
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', stopDragging);
+    window.addEventListener('pointercancel', stopDragging);
+  };
+
+  const handleFabClick = () => {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return;
+    }
+    setIsOpen((prev) => !prev);
+  };
+
+  // Tính vị trí khung chat bám theo nút FAB để không bị tràn ra ngoài màn hình
+  const panelWidth = Math.min(PANEL_MAX_WIDTH, Math.max(260, viewport.width - EDGE_MARGIN * 2));
+  const preferRightAlign = position.x + FAB_SIZE / 2 >= viewport.width / 2;
+  const rawPanelLeft = preferRightAlign ? position.x + FAB_SIZE - panelWidth : position.x;
+  const panelLeft = Math.min(
+    Math.max(EDGE_MARGIN, rawPanelLeft),
+    Math.max(EDGE_MARGIN, viewport.width - panelWidth - EDGE_MARGIN),
+  );
+  const spaceAbove = position.y - PANEL_GAP - EDGE_MARGIN;
+  const spaceBelow = viewport.height - (position.y + FAB_SIZE + PANEL_GAP) - EDGE_MARGIN;
+  const openAbove = spaceAbove >= 360 || spaceAbove >= spaceBelow;
+  const panelMaxHeight = Math.max(240, Math.min(PANEL_MAX_HEIGHT, openAbove ? spaceAbove : spaceBelow));
+  const panelStyle = {
+    left: `${panelLeft}px`,
+    width: `${panelWidth}px`,
+    maxHeight: `${panelMaxHeight}px`,
+    height: `${panelMaxHeight}px`,
+    ...(openAbove
+      ? { bottom: `${viewport.height - position.y + PANEL_GAP}px` }
+      : { top: `${position.y + FAB_SIZE + PANEL_GAP}px` }),
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -210,14 +361,23 @@ const HousifyAiWidget = () => {
 
   return (
     <>
-      {/* 1. NÚT TRÒN NỔI (FAB) GÓC DƯỚI PHẢI */}
-      <div className="fixed bottom-6 right-6 z-50 flex items-center justify-center print:hidden select-none">
+      {/* 1. NÚT TRÒN NỔI (FAB) CÓ THỂ KÉO DI CHUYỂN TỰ DO TRÊN MÀN HÌNH */}
+      <div
+        className="fixed z-50 flex items-center justify-center print:hidden select-none"
+        style={{ left: `${position.x}px`, top: `${position.y}px`, touchAction: 'none' }}
+      >
         <button
           type="button"
-          onClick={() => setIsOpen(!isOpen)}
-          className="w-14 h-14 rounded-full bg-[#714b67] hover:bg-[#5a3851] text-white flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none cursor-pointer shadow-lg"
-          style={{ border: '3px solid #ffffff', outline: 'none' }}
-          title="Trợ lý AI Housify"
+          onPointerDown={handleFabPointerDown}
+          onClick={handleFabClick}
+          className={`w-14 h-14 rounded-full bg-[#714b67] hover:bg-[#5a3851] text-white flex items-center justify-center focus:outline-none shadow-lg ${
+            isDragging
+              ? 'cursor-grabbing scale-105'
+              : 'cursor-grab transition-transform duration-200 hover:scale-105 active:scale-95'
+          }`}
+          style={{ border: '3px solid #ffffff', outline: 'none', touchAction: 'none' }}
+          title="Trợ lý AI Housify (kéo để di chuyển)"
+          aria-label="Trợ lý AI Housify"
         >
           {isOpen ? <BiX size={26} /> : <BsStars size={22} />}
         </button>
@@ -225,7 +385,10 @@ const HousifyAiWidget = () => {
 
       {/* 2. KHUNG CHAT TỐI GIẢN CHUẨN MẪU VKHO */}
       {isOpen && (
-        <div className="fixed bottom-24 right-6 w-[380px] max-w-[calc(100vw-32px)] h-[540px] max-h-[calc(100vh-120px)] bg-white rounded-2xl shadow-2xl border border-slate-200/90 z-50 flex flex-col overflow-hidden transition-all duration-200 print:hidden">
+        <div
+          className="fixed bg-white rounded-2xl shadow-2xl border border-slate-200/90 z-50 flex flex-col overflow-hidden transition-[opacity] duration-200 print:hidden"
+          style={panelStyle}
+        >
           {/* Header */}
           <div className="bg-white border-b border-slate-200/80 px-4 py-3 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
