@@ -3,7 +3,15 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { env } from '../../config/env.js';
-import { ROLE, USER_STATUS, TOKEN_STATUS, CONTRACT_STATUS, OCCUPANT_STATUS } from '../../constants/enums.js';
+import {
+    ROLE,
+    USER_STATUS,
+    TOKEN_STATUS,
+    CONTRACT_STATUS,
+    OCCUPANT_STATUS,
+    TERMINATION_TYPE,
+    TERMINATION_STATUS,
+} from '../../constants/enums.js';
 import { MSG } from '../../constants/messages.js';
 import { AppError } from '../../utils/AppError.js';
 import { sendMail } from '../../config/mail.js';
@@ -16,6 +24,45 @@ import Building from '../../models/Building.js';
 import Contract from '../../models/Contract.js';
 import Room from '../../models/Room.js';
 import OtpToken from '../../models/OtpToken.js';
+import TerminationRequest from '../../models/TerminationRequest.js';
+
+// Kiểm tra Customer còn hợp đồng ACTIVE hay đã có đơn chấm dứt đơn phương CONFIRMED (chặn sửa hồ sơ / đổi mật khẩu ở cửa sổ 0h-23h59)
+const getCustomerContractAccessState = async (userId) => {
+    const repOccupants = await Occupant.find({ userId, isRepresentative: true })
+        .select('contractId status')
+        .lean();
+
+    if (repOccupants.length === 0) {
+        return {
+            hasActiveContract: false,
+            hasConfirmedUnilateral: false,
+        };
+    }
+
+    const allContractIds = repOccupants.map((item) => item.contractId).filter(Boolean);
+    const stayedContractIds = repOccupants
+        .filter((item) => item.status === OCCUPANT_STATUS.STAYED)
+        .map((item) => item.contractId)
+        .filter(Boolean);
+
+    const [hasActiveContract, hasConfirmedUnilateral] = await Promise.all([
+        stayedContractIds.length > 0
+            ? Contract.exists({ _id: { $in: stayedContractIds }, status: CONTRACT_STATUS.ACTIVE })
+            : false,
+        allContractIds.length > 0
+            ? TerminationRequest.exists({
+                contractId: { $in: allContractIds },
+                type: TERMINATION_TYPE.UNILATERAL,
+                status: TERMINATION_STATUS.CONFIRMED,
+            })
+            : false,
+    ]);
+
+    return {
+        hasActiveContract: Boolean(hasActiveContract),
+        hasConfirmedUnilateral: Boolean(hasConfirmedUnilateral),
+    };
+};
 
 // Tòa Customer đang ở: người ở STAYED → hợp đồng ACTIVE → phòng → tòa (cùng chuỗi kiểm tra với GET /buildings/:id/rules)
 // Trả { _id, name, address, images, manager: { name, phone } | null } hoặc null khi chưa có phòng đang thuê
@@ -179,6 +226,16 @@ export const changePassword = async (userId, { currentPassword, newPassword }) =
         throw new AppError(MSG.NOT_FOUND('Tài khoản'), 404);
     }
 
+    if (user.roleId === ROLE.CUSTOMER) {
+        const { hasActiveContract, hasConfirmedUnilateral } = await getCustomerContractAccessState(user._id);
+        if (hasConfirmedUnilateral) {
+            throw new AppError('Tài khoản đã bị chấm dứt hợp đồng đơn phương do vi phạm, không thể đổi mật khẩu', 403);
+        }
+        if (!hasActiveContract) {
+            throw new AppError('Hợp đồng thuê phòng đã kết thúc, không thể đổi mật khẩu', 403);
+        }
+    }
+
     const isMatch = user.password ? await bcrypt.compare(currentPassword, user.password) : false;
     if (!isMatch) {
         throw new AppError('Mật khẩu hiện tại không đúng', 400);
@@ -197,11 +254,22 @@ export const changePassword = async (userId, { currentPassword, newPassword }) =
 // OTP chưa dùng: status trống (null hoặc không có field)
 const UNUSED_OTP = { $in: [null] };
 
+const canUserResetPassword = async (user) => {
+    if (!user || !user.password || user.status !== USER_STATUS.ACTIVE) {
+        return false;
+    }
+    if (user.roleId === ROLE.CUSTOMER) {
+        const { hasActiveContract, hasConfirmedUnilateral } = await getCustomerContractAccessState(user._id);
+        return hasActiveContract && !hasConfirmedUnilateral;
+    }
+    return true;
+};
+
 export const forgotPassword = async ({ email }) => {
     const user = await User.findOne({ email: email.trim().toLowerCase() }).select('+password');
 
-    // BR-008, BR-021: không lộ email có tồn tại hay không; Manager chưa kích hoạt / chưa có mật khẩu thì không gửi OTP
-    const canSend = user && user.password && !(user.roleId === ROLE.MANAGER && user.status === USER_STATUS.PENDING);
+    // BR-008, BR-021: không lộ email có tồn tại hay không; chỉ gửi OTP khi tài khoản đang hoạt động hợp lệ
+    const canSend = await canUserResetPassword(user);
     if (canSend) {
         // Gửi lại thì OTP cũ chưa dùng mất hiệu lực
         await OtpToken.updateMany({ userId: user._id, status: UNUSED_OTP }, { status: TOKEN_STATUS.EXPIRED });
@@ -227,8 +295,8 @@ export const forgotPassword = async ({ email }) => {
 };
 
 const findValidOtp = async (email, otp) => {
-    const user = await User.findOne({ email: email.trim().toLowerCase() });
-    if (!user) {
+    const user = await User.findOne({ email: email.trim().toLowerCase() }).select('+password');
+    if (!(await canUserResetPassword(user))) {
         throw new AppError('Mã OTP không đúng hoặc đã hết hạn', 400);
     }
 
@@ -281,7 +349,7 @@ const findProfile = async (user) => {
     return profile;
 };
 
-const buildProfile = (user, profile) => {
+const buildProfile = (user, profile, { canEdit = true, editDisabledReason = null } = {}) => {
     const data = {
         _id: user._id,
         email: user.email,
@@ -292,6 +360,8 @@ const buildProfile = (user, profile) => {
         address: profile.address || null,
         cccdFrontUrl: getSignedUrl(profile.cccdFrontImage),
         cccdBackUrl: getSignedUrl(profile.cccdBackImage),
+        canEdit,
+        editDisabledReason,
     };
 
     // Manager không dùng số CCCD nên không trả; Customer chỉ để xem
@@ -312,6 +382,18 @@ const findUser = async (userId) => {
 export const getProfile = async (userId) => {
     const user = await findUser(userId);
     const profile = await findProfile(user);
+
+    if (user.roleId === ROLE.CUSTOMER) {
+        const { hasActiveContract, hasConfirmedUnilateral } = await getCustomerContractAccessState(user._id);
+        const canEdit = hasActiveContract && !hasConfirmedUnilateral;
+        const editDisabledReason = hasConfirmedUnilateral
+            ? 'Hợp đồng đã chấm dứt đơn phương do vi phạm — hồ sơ đang ở chế độ chỉ xem.'
+            : !hasActiveContract
+                ? 'Hợp đồng thuê phòng đã kết thúc — hồ sơ đang ở chế độ chỉ xem.'
+                : null;
+        return buildProfile(user, profile, { canEdit, editDisabledReason });
+    }
+
     return buildProfile(user, profile);
 };
 
@@ -328,6 +410,16 @@ const isSameValue = (field, newValue, oldValue) => {
 export const updateProfile = async (userId, body) => {
     const user = await findUser(userId);
     const profile = await findProfile(user);
+
+    if (user.roleId === ROLE.CUSTOMER) {
+        const { hasActiveContract, hasConfirmedUnilateral } = await getCustomerContractAccessState(user._id);
+        if (hasConfirmedUnilateral) {
+            throw new AppError('Tài khoản đã bị chấm dứt hợp đồng đơn phương do vi phạm, không thể chỉnh sửa hồ sơ', 403);
+        }
+        if (!hasActiveContract) {
+            throw new AppError('Hợp đồng thuê phòng đã kết thúc, không thể chỉnh sửa hồ sơ', 403);
+        }
+    }
 
     // Giá trị gửi lên giống giá trị đang lưu thì coi như không đổi
     const changes = {};

@@ -1,6 +1,6 @@
 // UC-05: hồ sơ Customer (người đại diện). Họ tên, số CCCD chỉ xem (Manager sửa ở UC-31); email, SĐT, ngày sinh, địa chỉ, ảnh CCCD tự sửa
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Card } from 'react-bootstrap';
+import { Alert, Button, Card } from 'react-bootstrap';
 import { BiCake, BiEditAlt, BiEnvelope, BiIdCard, BiMap, BiPhone, BiUser } from 'react-icons/bi';
 import PageHeader from '../../../components/PageHeader';
 import FieldRow from '../../../components/FieldRow';
@@ -67,6 +67,8 @@ const CustomerProfile = () => {
   if (loadError || !profile)
     return <ErrorState message="Không tải được hồ sơ" detail={loadError} onRetry={handleRetry} />;
 
+  const canEdit = profile.canEdit !== false;
+
   return (
     // gom nội dung vào khung rộng tối đa ~1230px (88rem, chữ gốc 14px; màn 1920px còn trống ~200px mỗi bên) cho gọn trên màn hình rộng
     <div className="max-w-[88rem] mx-auto">
@@ -74,6 +76,12 @@ const CustomerProfile = () => {
         title="Hồ sơ cá nhân"
         subtitle="Quản lý thông tin cá nhân và hình ảnh giấy tờ của bạn."
       />
+
+      {!canEdit && profile.editDisabledReason && (
+        <Alert variant="warning" className="mb-3">
+          {profile.editDisabledReason}
+        </Alert>
+      )}
 
       {/* thẻ danh tính; nút Chỉnh sửa đặt bên phải theo thiết kế */}
       <Card className="mb-3">
@@ -90,14 +98,16 @@ const CustomerProfile = () => {
               <span className="small text-secondary">Người đại diện phòng</span>
             </div>
           </div>
-          <Button
-            variant="primary"
-            className="ms-auto flex items-center gap-2"
-            onClick={() => setEditing(true)}
-          >
-            <BiEditAlt />
-            Chỉnh sửa
-          </Button>
+          {canEdit && (
+            <Button
+              variant="primary"
+              className="ms-auto flex items-center gap-2"
+              onClick={() => setEditing(true)}
+            >
+              <BiEditAlt />
+              Chỉnh sửa
+            </Button>
+          )}
         </Card.Body>
       </Card>
 
@@ -130,7 +140,7 @@ const CustomerProfile = () => {
 
       <CccdImages frontUrl={profile.cccdFrontUrl} backUrl={profile.cccdBackUrl} />
 
-      {editing && (
+      {canEdit && editing && (
         <CustomerProfileModal
           profile={profile}
           onHide={() => setEditing(false)}

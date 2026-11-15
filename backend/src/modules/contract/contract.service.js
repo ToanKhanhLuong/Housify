@@ -1015,6 +1015,16 @@ export const renewContract = async ({ managerId, contractId, data = {} }) => {
         throw new AppError('Chỉ gia hạn được hợp đồng đang hiệu lực', 400);
     }
 
+    // Chặn gia hạn khi hợp đồng đang có đơn chấm dứt chờ xử lý hoặc đã xác nhận chưa tới ngày hiệu lực
+    const openTermination = await TerminationRequest.findOne({
+        contractId: contract._id,
+        status: { $in: [TERMINATION_STATUS.PENDING, TERMINATION_STATUS.CONFIRMED] },
+    }).lean();
+
+    if (openTermination) {
+        throw new AppError('Không thể gia hạn hợp đồng đang có đơn chấm dứt đang xử lý', 400);
+    }
+
     const months = data.months !== undefined ? Number(data.months) : 12;
     if (!Number.isInteger(months) || months <= 0) {
         throw new AppError('Số tháng gia hạn phải là số nguyên lớn hơn 0', 422);

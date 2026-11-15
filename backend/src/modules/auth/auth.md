@@ -131,7 +131,7 @@
 
 - Thông tin lấy từ bản ghi **người đại diện** của chính Customer trong danh sách cư dân.
 - Họ tên, số CCCD: **chỉ xem**. Cần sửa thì Manager sửa ở UC-31.
-- Email, số điện thoại, ngày sinh, địa chỉ, ảnh CCCD hai mặt: Customer **tự sửa**, sửa nhiều lần được.
+- Email, số điện thoại, ngày sinh, địa chỉ, ảnh CCCD hai mặt: Customer **tự sửa** khi đang có hợp đồng hiệu lực và không bị chấm dứt đơn phương, sửa nhiều lần được. Khi hợp đồng đã kết thúc hoặc bị chấm dứt đơn phương, hồ sơ chuyển sang chế độ chỉ xem.
 - Sửa hồ sơ không làm thay đổi hợp đồng: hợp đồng giữ nguyên CCCD, email lúc tạo.
 
 **Các trường hợp**

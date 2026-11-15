@@ -170,7 +170,7 @@ const ContractDetailPage = () => {
           Gửi lại lời mời
         </Button>
       )}
-      {isActive && (
+      {isActive && !hasOpenTermination && (
         <Button
           variant="primary"
           className="flex items-center gap-2"

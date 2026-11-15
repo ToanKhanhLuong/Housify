@@ -194,9 +194,8 @@ const MyRoomPage = () => {
                               variant="secondary"
                               onClick={() => setCoverIndex(idx)}
                               aria-label={`Xem ảnh ${idx + 1}`}
-                              className={`p-0 w-16 h-12 overflow-hidden rounded ${
-                                idx === safeCoverIndex ? 'border-2 border-primary' : 'border opacity-75'
-                              }`}
+                              className={`p-0 w-16 h-12 overflow-hidden rounded ${idx === safeCoverIndex ? 'border-2 border-primary' : 'border opacity-75'
+                                }`}
                             >
                               <Image
                                 src={imgUrl}
@@ -346,9 +345,8 @@ const MyRoomPage = () => {
                     variant="secondary"
                     onClick={() => setCoverIndex(idx)}
                     aria-label={`Chọn ảnh ${idx + 1}`}
-                    className={`p-0 w-16 h-12 overflow-hidden rounded ${
-                      idx === safeCoverIndex ? 'border-2 border-primary' : 'border opacity-75'
-                    }`}
+                    className={`p-0 w-16 h-12 overflow-hidden rounded ${idx === safeCoverIndex ? 'border-2 border-primary' : 'border opacity-75'
+                      }`}
                   >
                     <Image
                       src={imgUrl}

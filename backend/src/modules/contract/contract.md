@@ -120,6 +120,7 @@
 **Các trường hợp**
 
 - **Hợp đồng không ở trạng thái Đang hiệu lực (đang Nháp, Đã kết thúc hoặc Đã hủy):** từ chối, báo "Chỉ gia hạn được hợp đồng đang hiệu lực".
+- **Hợp đồng đang có đơn chấm dứt đang xử lý (Chờ xử lý hoặc Đã xác nhận chưa tới ngày hiệu lực):** từ chối, báo "Không thể gia hạn hợp đồng đang có đơn chấm dứt đang xử lý".
 - **Số tháng gia hạn không phải số nguyên lớn hơn 0:** từ chối, báo lỗi dữ liệu không hợp lệ.
 - **Hợp đồng không thuộc tòa nhà Manager quản lý:** từ chối, báo "Bạn không có quyền thực hiện thao tác này".
 - **Gửi email thông báo lỗi:** việc gia hạn vẫn được lưu thành công, hệ thống trả kèm cảnh báo gửi email thất bại.
