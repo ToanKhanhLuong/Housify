@@ -219,6 +219,7 @@ const loadScope = async (buildingId) => {
     };
 };
 
+// Đếm số lượng phòng theo từng trạng thái: tổng, trống, đang thuê, bảo trì
 const roomStats = (rooms) => ({
     total: rooms.length,
     available: rooms.filter((room) => room.status === ROOM_STATUS.AVAILABLE).length,
@@ -241,6 +242,7 @@ const sumRevenue = async (contractIds, start, end) => {
     return row?.total ?? 0;
 };
 
+// Đếm số sự cố đang mở (chờ tiếp nhận hoặc đang xử lý) trong phạm vi phòng
 const countOpenIncidents = (roomIds) =>
     Incident.countDocuments({ roomId: { $in: roomIds }, status: { $in: OPEN_INCIDENT_STATUSES } });
 
@@ -323,6 +325,7 @@ const buildDailySeries = (now, daysCount, contracts, occupants, paidInvoices, in
     return { totals, points };
 };
 
+// Tạo chuỗi dữ liệu thống kê theo từng tháng (3, 6, 12 tháng gần nhất) cho biểu đồ
 const buildMonthlySeries = (now, monthsCount, contracts, occupants, paidInvoices, incidents) => {
     const vietnamNow = new Date(now.getTime() + VIETNAM_OFFSET_MS);
     const currentYear = vietnamNow.getUTCFullYear();

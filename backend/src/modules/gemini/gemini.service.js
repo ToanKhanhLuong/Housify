@@ -47,12 +47,14 @@ const GEMINI_REQUEST_TIMEOUT_MS = 12000;
 const FULL_INVOICE_ITEMS_THRESHOLD = 80;
 const TERMINATION_AUTO_CONFIRM_DAYS = 7;
 
+// Định dạng ngày sang chuỗi YYYY-MM-DD để đưa vào ngữ cảnh JSON cho AI
 const formatDateIso = (d) => {
     if (!d) return null;
     const dateObj = d instanceof Date ? d : new Date(d);
     return Number.isNaN(dateObj.getTime()) ? String(d).slice(0, 10) : dateObj.toISOString().slice(0, 10);
 };
 
+// Định dạng ngày giờ sang chuỗi YYYY-MM-DD HH:mm
 const formatDateTimeIso = (d) => {
     if (!d) return null;
     const dateObj = d instanceof Date ? d : new Date(d);
@@ -65,6 +67,7 @@ const formatDateTimeIso = (d) => {
     return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
 };
 
+// Cộng thêm số ngày vào một mốc ngày và trả về YYYY-MM-DD (dùng tính hạn tự động xác nhận 7 ngày)
 const addDaysIso = (d, days) => {
     if (!d) return null;
     const dateObj = d instanceof Date ? new Date(d.getTime()) : new Date(d);
@@ -73,6 +76,7 @@ const addDaysIso = (d, days) => {
     return formatDateIso(dateObj);
 };
 
+// Tính số ngày chênh lệch giữa hai mốc thời gian
 const calcDaysDiffFloor = (later, earlier) => {
     if (!later || !earlier) return null;
     const t1 = new Date(later).getTime();
@@ -81,9 +85,7 @@ const calcDaysDiffFloor = (later, earlier) => {
     return Math.floor((t1 - t2) / (24 * 60 * 60 * 1000));
 };
 
-/**
- * Phân tích ý định câu hỏi để mở rộng chi tiết items hóa đơn khi dữ liệu lớn
- */
+// Phân tích câu hỏi và 4 tin nhắn gần nhất để biết người dùng có đang hỏi chi tiết dòng tiền hóa đơn hay kỳ tháng cụ thể nào không
 const parseInvoiceQueryIntent = (message = '', history = []) => {
     const combinedText = [message, ...history.slice(-4).map((h) => h?.text || '')]
         .join(' ')
@@ -306,6 +308,7 @@ const buildEntityMaps = ({
     };
 };
 
+// Chuẩn hóa thông tin người đại diện phòng (chỉ kèm SĐT và email khi vai trò được phép xem)
 const formatRepresentative = (rep, repUser, includeContact) => {
     if (!rep) return null;
     return {
@@ -320,6 +323,7 @@ const formatRepresentative = (rep, repUser, includeContact) => {
     };
 };
 
+// Gộp thông tin phòng với loại phòng, tòa nhà, số người đang ở và hợp đồng đang hiệu lực
 const formatRoomJoined = (room, maps, { includeBuilding = false, includeTenant = false } = {}) => {
     const rt = maps.roomTypeById.get(String(room.roomTypeId));
     const b = maps.buildingById.get(String(room.buildingId));
@@ -350,6 +354,7 @@ const formatRoomJoined = (room, maps, { includeBuilding = false, includeTenant =
     };
 };
 
+// Gộp thông tin hợp đồng với phòng, người đại diện, danh sách thành viên và điều kiện hoàn cọc
 const formatContractJoined = (contract, maps, now, { includeBuilding = false, includeContact = false } = {}) => {
     const cKey = String(contract._id);
     const room = maps.roomById.get(String(contract.roomId));
@@ -404,6 +409,7 @@ const formatContractJoined = (contract, maps, now, { includeBuilding = false, in
     };
 };
 
+// Gộp thông tin cư dân với phòng, trạng thái hợp đồng và trạng thái tài khoản
 const formatOccupantJoined = (occupant, maps, { includeBuilding = false, includeContact = false } = {}) => {
     const contract = maps.contractById.get(String(occupant.contractId));
     const room = contract ? maps.roomById.get(String(contract.roomId)) : null;
@@ -433,6 +439,7 @@ const formatOccupantJoined = (occupant, maps, { includeBuilding = false, include
     };
 };
 
+// Gộp thông tin hóa đơn với phòng, người đại diện, tình trạng quá hạn, số lần nhắc và giao dịch thanh toán
 const formatInvoiceJoined = (
     invoice,
     maps,
@@ -498,6 +505,7 @@ const formatInvoiceJoined = (
     };
 };
 
+// Gộp thông tin giao dịch thanh toán SePay với mã hóa đơn, phòng và đánh giá đúng hạn hay quá hạn
 const formatPaymentJoined = (payment, maps, { includeBuilding = false, includeContact = false } = {}) => {
     const invoice = maps.invoiceById.get(String(payment.invoiceId));
     const contract = invoice ? maps.contractById.get(String(invoice.contractId)) : null;
@@ -525,6 +533,7 @@ const formatPaymentJoined = (payment, maps, { includeBuilding = false, includeCo
     };
 };
 
+// Gộp thông tin đơn chấm dứt hợp đồng với phòng, người lập, người xử lý và số lần đã nhắc
 const formatTerminationJoined = (termination, maps, { includeBuilding = false, includeContact = false } = {}) => {
     const tKey = String(termination._id);
     const contract = maps.contractById.get(String(termination.contractId));
@@ -561,6 +570,7 @@ const formatTerminationJoined = (termination, maps, { includeBuilding = false, i
     };
 };
 
+// Gộp thông tin báo cáo sự cố với phòng, người báo và người xử lý
 const formatIncidentJoined = (incident, maps, { includeBuilding = false } = {}) => {
     const contract = maps.contractById.get(String(incident.contractId));
     const room = maps.roomById.get(String(incident.roomId));
@@ -583,6 +593,7 @@ const formatIncidentJoined = (incident, maps, { includeBuilding = false } = {}) 
     };
 };
 
+// Chỉ đính kèm mảng chi tiết dòng tiền (items) khi tổng số hóa đơn nhỏ hoặc đúng kỳ người dùng đang hỏi để tiết kiệm token
 const shouldAttachInvoiceItems = ({ invoice, totalInvoices, defaultPeriod, recentPeriods, intent }) => {
     if (totalInvoices <= FULL_INVOICE_ITEMS_THRESHOLD) return true;
     if (invoice.month === defaultPeriod) return true;
@@ -1563,10 +1574,9 @@ const buildAdminContext = async (user, currentScreen, intent) => {
     });
 };
 
-/**
- * Gọi Gemini API với danh sách model dự phòng + giới hạn thời gian chờ mỗi model
- */
+// Gọi REST API Gemini theo danh sách model ưu tiên, có timeout 12 giây mỗi model và tự chuyển sang model dự phòng nếu lỗi
 const executeGeminiWithFallback = async ({ systemInstruction, contents }) => {
+    // Chưa cấu hình key trong .env thì trả câu thông báo hướng dẫn thay vì làm sập request
     if (!env.GEMINI_API_KEY) {
         return {
             reply: 'Hệ thống AI hiện chưa được cấu hình `GEMINI_API_KEY` trong file cấu hình `.env` của máy chủ. Vui lòng thêm API Key để kích hoạt tính năng hỗ trợ thông minh.',
@@ -1576,6 +1586,7 @@ const executeGeminiWithFallback = async ({ systemInstruction, contents }) => {
 
     let lastError = null;
 
+    // Duyệt lần lượt từng model trong danh sách cho tới khi có model trả lời thành công
     for (const model of GEMINI_MODELS) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), GEMINI_REQUEST_TIMEOUT_MS);
@@ -1583,6 +1594,7 @@ const executeGeminiWithFallback = async ({ systemInstruction, contents }) => {
         try {
             const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`;
 
+            // Đặt temperature thấp (0.2) để AI bám sát dữ liệu JSON, hạn chế suy diễn
             const generationConfig = {
                 temperature: 0.2,
                 topP: 0.95,
@@ -1641,9 +1653,7 @@ const executeGeminiWithFallback = async ({ systemInstruction, contents }) => {
     );
 };
 
-/**
- * Xử lý yêu cầu trò chuyện AI
- */
+// Hàm chính xử lý chat: kiểm tra role người dùng, truy vấn dữ liệu chỉ đọc theo đúng phạm vi quyền rồi gửi kèm lịch sử hội thoại lên Gemini
 export const chatWithGemini = async ({ user, message, history = [], currentScreen = null }) => {
     let systemInstruction = '';
     const userRole = Number(user?.role !== undefined ? user.role : user?.roleId);

@@ -21,9 +21,7 @@ import {
 } from "../../constants/enums.js";
 
 
-/**
- * Helper: Tính trạng thái thanh toán "Đúng hạn" hoặc "Quá hạn X ngày" (BR-101)
- */
+// Tính nhãn thời điểm thanh toán đúng hạn hoặc quá hạn bao nhiêu ngày (BR-101)
 const calculateOverdueLabel = (paidAt, dueDate) => {
   if (!dueDate) return "Đúng hạn";
   const paidTime = new Date(paidAt).getTime();
@@ -37,10 +35,7 @@ const calculateOverdueLabel = (paidAt, dueDate) => {
   return `Quá hạn ${days} ngày`;
 };
 
-/**
- * Helper: Đọc thời gian giao dịch SePay. SePay gửi "YYYY-MM-DD HH:mm:ss" theo giờ Việt Nam, không kèm múi giờ,
- * nên phải gắn +07:00 để máy chủ chạy giờ UTC không đọc lệch 7 tiếng. Chuỗi có múi giờ thì đọc nguyên
- */
+// Chuyển chuỗi thời gian của SePay sang Date có gắn múi giờ +07:00 để không bị lệch giờ trên server UTC
 const parseSepayDate = (value) => {
   if (!value) return new Date();
   const text = String(value).trim();
@@ -50,10 +45,7 @@ const parseSepayDate = (value) => {
   return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
 };
 
-/**
- * UC-38 & UC-42: Xử lý Webhook SePay báo tiền về
- * SePay gọi vào endpoint: POST /api/webhooks/sepay
- */
+// Xử lý webhook từ SePay khi có biến động số dư ngân hàng (UC-38, UC-42)
 export const processSepayWebhook = async (payload) => {
   const sepayTxnId = String(payload.id);
   const transferContent = payload.content || "";
@@ -355,10 +347,7 @@ export const processSepayWebhook = async (payload) => {
   };
 };
 
-/**
- * UC-39: Xem lịch sử thanh toán
- * GET /api/payments?from=&to=&page=&limit=
- */
+// Lấy danh sách lịch sử thanh toán theo phạm vi quyền của Manager hoặc Customer (UC-39)
 export const getPayments = async (query, user) => {
   const { from, to, roomId, page = 1, limit = 10 } = query;
   const userRole = user.role ?? user.roleId;
@@ -555,11 +544,9 @@ export const getPayments = async (query, user) => {
   };
 };
 
-/**
- * UC-39: Xem chi tiết 1 biên lai thanh toán
- * GET /api/payments/:id
- */
+// Lấy chi tiết một biên lai thanh toán kèm thông tin hóa đơn, phòng, tòa nhà và người đại diện (UC-39)
 export const getPaymentById = async (id, user) => {
+  // Truy vấn giao dịch và populate ngược lên hóa đơn, hợp đồng, phòng, tòa nhà
   const payment = await Payment.findById(id).populate({
     path: "invoiceId",
     select: "invoiceCode month totalAmount dueDate sentAt createdAt status items contractId",
@@ -586,6 +573,7 @@ export const getPaymentById = async (id, user) => {
   const room = contract?.roomId;
   const building = room?.buildingId;
 
+  // Kiểm tra quyền xem: Manager chỉ xem biên lai thuộc tòa mình, Customer chỉ xem biên lai thuộc hợp đồng của mình
   const userRole = user.role ?? user.roleId;
   if (userRole === ROLE.MANAGER) {
     const managerBuilding = await Building.findOne({
@@ -606,6 +594,7 @@ export const getPaymentById = async (id, user) => {
     }
   }
 
+  // Lấy thêm tên, SĐT người đại diện và Manager phụ trách tòa để hiển thị trên biên lai
   const rep = contract?._id
     ? await Occupant.findOne({ contractId: contract._id, isRepresentative: true }).select("name phone cccd")
     : null;
@@ -617,6 +606,7 @@ export const getPaymentById = async (id, user) => {
     ? await Manager.findOne({ userId: building.managerId }).select("name phone")
     : null;
 
+  // Xác định trạng thái khớp tiền (đủ, thiếu, thừa) và nhãn hiển thị tương ứng
   const isUnderpaid = inv && Number(payment.amount) < Number(inv.totalAmount);
   const isOverpaid = inv && Number(payment.amount) > Number(inv.totalAmount);
   const paymentStatus = isUnderpaid ? "UNDERPAID" : isOverpaid ? "OVERPAID" : "EXACT";
@@ -672,10 +662,7 @@ export const getPaymentById = async (id, user) => {
   };
 };
 
-/**
- * Route Dev: Giả lập SePay báo tiền về ở local
- * POST /api/dev/sepay-simulate
- */
+// Tạo payload giả lập và gọi lại trực tiếp hàm xử lý webhook để test ở môi trường dev
 export const simulateSepay = async (data) => {
   const { invoiceCode, amount } = data;
 

@@ -15,11 +15,13 @@ const PANEL_MAX_HEIGHT = 540;
 const DRAG_THRESHOLD = 5;
 const STORAGE_KEY = 'housify:ai-widget-pos';
 
+// Lấy kích thước khung nhìn trình duyệt hiện tại
 const getViewport = () =>
   typeof window === 'undefined'
     ? { width: 1280, height: 720 }
     : { width: window.innerWidth, height: window.innerHeight };
 
+// Giới hạn tọa độ nút không vượt ra ngoài mép màn hình
 const clampPosition = (pos, viewport) => ({
   x: Math.min(Math.max(EDGE_MARGIN, pos.x), Math.max(EDGE_MARGIN, viewport.width - FAB_SIZE - EDGE_MARGIN)),
   y: Math.min(Math.max(EDGE_MARGIN, pos.y), Math.max(EDGE_MARGIN, viewport.height - FAB_SIZE - EDGE_MARGIN)),
@@ -35,6 +37,7 @@ const snapToHorizontalEdge = (pos, viewport) => {
   };
 };
 
+// Đọc lại vị trí nút đã lưu trong localStorage hoặc đặt mặc định ở góc dưới bên phải
 const getInitialPosition = (viewport) => {
   const fallback = {
     x: viewport.width - FAB_SIZE - DEFAULT_MARGIN,
@@ -54,6 +57,7 @@ const getInitialPosition = (viewport) => {
   return snapToHorizontalEdge(fallback, viewport);
 };
 
+// Danh sách câu hỏi gợi ý nhanh theo từng vai trò người dùng
 const ROLE_CONFIGS = {
   [ROLE.CUSTOMER]: {
     promptPlaceholder: 'Hỏi tôi về hóa đơn, phòng, nội quy, sự cố...',
@@ -197,6 +201,7 @@ const HousifyAiWidget = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Lưu vị trí nút sau khi kéo thả vào localStorage
   const persistPosition = useCallback((pos) => {
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(pos));
@@ -205,6 +210,7 @@ const HousifyAiWidget = () => {
     }
   }, []);
 
+  // Xử lý kéo thả nút tròn trên màn hình và tự hít vào mép khi nhả chuột
   const handleFabPointerDown = (event) => {
     // Chỉ kéo bằng chuột trái hoặc cảm ứng / bút
     if (event.pointerType === 'mouse' && event.button !== 0) return;

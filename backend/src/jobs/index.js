@@ -11,6 +11,7 @@ const BETWEEN_JOBS_PAUSE_MS = 300;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Danh sách 5 job định kỳ của hệ thống ánh xạ theo tên
 export const JOB_RUNNERS = Object.freeze({
     terminationReminder: runTerminationReminder,
     terminationEffective: runTerminationEffective,
@@ -21,9 +22,7 @@ export const JOB_RUNNERS = Object.freeze({
 
 let isCatchUpRunning = false;
 
-/**
- * Chạy 1 job cụ thể theo tên (phục vụ POST /api/dev/jobs/:name/run và chạy quét bù lúc khởi động)
- */
+// Chạy ngay một job cụ thể theo tên (dùng cho API dev test và lúc quét bù khi khởi động)
 export const runJobByName = async (jobName) => {
     const runner = JOB_RUNNERS[jobName];
     if (!runner) {
@@ -41,10 +40,9 @@ export const runJobByName = async (jobName) => {
     };
 };
 
-/**
- * Chạy một lượt quét bù toàn bộ job khi server khởi động.
- * Có khóa chống chạy đè và nhả nhịp event loop giữa các job để không chặn HTTP request trên Render Free.
- */
+// Quét bù 5 job theo đúng thứ tự nghiệp vụ khi server khởi động lại:
+// 1. Nhắc hoặc tự xác nhận đơn chấm dứt sau 7 ngày -> 2. Kết thúc hợp đồng có đơn đến hạn hiệu lực ->
+// 3. Kết thúc hợp đồng hết hạn tự nhiên -> 4. Khóa hoặc ngưng hoạt động tài khoản sau 24h -> 5. Nhắc hóa đơn
 export const runStartupCatchUpJobs = async () => {
     if (isCatchUpRunning) {
         console.log('[Startup Catch-Up] Đang trong lượt quét bù, bỏ qua lần gọi trùng.');
@@ -79,6 +77,7 @@ export const runStartupCatchUpJobs = async () => {
     }
 };
 
+// Đăng ký lịch chạy cron hằng ngày cho cả 5 job và hẹn chạy quét bù sau khi server lên 5 giây
 export const startJobs = () => {
     registerContractExpiryJob();
     registerTerminationEffectiveJob();
