@@ -542,6 +542,12 @@ export const getTerminations = async ({ userId, roleId, query = {} }) => {
                 .lean();
             filter.contractId = { $in: repOccupants.map((o) => o.contractId) };
         }
+
+        // Customer không thấy đơn UNILATERAL nội bộ chưa được Admin duyệt (PENDING / REJECTED / CANCELLED)
+        filter.$or = [
+            { type: TERMINATION_TYPE.MUTUAL },
+            { type: TERMINATION_TYPE.UNILATERAL, status: TERMINATION_STATUS.CONFIRMED },
+        ];
     } else {
         throw new AppError('Bạn không có quyền thực hiện thao tác này', 403);
     }
@@ -663,7 +669,10 @@ export const getTerminationById = async ({ userId, roleId, terminationId }) => {
             userId,
             isRepresentative: true,
         });
-        if (!isMyContract) {
+        const isHiddenUnilateral =
+            termination.type === TERMINATION_TYPE.UNILATERAL &&
+            termination.status !== TERMINATION_STATUS.CONFIRMED;
+        if (!isMyContract || isHiddenUnilateral) {
             throw new AppError('Bạn không có quyền thực hiện thao tác này', 403);
         }
     } else if (roleId !== ROLE.ADMIN) {

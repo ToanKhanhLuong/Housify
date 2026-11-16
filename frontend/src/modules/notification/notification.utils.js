@@ -33,12 +33,14 @@ const LINKS = {
     },
     [TYPE.DEPOSIT_REFUNDED]: { [ROLE.CUSTOMER]: () => '/my-contract' },
     [TYPE.TERMINATION_REQUEST]: {
-        [ROLE.CUSTOMER]: () => '/my-contract',
+        [ROLE.CUSTOMER]: (id) => (id ? `/my-terminations/${id}` : '/my-contract'),
         [ROLE.ADMIN]: (id) => `/terminations/${id}`,
     },
-    [TYPE.TERMINATION_CONFIRMED]: { [ROLE.CUSTOMER]: () => '/my-contract' },
+    [TYPE.TERMINATION_CONFIRMED]: {
+        [ROLE.CUSTOMER]: (id) => (id ? `/my-terminations/${id}` : '/my-contract'),
+    },
     [TYPE.TERMINATION_CANCELLED]: {
-        [ROLE.CUSTOMER]: () => '/my-contract',
+        [ROLE.CUSTOMER]: (id) => (id ? `/my-terminations/${id}` : '/my-contract'),
         [ROLE.ADMIN]: (id) => `/terminations/${id}`,
     },
     [TYPE.MANAGER_ASSIGNED]: { [ROLE.MANAGER]: () => '/my-building' },

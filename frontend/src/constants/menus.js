@@ -1,6 +1,6 @@
 // Menu sidebar và trang chủ theo role. Path ở đây là CHUẨN: module khai báo route phải dùng đúng path này
 import {
-    BiBarChartAlt2, BiBook, BiBroadcast, BiBuildings, BiCategory, BiCreditCard, BiDoorOpen, BiErrorCircle,
+    BiBarChartAlt2, BiBell, BiBook, BiBroadcast, BiBuildings, BiCategory, BiCreditCard, BiDoorOpen, BiErrorCircle,
     BiFile, BiGridAlt, BiGroup, BiIdCard, BiPlug, BiReceipt, BiXCircle,
 } from 'react-icons/bi';
 import { ROLE, TERMINATION_TYPE } from './enums';
@@ -16,7 +16,9 @@ export const HOME_PATH = {
 // BR-023: Manager chưa được phân công tòa chỉ dùng được các trang này
 export const NO_BUILDING_PATHS = ['/profile', '/change-password', '/notifications'];
 
-// Thông báo (UC-41) không nằm trong menu: vào bằng chuông trên Header → "Xem tất cả" (/notifications)
+// Thông báo (UC-41): vừa có trên Sidebar cho cả 3 role, vừa có chuông xem nhanh trên Header (/notifications)
+const NOTIFICATION_MENU_ITEM = { label: 'Thông báo', path: '/notifications', icon: BiBell, disabled: false };
+
 // Menu con cho mục Đơn chấm dứt (dùng chung cho Admin và Manager; BE tự lọc theo phạm vi quyền)
 const TERMINATION_MENU_ITEM = {
     label: 'Đơn chấm dứt',
@@ -42,6 +44,7 @@ export const MENUS = {
         { label: 'Quản lý Manager', path: '/managers', icon: BiIdCard, disabled: false }, // UC-08→11
         TERMINATION_MENU_ITEM, // UC-28, 29
         { label: 'Báo cáo', path: '/reports', icon: BiBarChartAlt2, disabled: false }, // UC-48
+        NOTIFICATION_MENU_ITEM, // UC-41
     ],
     [ROLE.MANAGER]: [
         { label: 'Tổng quan', path: '/dashboard', icon: BiGridAlt, disabled: false }, // UC-47
@@ -54,6 +57,7 @@ export const MENUS = {
         { label: 'Sự cố', path: '/incidents', icon: BiErrorCircle, disabled: false }, // UC-44
         { label: 'Thông báo chung', path: '/announcements', icon: BiBroadcast, disabled: false }, // UC-40
         { label: 'Báo cáo', path: '/reports', icon: BiBarChartAlt2, disabled: false }, // UC-48
+        NOTIFICATION_MENU_ITEM, // UC-41
     ],
     [ROLE.CUSTOMER]: [
         { label: 'Hợp đồng của tôi', path: '/my-contract', icon: BiFile, disabled: false }, // UC-25
@@ -62,5 +66,6 @@ export const MENUS = {
         { label: 'Thanh toán', path: '/my-payments', icon: BiCreditCard, disabled: false }, // UC-39
         { label: 'Sự cố', path: '/my-incidents', icon: BiErrorCircle, disabled: false }, // UC-43
         { label: 'Nội quy', path: '/rules', icon: BiBook, disabled: false }, // UC-23
+        NOTIFICATION_MENU_ITEM, // UC-41
     ],
 };

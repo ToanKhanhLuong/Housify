@@ -9,7 +9,7 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { BiChevronDown, BiChevronRight, BiMenu } from 'react-icons/bi';
 import { useAuth } from '../context/AuthContext';
 import { ROLE } from '../constants/enums';
-import { MENUS } from '../constants/menus';
+import { MENUS, NO_BUILDING_PATHS } from '../constants/menus';
 import Brand from './Brand';
 
 // Xác định menu item có đang active không (kể cả các trang con không trùng tiền tố URL như /rooms/:id)
@@ -92,7 +92,7 @@ const Sidebar = ({ show, onHide, collapsed, onToggleCollapse }) => {
                 </div>
                 <Nav variant="pills" className="flex-column gap-1 p-2 overflow-x-hidden">
                     {items.map(({ label, path, icon: Icon, disabled, children }) => {
-                        const isOff = disabled || isManagerNoBuilding;
+                        const isOff = disabled || (isManagerNoBuilding && !NO_BUILDING_PATHS.includes(path));
 
                         if (isOff) {
                             return (

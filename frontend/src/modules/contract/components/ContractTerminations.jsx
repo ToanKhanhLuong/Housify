@@ -1,13 +1,13 @@
 // UC-28, 29: khung "Đơn chấm dứt" trong chi tiết hợp đồng (Manager) và Hợp đồng của tôi (Customer)
-// Lấy các đơn của hợp đồng (GET /terminations?contractId=), mới nhất trước; bấm một đơn → chi tiết đơn
-// Customer có đơn hai bên đang chờ → nổi bật nút "Xem và xác nhận" (thông báo của khách dẫn về trang này)
-// Không có đơn nào thì không hiện gì. Trang cha nhận onLoaded(items) để biết còn đơn đang xử lý (ẩn nút Chấm dứt)
+// - Manager: hiện mọi đơn của hợp đồng; mới nhất trước; bấm một đơn → chi tiết đơn
+// - Customer (Hợp đồng của tôi): chỉ hiện đơn ĐÃ XÁC NHẬN / ĐÃ DUYỆT (2 chiều hoặc đơn phương); đơn chờ xử lý xem qua Thông báo → /my-terminations/:id
+// Không có đơn nào thỏa điều kiện thì không hiện gì. Trang cha nhận onLoaded(items) để biết còn đơn đang xử lý (ẩn nút Chấm dứt)
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Button, Card } from 'react-bootstrap';
+import { Button, Card } from 'react-bootstrap';
 import { BiChevronRight, BiXCircle } from 'react-icons/bi';
 import { Link } from 'react-router-dom';
 import StatusBadge from '../../../components/StatusBadge';
-import { TERMINATION_STATUS, TERMINATION_TYPE } from '../../../constants/enums';
+import { TERMINATION_STATUS } from '../../../constants/enums';
 import { TERMINATION_STATUS_LABEL, TERMINATION_TYPE_LABEL } from '../../../constants/statusLabels';
 import { useAutoRefresh } from '../../../hooks/useAutoRefresh';
 import { formatDate } from '../../../utils/format';
@@ -16,16 +16,22 @@ import contractApi from '../contract.api';
 const ContractTerminations = ({ contractId, isCustomer = false, onLoaded }) => {
   const [items, setItems] = useState(null); // null = đang tải
 
+  const filterForViewer = useCallback(
+    (rawItems) => {
+      const sorted = [...rawItems].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      return isCustomer ? sorted.filter((item) => item.status === TERMINATION_STATUS.CONFIRMED) : sorted;
+    },
+    [isCustomer],
+  );
+
   const loadTerminations = useCallback(
     () =>
       contractApi.terminations(contractId).then((response) => {
-        const list = [...(response.data?.items ?? [])].sort(
-          (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
-        );
-        setItems(list);
-        onLoaded?.(list);
+        const rawList = response.data?.items ?? [];
+        setItems(filterForViewer(rawList));
+        onLoaded?.(rawList);
       }),
-    [contractId, onLoaded],
+    [contractId, filterForViewer, onLoaded],
   );
 
   useEffect(() => {
@@ -34,17 +40,15 @@ const ContractTerminations = ({ contractId, isCustomer = false, onLoaded }) => {
       .terminations(contractId)
       .then((response) => {
         if (ignore) return;
-        const list = [...(response.data?.items ?? [])].sort(
-          (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
-        );
-        setItems(list);
-        onLoaded?.(list);
+        const rawList = response.data?.items ?? [];
+        setItems(filterForViewer(rawList));
+        onLoaded?.(rawList);
       })
       .catch(() => !ignore && setItems([]));
     return () => {
       ignore = true;
     };
-  }, [contractId, onLoaded]);
+  }, [contractId, filterForViewer, onLoaded]);
 
   useAutoRefresh(loadTerminations, { enabled: Boolean(contractId) });
 
@@ -52,11 +56,6 @@ const ContractTerminations = ({ contractId, isCustomer = false, onLoaded }) => {
 
   const pathOf = (termination) =>
     isCustomer ? `/my-terminations/${termination._id}` : `/terminations/${termination._id}`;
-  const waitingForMe = isCustomer
-    ? items.find(
-        (item) => item.status === TERMINATION_STATUS.PENDING && item.type === TERMINATION_TYPE.MUTUAL,
-      )
-    : null;
 
   return (
     <Card className="print:hidden">
@@ -65,18 +64,6 @@ const ContractTerminations = ({ contractId, isCustomer = false, onLoaded }) => {
           <BiXCircle className="text-secondary" />
           Đơn chấm dứt hợp đồng
         </h2>
-
-        {waitingForMe && (
-          <Alert variant="warning" className="mb-0 flex flex-wrap items-center justify-between gap-2">
-            <span>
-              Quản lý tòa đã gửi đơn chấm dứt hợp đồng, hiệu lực từ{' '}
-              <b>{formatDate(waitingForMe.effectiveDate)}</b>. Vui lòng xem và xác nhận.
-            </span>
-            <Button as={Link} to={pathOf(waitingForMe)} variant="primary" size="sm" className="no-underline">
-              Xem và xác nhận
-            </Button>
-          </Alert>
-        )}
 
         <div className="flex flex-col gap-1">
           {items.map((termination) => (
