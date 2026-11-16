@@ -104,4 +104,8 @@ const invoiceSchema = new Schema(
     { timestamps: true },
 );
 
+invoiceSchema.index({ contractId: 1, status: 1 });
+invoiceSchema.index({ contractId: 1, month: -1 });
+invoiceSchema.index({ status: 1, dueDate: 1 });
+
 export default mongoose.model('Invoice', invoiceSchema, 'invoices');

@@ -77,4 +77,10 @@ const contractSchema = new Schema(
     { timestamps: true },
 );
 
+contractSchema.index({ roomId: 1, status: 1 });
+contractSchema.index({ status: 1, endDate: 1 });
+contractSchema.index({ status: 1, representativeEmail: 1 });
+contractSchema.index({ status: 1, representativeCccd: 1 });
+contractSchema.index({ createdAt: -1 });
+
 export default mongoose.model('Contract', contractSchema, 'contracts');

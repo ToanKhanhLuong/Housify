@@ -1,6 +1,6 @@
 // UC-41 bước 1: chuông trên Header. Số đỏ = số chưa đọc; bấm chuông xổ ra bảng 5 thông báo mới nhất (tab Tất cả / Chưa đọc)
 // Bấm 1 thông báo: đánh dấu đã đọc rồi mở trang liên quan; không có trang liên quan thì mở trang Thông báo, hiện sẵn nội dung
-// Số chưa đọc tải lại khi đổi trang, khi vừa đánh dấu đã đọc, và mỗi 30 giây; tab trình duyệt ẩn thì tạm dừng (theo docs/api.md)
+// Số chưa đọc tải lại khi đổi trang, khi vừa đánh dấu đã đọc, và định kỳ 10 giây; tab trình duyệt ẩn thì tạm dừng
 import { forwardRef, useCallback, useEffect, useRef, useState } from 'react';
 import { Badge, Button, Dropdown, Nav, Spinner } from 'react-bootstrap';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -22,7 +22,7 @@ import {
     isRecent,
 } from '../notification.utils';
 
-const REFRESH_MS = 5 * 1000;
+const REFRESH_MS = 10 * 1000;
 const LATEST_LIMIT = 5; // docs/api.md: dropdown dùng ?limit=5
 const TAB = { ALL: 'all', UNREAD: 'unread' };
 

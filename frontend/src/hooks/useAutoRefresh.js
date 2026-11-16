@@ -1,5 +1,5 @@
-// Hook tự động làm mới dữ liệu ngầm mỗi 5 giây (chỉ khi tab đang mở), khi quay lại tab,
-// hoặc ngay khi chuông báo có dữ liệu mới ('app:data-changed') — giúp các bên thấy thay đổi mà không cần F5
+// Hook tự động làm mới dữ liệu ngầm mỗi 60 giây (chỉ khi tab đang mở), khi quay lại tab,
+// hoặc ngay khi chuông báo có dữ liệu mới ('app:data-changed') — tránh spam API nặng khi đứng yên trên trang
 import { useEffect, useRef } from 'react';
 import { getToken } from '../utils/session';
 
@@ -9,7 +9,7 @@ export const emitDataChanged = () => {
   window.dispatchEvent(new Event(APP_DATA_CHANGED));
 };
 
-export const useAutoRefresh = (refreshFn, { intervalMs = 5000, enabled = true } = {}) => {
+export const useAutoRefresh = (refreshFn, { intervalMs = 60000, enabled = true } = {}) => {
   const savedCallback = useRef(refreshFn);
   const inFlight = useRef(false);
 

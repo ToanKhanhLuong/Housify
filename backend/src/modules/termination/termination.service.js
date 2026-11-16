@@ -42,18 +42,50 @@ const formatDateVn = (date) => {
     return `${day}/${month}/${year}`;
 };
 
+// Tra cứu hàng loạt tên hiển thị theo userId để tránh N+1 query khi liệt kê đơn
+const resolveUserDisplayNames = async (userIds = []) => {
+    const result = new Map();
+    const uniqueIds = [...new Set(userIds.filter(Boolean).map(String))];
+    if (uniqueIds.length === 0) return result;
+
+    const [occupants, managers, users] = await Promise.all([
+        Occupant.find({ userId: { $in: uniqueIds }, isRepresentative: true })
+            .sort({ createdAt: -1 })
+            .select('userId name')
+            .lean(),
+        Manager.find({ userId: { $in: uniqueIds } }).select('userId name').lean(),
+        User.find({ _id: { $in: uniqueIds } }).select('_id email roleId').lean(),
+    ]);
+
+    const userMap = new Map(users.map((u) => [String(u._id), u]));
+    const managerMap = new Map(managers.map((m) => [String(m.userId), m.name]));
+    const occupantMap = new Map();
+    for (const occ of occupants) {
+        const key = String(occ.userId);
+        if (occ.name && !occupantMap.has(key)) {
+            occupantMap.set(key, occ.name);
+        }
+    }
+
+    for (const id of uniqueIds) {
+        if (occupantMap.has(id)) {
+            result.set(id, occupantMap.get(id));
+        } else if (managerMap.has(id)) {
+            result.set(id, managerMap.get(id));
+        } else {
+            const user = userMap.get(id);
+            if (user?.roleId === ROLE.ADMIN) result.set(id, 'Admin');
+            else result.set(id, user?.email || 'Không xác định');
+        }
+    }
+
+    return result;
+};
+
 const resolveUserDisplayName = async (userId) => {
     if (!userId) return 'Hệ thống';
-    const occupant = await Occupant.findOne({ userId, isRepresentative: true })
-        .sort({ createdAt: -1 })
-        .select('name')
-        .lean();
-    if (occupant?.name) return occupant.name;
-    const manager = await Manager.findOne({ userId }).select('name').lean();
-    if (manager?.name) return manager.name;
-    const user = await User.findById(userId).select('email roleId').lean();
-    if (user?.roleId === ROLE.ADMIN) return 'Admin';
-    return user?.email || 'Không xác định';
+    const names = await resolveUserDisplayNames([userId]);
+    return names.get(String(userId)) || 'Không xác định';
 };
 
 /**
@@ -177,68 +209,105 @@ const sendReminderEmail = (to, roomNumber, buildingName, effectiveDate, mileston
 );
 
 /**
- * Xây dựng thông tin xác nhận điện tử cho đơn chấm dứt
+ * Xây dựng thông tin xác nhận điện tử hàng loạt cho danh sách đơn chấm dứt (gộp query theo trang)
  */
-const buildElectronicConfirmationInfo = async (termination) => {
-    if (termination.type !== TERMINATION_TYPE.MUTUAL || termination.status !== TERMINATION_STATUS.CONFIRMED) {
-        return {
+const buildElectronicConfirmationInfos = async (terminations = []) => {
+    const mutualConfirmed = terminations.filter(
+        (t) => t.type === TERMINATION_TYPE.MUTUAL && t.status === TERMINATION_STATUS.CONFIRMED,
+    );
+    if (mutualConfirmed.length === 0) {
+        return terminations.map(() => ({
             signatureValid: null,
             shortSignature: null,
             electronicConfirmation: null,
-        };
+        }));
     }
 
-    const reminderCount = await Notification.countDocuments({
-        type: NOTIFICATION_TYPE.TERMINATION_REQUEST,
-        refId: termination._id,
-        createdBy: { $in: [null] },
-    });
+    const mutualConfirmedIds = mutualConfirmed.map((t) => t._id);
+    const signerIds = mutualConfirmed
+        .filter((t) => !t.autoConfirmed && t.handledBy)
+        .map((t) => t.handledBy);
 
-    if (termination.autoConfirmed) {
-        return {
-            signatureValid: null,
-            shortSignature: null,
-            reminderCount,
-            electronicConfirmation: {
-                statusText: `Tự động xác nhận sau 7 ngày — đã nhắc ${reminderCount} lần`,
-                autoConfirmed: true,
-                reminderCount,
-                confirmedAt: termination.handledAt || null,
+    const [reminderRows, signerNameMap] = await Promise.all([
+        Notification.aggregate([
+            {
+                $match: {
+                    type: NOTIFICATION_TYPE.TERMINATION_REQUEST,
+                    refId: { $in: mutualConfirmedIds },
+                    createdBy: { $in: [null] },
+                },
             },
-        };
-    }
+            { $group: { _id: '$refId', count: { $sum: 1 } } },
+        ]),
+        resolveUserDisplayNames(signerIds),
+    ]);
 
-    const recomputedHash = computeTerminationHash({
-        contractId: termination.contractId,
-        type: termination.type,
-        reason: termination.reason,
-        effectiveDate: termination.effectiveDate,
-        note: termination.note,
-        handledBy: termination.handledBy,
-        handledAt: termination.handledAt,
-    });
+    const reminderCountMap = new Map(reminderRows.map((row) => [String(row._id), row.count]));
 
-    const isValid = Boolean(termination.signatureHash && recomputedHash === termination.signatureHash);
-    const shortSignature = termination.signatureHash
-        ? termination.signatureHash.slice(0, 12).toUpperCase()
-        : null;
-    const signedByName = await resolveUserDisplayName(termination.handledBy);
+    return terminations.map((termination) => {
+        if (termination.type !== TERMINATION_TYPE.MUTUAL || termination.status !== TERMINATION_STATUS.CONFIRMED) {
+            return {
+                signatureValid: null,
+                shortSignature: null,
+                electronicConfirmation: null,
+            };
+        }
 
-    return {
-        signatureValid: isValid,
-        shortSignature,
-        signedBy: signedByName,
-        signedAt: termination.handledAt,
-        reminderCount,
-        electronicConfirmation: {
-            statusText: 'Đã xác nhận điện tử',
-            validityText: isValid ? 'Hợp lệ' : 'Không hợp lệ',
+        const reminderCount = reminderCountMap.get(String(termination._id)) ?? 0;
+
+        if (termination.autoConfirmed) {
+            return {
+                signatureValid: null,
+                shortSignature: null,
+                reminderCount,
+                electronicConfirmation: {
+                    statusText: `Tự động xác nhận sau 7 ngày — đã nhắc ${reminderCount} lần`,
+                    autoConfirmed: true,
+                    reminderCount,
+                    confirmedAt: termination.handledAt || null,
+                },
+            };
+        }
+
+        const recomputedHash = computeTerminationHash({
+            contractId: termination.contractId,
+            type: termination.type,
+            reason: termination.reason,
+            effectiveDate: termination.effectiveDate,
+            note: termination.note,
+            handledBy: termination.handledBy,
+            handledAt: termination.handledAt,
+        });
+
+        const isValid = Boolean(termination.signatureHash && recomputedHash === termination.signatureHash);
+        const shortSignature = termination.signatureHash
+            ? termination.signatureHash.slice(0, 12).toUpperCase()
+            : null;
+        const signedByName = termination.handledBy
+            ? signerNameMap.get(String(termination.handledBy)) || 'Không xác định'
+            : 'Hệ thống';
+
+        return {
+            signatureValid: isValid,
+            shortSignature,
             signedBy: signedByName,
             signedAt: termination.handledAt,
-            handledIp: termination.handledIp || null,
-            shortSignature,
-        },
-    };
+            reminderCount,
+            electronicConfirmation: {
+                statusText: 'Đã xác nhận điện tử',
+                validityText: isValid ? 'Hợp lệ' : 'Không hợp lệ',
+                signedBy: signedByName,
+                signedAt: termination.handledAt,
+                handledIp: termination.handledIp || null,
+                shortSignature,
+            },
+        };
+    });
+};
+
+const buildElectronicConfirmationInfo = async (termination) => {
+    const [info] = await buildElectronicConfirmationInfos([termination]);
+    return info;
 };
 
 /**
@@ -399,43 +468,78 @@ export const getTerminations = async ({ userId, roleId, query = {} }) => {
         filter.type = types.length === 1 ? types[0] : { $in: types };
     }
 
+    let prefetchedContracts = null;
+    let prefetchedRooms = null;
+    let prefetchedBuildings = null;
+
     if (roleId === ROLE.ADMIN) {
         if (query.contractId) {
             filter.contractId = query.contractId;
         }
     } else if (roleId === ROLE.MANAGER) {
-        const building = await Building.findOne({ managerId: userId, isDeleted: false }).lean();
-        if (!building) {
-            return { items: [], total: 0, page: pageNum, limit: limitNum, totalPages: 0 };
-        }
-        const rooms = await Room.find({ buildingId: building._id, isDeleted: false }).select('_id').lean();
-        const roomIds = rooms.map((r) => r._id);
-        const contracts = await Contract.find({ roomId: { $in: roomIds } }).select('_id').lean();
-        const allowedContractIds = contracts.map((c) => String(c._id));
-
         if (query.contractId) {
-            if (!allowedContractIds.includes(String(query.contractId))) {
+            const [building, singleContract] = await Promise.all([
+                Building.findOne({ managerId: userId, isDeleted: false }).select('_id name address').lean(),
+                Contract.findById(query.contractId)
+                    .select('_id roomId status startDate endDate rentPrice deposit')
+                    .lean(),
+            ]);
+            if (!building || !singleContract) {
                 throw new AppError('Bạn không có quyền thực hiện thao tác này', 403);
             }
-            filter.contractId = query.contractId;
+            const singleRoom = await Room.findOne({
+                _id: singleContract.roomId,
+                buildingId: building._id,
+                isDeleted: false,
+            })
+                .select('_id roomNumber floorNumber buildingId')
+                .lean();
+            if (!singleRoom) {
+                throw new AppError('Bạn không có quyền thực hiện thao tác này', 403);
+            }
+            filter.contractId = singleContract._id;
+            prefetchedContracts = [singleContract];
+            prefetchedRooms = [singleRoom];
+            prefetchedBuildings = [building];
         } else {
+            const building = await Building.findOne({ managerId: userId, isDeleted: false })
+                .select('_id name address')
+                .lean();
+            if (!building) {
+                return { items: [], total: 0, page: pageNum, limit: limitNum, totalPages: 0 };
+            }
+            const rooms = await Room.find({ buildingId: building._id, isDeleted: false })
+                .select('_id roomNumber floorNumber buildingId')
+                .lean();
+            const roomIds = rooms.map((r) => r._id);
+            const contracts = roomIds.length > 0
+                ? await Contract.find({ roomId: { $in: roomIds } })
+                      .select('_id roomId status startDate endDate rentPrice deposit')
+                      .lean()
+                : [];
             filter.contractId = { $in: contracts.map((c) => c._id) };
+            prefetchedContracts = contracts;
+            prefetchedRooms = rooms;
+            prefetchedBuildings = [building];
         }
     } else if (roleId === ROLE.CUSTOMER) {
-        const repOccupants = await Occupant.find({
-            userId,
-            isRepresentative: true,
-        })
-            .select('contractId')
-            .lean();
-        const myContractIds = repOccupants.map((o) => String(o.contractId));
-
         if (query.contractId) {
-            if (!myContractIds.includes(String(query.contractId))) {
+            const isMyContract = await Occupant.exists({
+                contractId: query.contractId,
+                userId,
+                isRepresentative: true,
+            });
+            if (!isMyContract) {
                 throw new AppError('Bạn không có quyền thực hiện thao tác này', 403);
             }
             filter.contractId = query.contractId;
         } else {
+            const repOccupants = await Occupant.find({
+                userId,
+                isRepresentative: true,
+            })
+                .select('contractId')
+                .lean();
             filter.contractId = { $in: repOccupants.map((o) => o.contractId) };
         }
     } else {
@@ -456,60 +560,72 @@ export const getTerminations = async ({ userId, roleId, query = {} }) => {
     }
 
     const contractIds = [...new Set(result.items.map((item) => String(item.contractId)))];
-    const contracts = await Contract.find({ _id: { $in: contractIds } }).lean();
+    const contracts = prefetchedContracts
+        ? prefetchedContracts.filter((c) => contractIds.includes(String(c._id)))
+        : await Contract.find({ _id: { $in: contractIds } })
+              .select('_id roomId status startDate endDate rentPrice deposit')
+              .lean();
     const roomIds = [...new Set(contracts.map((c) => String(c.roomId)))];
-    const [rooms, repOccupants] = await Promise.all([
-        Room.find({ _id: { $in: roomIds } }).lean(),
-        Occupant.find({ contractId: { $in: contractIds }, isRepresentative: true }).lean(),
+
+    const [rooms, repOccupants, confirmationInfos] = await Promise.all([
+        prefetchedRooms
+            ? prefetchedRooms.filter((r) => roomIds.includes(String(r._id)))
+            : Room.find({ _id: { $in: roomIds } })
+                  .select('_id roomNumber floorNumber buildingId')
+                  .lean(),
+        Occupant.find({ contractId: { $in: contractIds }, isRepresentative: true })
+            .select('_id contractId name cccd phone')
+            .lean(),
+        buildElectronicConfirmationInfos(result.items),
     ]);
     const buildingIds = [...new Set(rooms.map((r) => String(r.buildingId)))];
-    const buildings = await Building.find({ _id: { $in: buildingIds } }).select('_id name address').lean();
+    const buildings = prefetchedBuildings
+        ? prefetchedBuildings.filter((b) => buildingIds.includes(String(b._id)))
+        : await Building.find({ _id: { $in: buildingIds } }).select('_id name address').lean();
 
     const contractMap = new Map(contracts.map((c) => [String(c._id), c]));
     const roomMap = new Map(rooms.map((r) => [String(r._id), r]));
     const buildingMap = new Map(buildings.map((b) => [String(b._id), b]));
     const repMap = new Map(repOccupants.map((o) => [String(o.contractId), o]));
 
-    const enrichedItems = await Promise.all(
-        result.items.map(async (termination) => {
-            const contract = contractMap.get(String(termination.contractId)) || null;
-            const room = contract ? roomMap.get(String(contract.roomId)) || null : null;
-            const building = room ? buildingMap.get(String(room.buildingId)) || null : null;
-            const rep = repMap.get(String(termination.contractId)) || null;
-            const confirmationInfo = await buildElectronicConfirmationInfo(termination);
+    const enrichedItems = result.items.map((termination, index) => {
+        const contract = contractMap.get(String(termination.contractId)) || null;
+        const room = contract ? roomMap.get(String(contract.roomId)) || null : null;
+        const building = room ? buildingMap.get(String(room.buildingId)) || null : null;
+        const rep = repMap.get(String(termination.contractId)) || null;
+        const confirmationInfo = confirmationInfos[index];
 
-            return {
-                ...termination,
-                ...confirmationInfo,
-                contract: contract
-                    ? {
-                        _id: contract._id,
-                        status: contract.status,
-                        startDate: contract.startDate,
-                        endDate: contract.endDate,
-                        rentPrice: contract.rentPrice,
-                        deposit: contract.deposit,
-                    }
-                    : null,
-                room: room
-                    ? {
-                        _id: room._id,
-                        roomNumber: room.roomNumber,
-                        floorNumber: room.floorNumber,
-                        building: building ? { _id: building._id, name: building.name } : null,
-                    }
-                    : null,
-                representative: rep
-                    ? {
-                        _id: rep._id,
-                        name: rep.name,
-                        cccd: rep.cccd,
-                        phone: rep.phone,
-                    }
-                    : null,
-            };
-        }),
-    );
+        return {
+            ...termination,
+            ...confirmationInfo,
+            contract: contract
+                ? {
+                    _id: contract._id,
+                    status: contract.status,
+                    startDate: contract.startDate,
+                    endDate: contract.endDate,
+                    rentPrice: contract.rentPrice,
+                    deposit: contract.deposit,
+                }
+                : null,
+            room: room
+                ? {
+                    _id: room._id,
+                    roomNumber: room.roomNumber,
+                    floorNumber: room.floorNumber,
+                    building: building ? { _id: building._id, name: building.name } : null,
+                }
+                : null,
+            representative: rep
+                ? {
+                    _id: rep._id,
+                    name: rep.name,
+                    cccd: rep.cccd,
+                    phone: rep.phone,
+                }
+                : null,
+        };
+    });
 
     return {
         items: enrichedItems,

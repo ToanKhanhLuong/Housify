@@ -81,22 +81,43 @@ const findOpenContract = (roomId) =>
     status: { $in: [CONTRACT_STATUS.DRAFT, CONTRACT_STATUS.ACTIVE] },
   });
 
-// TODO: Đếm cư dân STAYED thuộc hợp đồng ACTIVE của phòng. Iter 1 chưa có hợp đồng nên luôn ra 0.
+// Đếm số cư dân đang ở (STAYED thuộc hợp đồng ACTIVE) theo danh sách phòng chỉ với 2 truy vấn gộp
+const countStayingOccupantsByRoom = async (roomIds) => {
+  const counts = new Map();
+  if (!Array.isArray(roomIds) || roomIds.length === 0) return counts;
+
+  const activeContracts = await Contract.find({
+    roomId: { $in: roomIds },
+    status: CONTRACT_STATUS.ACTIVE,
+  })
+    .select('_id roomId')
+    .lean();
+  if (activeContracts.length === 0) return counts;
+
+  const contractRoomMap = new Map(activeContracts.map((c) => [String(c._id), String(c.roomId)]));
+  const rows = await Occupant.aggregate([
+    {
+      $match: {
+        contractId: { $in: activeContracts.map((c) => c._id) },
+        status: OCCUPANT_STATUS.STAYED,
+      },
+    },
+    { $group: { _id: '$contractId', count: { $sum: 1 } } },
+  ]);
+
+  for (const row of rows) {
+    const roomKey = contractRoomMap.get(String(row._id));
+    if (roomKey) {
+      counts.set(roomKey, (counts.get(roomKey) ?? 0) + row.count);
+    }
+  }
+  return counts;
+};
+
 const countStayingOccupants = async (roomId) => {
   try {
-    const contract = await Contract.findOne({
-      roomId,
-      status: CONTRACT_STATUS.ACTIVE,
-    });
-
-    if (!contract) {
-      return 0;
-    }
-
-    return Occupant.countDocuments({
-      contractId: contract._id,
-      status: OCCUPANT_STATUS.STAYED,
-    });
+    const counts = await countStayingOccupantsByRoom([roomId]);
+    return counts.get(String(roomId)) ?? 0;
   } catch {
     return 0;
   }
@@ -109,14 +130,14 @@ const withDetails = async (rooms) => {
   const roomTypeIds = rooms.map((room) => room.roomTypeId);
   const roomIds = rooms.map((room) => room._id);
 
-  const [buildings, roomTypes, occupantCounts] = await Promise.all([
+  const [buildings, roomTypes, occupantCountsByRoom] = await Promise.all([
     Building.find({ _id: { $in: buildingIds } })
       .select('name floorCount')
       .lean(),
     RoomType.find({ _id: { $in: roomTypeIds } })
       .select('name capacity')
       .lean(),
-    Promise.all(roomIds.map((id) => countStayingOccupants(id))),
+    countStayingOccupantsByRoom(roomIds),
   ]);
 
   const buildingById = new Map(
@@ -129,12 +150,12 @@ const withDetails = async (rooms) => {
     ]),
   );
 
-  return rooms.map((room, index) => {
+  return rooms.map((room) => {
     const obj = room.toObject ? room.toObject() : { ...room };
     delete obj.capacity;
     return {
       ...obj,
-      occupantCount: occupantCounts[index] ?? 0,
+      occupantCount: occupantCountsByRoom.get(String(room._id)) ?? 0,
       building: buildingById.get(String(room.buildingId)) ?? null,
       roomType: roomTypeById.get(String(room.roomTypeId)) ?? null,
     };
@@ -188,7 +209,7 @@ export const getRooms = async (buildingId, query, user) => {
   }
 
   // Sắp xếp: floorNumber tăng dần, rồi roomNumber
-  const rooms = await Room.find(filter).sort({ floorNumber: 1, roomNumber: 1 });
+  const rooms = await Room.find(filter).sort({ floorNumber: 1, roomNumber: 1 }).lean();
 
   return withDetails(rooms);
 };

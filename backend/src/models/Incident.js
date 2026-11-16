@@ -64,4 +64,7 @@ const incidentSchema = new Schema(
     { timestamps: true },
 );
 
+incidentSchema.index({ roomId: 1, status: 1, createdAt: -1 });
+incidentSchema.index({ contractId: 1, createdAt: -1 });
+
 export default mongoose.model('Incident', incidentSchema, 'incidents');

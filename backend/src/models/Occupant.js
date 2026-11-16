@@ -70,5 +70,8 @@ const occupantSchema = new Schema(
 
 // cccd không trùng trong 1 hợp đồng
 occupantSchema.index({ contractId: 1, cccd: 1 }, { unique: true });
+occupantSchema.index({ userId: 1, isRepresentative: 1 });
+occupantSchema.index({ cccd: 1, status: 1 });
+occupantSchema.index({ phone: 1, status: 1 });
 
 export default mongoose.model('Occupant', occupantSchema, 'occupants');

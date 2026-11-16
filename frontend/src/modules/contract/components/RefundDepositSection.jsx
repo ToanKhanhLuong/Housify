@@ -1,9 +1,9 @@
-// UC-45 (Manager): khung "Hoàn cọc" ở chi tiết hợp đồng Đã kết thúc
-// GET refund-preview: đủ điều kiện (hết hạn tự nhiên, không có đơn chấm dứt đã xác nhận, chưa hoàn) → số tiền cọc,
-// cảnh báo hóa đơn chưa trả (vẫn cho hoàn), nút Hoàn cọc → popup xác nhận → POST refund-deposit (mail báo khách)
-// Không đủ điều kiện / đã hoàn → BE trả 400 kèm lý do, khung hiện đúng câu đó
+// UC-45 (Manager): khung "Hoàn cọc / Quyết toán" ở chi tiết hợp đồng Đã kết thúc
+// GET refund-preview: đủ điều kiện (hết hạn tự nhiên, không có đơn chấm dứt đã xác nhận, chưa hoàn) → bảng cấn trừ cọc & công nợ,
+// tự động khóa nút khi công nợ vượt cọc (chỉ mở khi khách thanh toán bớt qua QR hoặc Manager tick xác nhận đã thu thêm đủ tiền mặt).
+// POST refund-deposit: tất toán đồng bộ hóa đơn PENDING → PAID trong cùng transaction, ghi nhận hoàn cọc & gửi mail đúng số thực trả.
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Button, Card } from 'react-bootstrap';
+import { Alert, Button, Card, Form } from 'react-bootstrap';
 import { BiCheckCircle, BiWallet } from 'react-icons/bi';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -18,6 +18,7 @@ const monthLabel = (month) => (month ? month.split('-').reverse().join('/') : '�
 const RefundDepositSection = ({ contractId }) => {
   // loading → ok (đủ điều kiện) | blocked (BE trả lý do) | done (vừa hoàn) | error | unavailable (máy chủ không có API → ẩn)
   const [state, setState] = useState({ status: 'loading', preview: null, message: '' });
+  const [extraCashConfirmed, setExtraCashConfirmed] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -25,8 +26,12 @@ const RefundDepositSection = ({ contractId }) => {
     () =>
       contractApi
         .refundPreview(contractId)
-        .then((response) => setState({ status: 'ok', preview: response.data, message: '' }))
+        .then((response) => {
+          setExtraCashConfirmed(false);
+          setState({ status: 'ok', preview: response.data, message: '' });
+        })
         .catch((error) => {
+          setExtraCashConfirmed(false);
           // 404 "Không tìm thấy đường dẫn …": máy chủ không có API hoàn cọc → ẩn khung
           const missingRoute = error.status === 404 && Boolean(error.message?.includes('đường dẫn'));
           const status = missingRoute ? 'unavailable' : error.status === 400 ? 'blocked' : 'error';
@@ -40,16 +45,41 @@ const RefundDepositSection = ({ contractId }) => {
   }, [loadPreview]);
 
   const handleRefund = async () => {
+    const previewDebt = Number(state.preview?.pendingInvoiceTotal || 0);
+    const previewDeposit = Number(state.preview?.deposit || 0);
+    const isExtraRequired = previewDebt > previewDeposit;
+
     setBusy(true);
     try {
-      const response = await contractApi.refundDeposit(contractId);
+      const response = await contractApi.refundDeposit(contractId, {
+        confirmExtraCollected: isExtraRequired ? extraCashConfirmed : false,
+      });
       if (response.data?.warning) toast.warning(response.data.warning);
-      else toast.success(response.message || 'Đã xác nhận hoàn cọc');
+      else toast.success(response.message || 'Đã xác nhận quyết toán hoàn cọc');
+
       setShowConfirm(false);
+      setExtraCashConfirmed(false);
+
+      const data = response.data || {};
+      const settledCount = Number(data.settledInvoiceCount || 0);
+      const settledTotal = Number(data.settledInvoiceTotal || 0);
+      const resDeposit = Number(data.deposit || 0);
+      const resDeducted = Number(data.deductedAmount || 0);
+      const resNetRefund = Number(data.netRefundAmount || 0);
+      const resExtra = Number(data.extraCollectAmount || 0);
+      const timeText = formatDateTime(data.depositRefundedAt);
+
+      let doneMessage = `Đã hoàn ${formatMoney(resDeposit)} tiền cọc lúc ${timeText}.`;
+      if (settledCount > 0 && resExtra > 0) {
+        doneMessage = `Đã quyết toán ${settledCount} hóa đơn (${formatMoney(settledTotal)}) bằng toàn bộ ${formatMoney(resDeposit)} tiền cọc và thu thêm ${formatMoney(resExtra)} tiền mặt lúc ${timeText}. Số tiền hoàn trả khách: 0 đ.`;
+      } else if (settledCount > 0) {
+        doneMessage = `Đã khấu trừ ${formatMoney(resDeducted)} từ tiền cọc để tất toán ${settledCount} hóa đơn và hoàn trả ${formatMoney(resNetRefund)} tiền mặt cho khách lúc ${timeText}.`;
+      }
+
       setState({
         status: 'done',
         preview: null,
-        message: `Đã hoàn ${formatMoney(response.data?.deposit)} tiền cọc lúc ${formatDateTime(response.data?.depositRefundedAt)}.`,
+        message: doneMessage,
       });
     } catch (error) {
       toast.error(error.message);
@@ -66,11 +96,15 @@ const RefundDepositSection = ({ contractId }) => {
       return <span className="small text-secondary">Không kiểm tra được hoàn cọc: {state.message}</span>;
     }
     if (state.status === 'blocked' || state.status === 'done') {
-      const refunded = state.status === 'done' || state.message.includes('đã được hoàn cọc');
+      const refunded =
+        state.status === 'done' ||
+        state.message.includes('đã được hoàn cọc') ||
+        state.message.includes('Đã quyết toán') ||
+        state.message.includes('Đã khấu trừ');
       return (
         <Alert variant={refunded ? 'success' : 'secondary'} className="mb-0 flex items-center gap-2">
-          {refunded && <BiCheckCircle size={20} />}
-          {state.message}
+          {refunded && <BiCheckCircle size={20} className="shrink-0" />}
+          <span>{state.message}</span>
         </Alert>
       );
     }
@@ -78,10 +112,11 @@ const RefundDepositSection = ({ contractId }) => {
     const { preview } = state;
     const deposit = Number(preview.deposit || 0);
     const debt = Number(preview.pendingInvoiceTotal || 0);
-    const deducted = Math.min(deposit, debt);
-    const netRefund = Math.max(0, deposit - debt);
-    const extraCollect = Math.max(0, debt - deposit);
-    const isDebtExceedingDeposit = debt > deposit;
+    const deducted = Number(preview.deductedAmount ?? Math.min(deposit, debt));
+    const netRefund = Number(preview.netRefundAmount ?? Math.max(0, deposit - debt));
+    const extraCollect = Number(preview.extraCollectAmount ?? Math.max(0, debt - deposit));
+    const isDebtExceedingDeposit = extraCollect > 0;
+    const submitDisabled = isDebtExceedingDeposit && !extraCashConfirmed;
 
     return (
       <>
@@ -99,7 +134,13 @@ const RefundDepositSection = ({ contractId }) => {
               Công nợ hóa đơn chưa thanh toán ({preview.pendingInvoiceCount || 0} hóa đơn):
             </span>
             <span className={`fw-semibold ${debt > 0 ? 'text-rose-600' : 'text-slate-600'}`}>
-              {debt > 0 ? <>- <MoneyText value={debt} /></> : '0 đ'}
+              {debt > 0 ? (
+                <>
+                  - <MoneyText value={debt} />
+                </>
+              ) : (
+                '0 đ'
+              )}
             </span>
           </div>
 
@@ -115,7 +156,7 @@ const RefundDepositSection = ({ contractId }) => {
           {isDebtExceedingDeposit && (
             <div className="rounded-lg bg-rose-50 border border-rose-200 p-2.5 flex items-center justify-between gap-2 text-rose-700">
               <span className="fw-bold text-xs">
-                ⚠️ Công nợ vượt quá tiền cọc! Cần thu thêm từ khách:
+                Công nợ vượt quá tiền cọc! Cần thu thêm từ khách:
               </span>
               <span className="fs-6 fw-bold">
                 + <MoneyText value={extraCollect} />
@@ -135,25 +176,42 @@ const RefundDepositSection = ({ contractId }) => {
                 </li>
               ))}
             </ul>
-            <div className="mt-1">
+            <div className="mt-2">
               {isDebtExceedingDeposit ? (
                 <>
                   Đã khấu trừ toàn bộ <strong>{formatMoney(deducted)}</strong> tiền cọc nhưng vẫn còn thiếu{' '}
-                  <strong>{formatMoney(extraCollect)}</strong>. Vui lòng yêu cầu khách thanh toán thêm số tiền còn thiếu trước khi xác nhận!
+                  <strong>{formatMoney(extraCollect)}</strong>. Nút hoàn tất đang tạm khóa — vui lòng yêu cầu khách
+                  thanh toán bớt qua QR hoặc thu đủ số tiền mặt còn thiếu và xác nhận bên dưới.
                 </>
               ) : (
                 <>
-                  Gợi ý khấu trừ <strong>{formatMoney(deducted)}</strong> vào tiền cọc và hoàn trả khách{' '}
-                  <strong>{formatMoney(netRefund)}</strong> (hoặc yêu cầu khách thanh toán hết hóa đơn để nhận đủ{' '}
-                  {formatMoney(deposit)}).
+                  Khi xác nhận, hệ thống sẽ khấu trừ <strong>{formatMoney(deducted)}</strong> từ tiền cọc để tự động
+                  tất toán các hóa đơn trên và ghi nhận hoàn trả khách <strong>{formatMoney(netRefund)}</strong>.
                 </>
               )}
             </div>
           </Alert>
         )}
-        <Button variant="primary" className="self-start flex items-center gap-2" onClick={() => setShowConfirm(true)}>
+
+        {isDebtExceedingDeposit && (
+          <Form.Check
+            type="checkbox"
+            id={`confirm-extra-cash-${contractId}`}
+            checked={extraCashConfirmed}
+            onChange={(event) => setExtraCashConfirmed(event.target.checked)}
+            label={`Tôi xác nhận đã thu thêm đủ ${formatMoney(extraCollect)} tiền mặt từ khách`}
+            className="small fw-medium text-slate-800"
+          />
+        )}
+
+        <Button
+          variant="primary"
+          className="self-start flex items-center gap-2"
+          disabled={submitDisabled}
+          onClick={() => setShowConfirm(true)}
+        >
           <BiWallet />
-          Xác nhận hoàn cọc
+          {debt > 0 ? 'Xác nhận quyết toán & hoàn cọc' : 'Xác nhận hoàn cọc'}
         </Button>
       </>
     );
@@ -165,15 +223,17 @@ const RefundDepositSection = ({ contractId }) => {
     if (!state.preview) return '';
     const deposit = Number(state.preview.deposit || 0);
     const debt = Number(state.preview.pendingInvoiceTotal || 0);
-    const netRefund = Math.max(0, deposit - debt);
-    const extraCollect = Math.max(0, debt - deposit);
+    const netRefund = Number(state.preview.netRefundAmount ?? Math.max(0, deposit - debt));
+    const extraCollect = Number(state.preview.extraCollectAmount ?? Math.max(0, debt - deposit));
+    const count = Number(state.preview.pendingInvoiceCount || 0);
+
     if (debt === 0) {
       return `Xác nhận bạn đã trả lại khách ${formatMoney(deposit)} tiền cọc bằng tiền mặt. Mỗi hợp đồng chỉ hoàn một lần; hệ thống gửi thông báo và email cho người đại diện.`;
     }
     if (extraCollect > 0) {
-      return `Khách nợ ${formatMoney(debt)} (vượt tiền cọc ${formatMoney(deposit)}). Sau khi cấn trừ toàn bộ cọc (hoàn 0 đ), khách cần đóng thêm ${formatMoney(extraCollect)}. Xác nhận đã tất toán bàn giao cọc cho hợp đồng này?`;
+      return `Bạn đã xác nhận thu thêm đủ ${formatMoney(extraCollect)} tiền mặt từ khách. Hệ thống sẽ giữ toàn bộ ${formatMoney(deposit)} tiền cọc, đánh dấu Đã thanh toán cho ${count} hóa đơn (tổng ${formatMoney(debt)}) và ghi nhận hoàn trả khách 0 đ. Xác nhận hoàn tất?`;
     }
-    return `Tiền cọc gốc ${formatMoney(deposit)}, khấu trừ nợ hóa đơn ${formatMoney(debt)} → Số tiền thực trả lại khách là ${formatMoney(netRefund)}. Xác nhận hoàn tất thủ tục hoàn cọc?`;
+    return `Tiền cọc gốc ${formatMoney(deposit)}, khấu trừ ${formatMoney(debt)} để đánh dấu Đã thanh toán cho ${count} hóa đơn → Số tiền thực hoàn trả khách là ${formatMoney(netRefund)}. Xác nhận hoàn tất?`;
   })();
 
   return (

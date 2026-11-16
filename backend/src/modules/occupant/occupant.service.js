@@ -11,6 +11,11 @@ import { withTransaction } from '../../helpers/withTransaction.js';
 import { audit } from '../../helpers/audit.js';
 import { startOfVietnamDay } from '../../helpers/date.js';
 import { isCccd } from '../../helpers/validators.js';
+import {
+    findBlacklistedCccds,
+    findDraftCccdConflict,
+    getCustomerContractAccessState,
+} from '../../helpers/customerRestriction.js';
 import { getSignedUrl } from '../upload/upload.service.js';
 import Occupant from '../../models/Occupant.js';
 import Contract from '../../models/Contract.js';
@@ -186,7 +191,7 @@ export const getMyRoomMembers = async ({ userId }) => {
         .lean();
 
     if (repOccupants.length === 0) {
-        return { contractId: null, room: null, items: [] };
+        return { contractId: null, room: null, canEditMembers: false, editMembersDisabledReason: null, items: [] };
     }
 
     const activeContract = await Contract.findOne({
@@ -195,10 +200,10 @@ export const getMyRoomMembers = async ({ userId }) => {
     }).lean();
 
     if (!activeContract) {
-        return { contractId: null, room: null, items: [] };
+        return { contractId: null, room: null, canEditMembers: false, editMembersDisabledReason: null, items: [] };
     }
 
-    const [room, user, occupants] = await Promise.all([
+    const [room, user, occupants, accessState] = await Promise.all([
         Room.findById(activeContract.roomId)
             .select('_id roomNumber floorNumber status roomTypeId images')
             .lean(),
@@ -206,10 +211,16 @@ export const getMyRoomMembers = async ({ userId }) => {
         Occupant.find({ contractId: activeContract._id })
             .sort({ isRepresentative: -1, joinDate: 1 })
             .lean(),
+        getCustomerContractAccessState(userId),
     ]);
 
     const roomType = room?.roomTypeId
         ? await RoomType.findById(room.roomTypeId).select('_id name capacity').lean()
+        : null;
+
+    const canEditMembers = !accessState.hasConfirmedUnilateral;
+    const editMembersDisabledReason = accessState.hasConfirmedUnilateral
+        ? 'Hợp đồng đã chấm dứt đơn phương do vi phạm — danh sách thành viên đang ở chế độ chỉ xem.'
         : null;
 
     const items = occupants.map((occ) => ({
@@ -234,6 +245,8 @@ export const getMyRoomMembers = async ({ userId }) => {
 
     return {
         contractId: activeContract._id,
+        canEditMembers,
+        editMembersDisabledReason,
         room: room
             ? {
                 _id: room._id,
@@ -373,6 +386,13 @@ export const updateOccupant = async ({ userId, roleId, occupantId, data }) => {
         if (!isMyContract) {
             throw new AppError('Bạn không có quyền thực hiện thao tác này', 403);
         }
+        const { hasConfirmedUnilateral } = await getCustomerContractAccessState(userId);
+        if (hasConfirmedUnilateral) {
+            throw new AppError(
+                'Tài khoản đã bị chấm dứt hợp đồng đơn phương do vi phạm, không thể chỉnh sửa thông tin cư dân',
+                403,
+            );
+        }
         // Người đại diện chỉ sửa người ở cùng qua API này; hồ sơ của chính mình sửa ở trang Hồ sơ cá nhân
         if (occupant.isRepresentative) {
             throw new AppError('Thông tin của bạn vui lòng cập nhật ở trang Hồ sơ cá nhân', 400);
@@ -422,6 +442,18 @@ export const updateOccupant = async ({ userId, roleId, occupantId, data }) => {
             if (otherRepAccount) {
                 throw new AppError('Số CCCD mới đã thuộc về tài khoản khách hàng khác trong hệ thống', 400);
             }
+        }
+
+        // Chặn đổi sang CCCD thuộc tài khoản đã bị khóa do vi phạm (LOCKED / UNILATERAL CONFIRMED)
+        const blacklistedCccds = await findBlacklistedCccds([targetCccd]);
+        if (blacklistedCccds.has(targetCccd)) {
+            throw new AppError('Số CCCD mới thuộc tài khoản đã bị khóa do vi phạm trước đó', 403);
+        }
+
+        // Chặn đổi sang CCCD đang đứng tên đại diện trong hợp đồng nháp (DRAFT) chờ kích hoạt
+        const draftCccdConflict = await findDraftCccdConflict(targetCccd, contract._id);
+        if (draftCccdConflict) {
+            throw new AppError('Số CCCD mới đang được sử dụng trong một hợp đồng nháp chờ kích hoạt', 400);
         }
 
         // Không được trùng người đang ở (STAYED) tại hợp đồng ACTIVE khác
@@ -558,6 +590,16 @@ export const addOccupant = async ({ managerId, contractId, data }) => {
     // Kiểm tra CCCD đủ 12 chữ số
     if (!isCccd(cleanCccd)) {
         throw new AppError('Số CCCD phải gồm đúng 12 chữ số', 400);
+    }
+
+    // Chặn thêm người có CCCD thuộc danh sách đen (LOCKED / UNILATERAL CONFIRMED) hoặc đang chờ kích hoạt hợp đồng nháp
+    const blacklistedCccds = await findBlacklistedCccds([cleanCccd]);
+    if (blacklistedCccds.has(cleanCccd)) {
+        throw new AppError('Người mang số CCCD này đã bị khóa do vi phạm trước đó, không thể thêm vào phòng', 403);
+    }
+    const draftCccdConflict = await findDraftCccdConflict(cleanCccd, contract._id);
+    if (draftCccdConflict) {
+        throw new AppError('Số CCCD này đang thuộc người đại diện của một hợp đồng nháp chờ kích hoạt', 400);
     }
 
     // Kiểm tra CCCD đã có trong hợp đồng ACTIVE chưa (dựa trên bảng occupants, không dựa vào contract.representativeCccd)

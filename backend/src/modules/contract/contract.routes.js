@@ -11,6 +11,7 @@ import {
     updateContractSchema,
     renewContractSchema,
     cancelContractSchema,
+    refundDepositSchema,
 } from './contract.validation.js';
 import * as contractController from './contract.controller.js';
 
@@ -88,6 +89,7 @@ router.post(
     '/contracts/:id/refund-deposit',
     requireRole(ROLE.MANAGER),
     validate(contractIdParamSchema, 'params'),
+    validate(refundDepositSchema),
     contractController.refundDeposit,
 );
 

@@ -759,6 +759,24 @@ async function seed() {
             address: 'Hà Đông, Hà Nội',
             status: USER_STATUS.ACTIVE,
         },
+        refundDebtExceed: {
+            email: 'customer.noquacoc@housify.vn',
+            cccd: '031204000019',
+            name: 'Ngô Văn Nợ Quá Cọc (P501 Tòa 1)',
+            phone: '0981000019',
+            dob: '2003-03-19',
+            address: 'Thạch Thất, Hà Nội',
+            status: USER_STATUS.INACTIVE,
+        },
+        refundOffsetPartial: {
+            email: 'customer.cantrucoc@housify.vn',
+            cccd: '031204000020',
+            name: 'Đào Minh Cấn Trừ Cọc (P402 Tòa 1)',
+            phone: '0981000020',
+            dob: '2004-04-20',
+            address: 'Sơn Tây, Hà Nội',
+            status: USER_STATUS.INACTIVE,
+        },
     };
 
     for (const key of Object.keys(demoCustomers)) {
@@ -1519,6 +1537,54 @@ async function seed() {
         joinDate: daysFromNow(-60),
     });
 
+    // Demo 19: Hợp đồng ENDED tại P501 – Tòa 1 (Cọc 3.000.000đ, Nợ 5.000.000đ -> Thiếu 2.000.000đ) để test UC-45 khóa nút hoàn tất
+    const refundDebtExceedContract = await Contract.create({
+        roomId: b1Rooms.P501._id,
+        contractType: CONTRACT_TYPE.SINGLE,
+        representativeCccd: demoCustomers.refundDebtExceed.cccd,
+        representativeEmail: demoCustomers.refundDebtExceed.email,
+        startDate: daysFromNow(-185),
+        endDate: daysFromNow(-5),
+        rentPrice: 3000000,
+        deposit: 3000000,
+        status: CONTRACT_STATUS.ENDED,
+        activatedAt: daysFromNow(-185),
+        notes: 'Demo UC-45 (Nợ > Cọc): Tiền cọc 3.000.000đ, công nợ 5.000.000đ (2 hóa đơn PENDING) -> Cần thu thêm 2.000.000đ.',
+        createdBy: manager1.user._id,
+        depositReceiverId: manager1.user._id,
+    });
+    await createRepOccupant({
+        contractId: refundDebtExceedContract._id,
+        customerInfo: demoCustomers.refundDebtExceed,
+        status: OCCUPANT_STATUS.LEFT,
+        joinDate: daysFromNow(-185),
+        exitDate: daysFromNow(-5),
+    });
+
+    // Demo 20: Hợp đồng ENDED tại P402 – Tòa 1 (Cọc 3.800.000đ, Nợ 1.800.000đ -> Thực hoàn 2.000.000đ) để test UC-45 cấn trừ 1 phần
+    const refundOffsetPartialContract = await Contract.create({
+        roomId: b1Rooms.P402._id,
+        contractType: CONTRACT_TYPE.SINGLE,
+        representativeCccd: demoCustomers.refundOffsetPartial.cccd,
+        representativeEmail: demoCustomers.refundOffsetPartial.email,
+        startDate: daysFromNow(-184),
+        endDate: daysFromNow(-4),
+        rentPrice: 3800000,
+        deposit: 3800000,
+        status: CONTRACT_STATUS.ENDED,
+        activatedAt: daysFromNow(-184),
+        notes: 'Demo UC-45 (Nợ <= Cọc): Tiền cọc 3.800.000đ, công nợ 1.800.000đ (1 hóa đơn PENDING) -> Thực hoàn 2.000.000đ.',
+        createdBy: manager1.user._id,
+        depositReceiverId: manager1.user._id,
+    });
+    await createRepOccupant({
+        contractId: refundOffsetPartialContract._id,
+        customerInfo: demoCustomers.refundOffsetPartial,
+        status: OCCUPANT_STATUS.LEFT,
+        joinDate: daysFromNow(-184),
+        exitDate: daysFromNow(-4),
+    });
+
     console.log('✔ [7/16] Đã tạo toàn bộ Tài khoản Customer, Hợp đồng (ACTIVE, DRAFT, ENDED, CANCELLED) và Cư dân (Occupant).');
 
     // =========================================================================
@@ -2110,7 +2176,85 @@ async function seed() {
         paidAt: daysFromNow(-5),
     });
 
-    console.log('✔ [9/16] Đã tạo 12 Hóa đơn (PAID đúng hạn, PAID trễ hạn, PENDING sắp đến hạn 3 ngày/1 ngày/hôm nay, QUÁ HẠN, CHUYỂN THIẾU, CHUYỂN THỪA, DRAFT, CANCELLED) và 6 giao dịch SePay.');
+    // --- 9.10. Hóa đơn cho 2 Case Demo Quyết toán & Hoàn cọc (UC-45) tại Tòa 1 (Manager 1) ---
+    // (a) P501 – Cọc 3.000.000đ, Nợ 5.000.000đ (2 hóa đơn: 3.500.000đ + 1.500.000đ -> thiếu 2.000.000đ)
+    const invP501Month1Data = makeStandardItems({
+        rentPrice: 3000000,
+        elecOld: 100,
+        elecNew: 150, // 50 * 3.800 = 190.000đ
+        waterOld: 10,
+        waterNew: 12, // 2 * 25.000 = 50.000đ
+        wifiPrice: 100000,
+        trashPrice: 40000,
+        parkingQty: 1,
+        parkingPrice: 100000,
+        extraDesc: 'Phí vệ sinh định kỳ cuối tháng',
+        extraAmount: 20000,
+    }); // Tổng = 3.500.000đ
+    await Invoice.create({
+        invoiceCode: 'HD2610N501',
+        contractId: refundDebtExceedContract._id,
+        month: prevMonth1,
+        items: invP501Month1Data.items,
+        totalAmount: invP501Month1Data.totalAmount,
+        status: INVOICE_STATUS.PENDING,
+        sentAt: daysFromNow(-20),
+        dueDate: daysFromNow(-13),
+        qrContent: buildVietQrUrl(invP501Month1Data.totalAmount, 'HD2610N501'),
+        createdBy: manager1.user._id,
+    });
+
+    await Invoice.create({
+        invoiceCode: 'HD2611N501',
+        contractId: refundDebtExceedContract._id,
+        month: currentMonth,
+        items: [
+            {
+                type: INVOICE_ITEM_TYPE.EXTRA,
+                description: 'Bồi thường sửa chữa bàn giao phòng & điện nước lẻ cuối kỳ',
+                quantity: 1,
+                unitPrice: 1500000,
+                amount: 1500000,
+            },
+        ],
+        totalAmount: 1500000,
+        status: INVOICE_STATUS.PENDING,
+        sentAt: daysFromNow(-6),
+        dueDate: daysFromNow(1),
+        qrContent: buildVietQrUrl(1500000, 'HD2611N501'),
+        createdBy: manager1.user._id,
+    });
+
+    // (b) P402 – Cọc 3.800.000đ, Nợ 1.800.000đ -> Thực hoàn 2.000.000đ
+    await Invoice.create({
+        invoiceCode: 'HD2611N402',
+        contractId: refundOffsetPartialContract._id,
+        month: currentMonth,
+        items: [
+            {
+                type: INVOICE_ITEM_TYPE.RENT,
+                description: 'Tiền thuê phòng nửa tháng cuối kỳ',
+                quantity: 1,
+                unitPrice: 1500000,
+                amount: 1500000,
+            },
+            {
+                type: INVOICE_ITEM_TYPE.EXTRA,
+                description: 'Phí điện nước chốt công tơ bàn giao phòng',
+                quantity: 1,
+                unitPrice: 300000,
+                amount: 300000,
+            },
+        ],
+        totalAmount: 1800000,
+        status: INVOICE_STATUS.PENDING,
+        sentAt: daysFromNow(-5),
+        dueDate: daysFromNow(2),
+        qrContent: buildVietQrUrl(1800000, 'HD2611N402'),
+        createdBy: manager1.user._id,
+    });
+
+    console.log('✔ [9/16] Đã tạo 15 Hóa đơn (bao gồm case Nợ 5tr > Cọc 3tr ở P501 và Nợ 1.8tr <= Cọc 3.8tr ở P402 Tòa 1) và 6 giao dịch SePay.');
 
     // =========================================================================
     // 10. INCIDENTS (Báo cáo sự cố đủ 4 loại & 4 trạng thái PENDING, IN_PROGRESS, RESOLVED, REJECTED)
@@ -2583,6 +2727,9 @@ async function seed() {
     console.log(`     ${clientUrl}/activate/contract/${c10InviteToken.token}`);
     console.log(`   - Kích hoạt Manager PENDING (manager.pending1@housify.vn):`);
     console.log(`     ${clientUrl}/activate/manager/${mgrToken1.token}`);
+    console.log(`\n💰 [DEMO QUYẾT TOÁN & HOÀN CỌC UC-45 (Đăng nhập Manager 1: ${MANAGER1_EMAIL})]:`);
+    console.log(`   - P501 Tòa 1 (Nợ > Cọc): Cọc 3.000.000đ | Nợ 5.000.000đ (HD2610N501 + HD2611N501) -> Thiếu 2.000.000đ (Khóa nút)`);
+    console.log(`   - P402 Tòa 1 (Nợ <= Cọc): Cọc 3.800.000đ | Nợ 1.800.000đ (HD2611N402) -> Thực hoàn 2.000.000đ`);
     console.log('============================================================\n');
 
     await CLOSE_DB();

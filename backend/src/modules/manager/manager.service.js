@@ -18,6 +18,7 @@ import { withTransaction } from '../../helpers/withTransaction.js';
 import { notify } from '../../helpers/notify.js';
 import { audit } from '../../helpers/audit.js';
 import { generateActivationToken, ACTIVATION_TOKEN_TTL_MS } from '../../helpers/activationToken.js';
+import { findDraftEmailConflict } from '../../helpers/customerRestriction.js';
 import { getSignedUrl } from '../upload/upload.service.js';
 import User from '../../models/User.js';
 import Manager from '../../models/Manager.js';
@@ -107,7 +108,7 @@ const findManager = async (id) => {
     return { user, profile };
 };
 
-// BR-019: email duy nhất toàn hệ thống
+// BR-019: email duy nhất toàn hệ thống (gồm cả email đang giữ trên hợp đồng nháp)
 const ensureEmailAvailable = async (email, exceptUserId) => {
     const filter = { email };
     if (exceptUserId) {
@@ -115,6 +116,9 @@ const ensureEmailAvailable = async (email, exceptUserId) => {
     }
     if (await User.exists(filter)) {
         throw new AppError('Email đã tồn tại trong hệ thống', 409);
+    }
+    if (await findDraftEmailConflict(email)) {
+        throw new AppError('Email này đang được sử dụng cho một hợp đồng nháp khác', 409);
     }
 };
 

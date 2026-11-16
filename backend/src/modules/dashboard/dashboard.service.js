@@ -400,40 +400,14 @@ const loadDashboardExtras = async (scope, isFilteredByBuilding) => {
     const roomById = new Map(scope.rooms.map((room) => [String(room._id), room]));
     const contractById = new Map(scope.contracts.map((contract) => [String(contract._id), contract]));
 
-    // 1. Chỉ trả buildingOverview khi đang xem 1 tòa cụ thể (Admin lọc 1 tòa hoặc Manager)
+    // 1 & 2. Tải song song thông tin Manager, loại phòng, cư dân, hóa đơn đã thu và sự cố thay vì await nối tiếp
     const targetBuilding = isFilteredByBuilding ? (scope.buildings[0] ?? null) : null;
-
-    let managerInfo = null;
-    if (targetBuilding?.managerId) {
-        const [managerDoc, managerUser] = await Promise.all([
-            Manager.findOne({ userId: targetBuilding.managerId }).select('name phone').lean(),
-            User.findById(targetBuilding.managerId).select('email status').lean(),
-        ]);
-        if (managerDoc || managerUser) {
-            managerInfo = {
-                _id: targetBuilding.managerId,
-                name: managerDoc?.name ?? '',
-                phone: managerDoc?.phone ?? '',
-                email: managerUser?.email ?? '',
-                status: managerUser?.status ?? '',
-            };
-        }
-    }
-
-    const buildingOverview = targetBuilding
-        ? {
-            _id: targetBuilding._id,
-            name: targetBuilding.name,
-            address: targetBuilding.address,
-            floorCount: targetBuilding.floorCount,
-            images: targetBuilding.images ?? [],
-            manager: managerInfo,
-        }
-        : null;
-
-    // 2. Danh sách phòng kèm ảnh, loại phòng, sức chứa và dữ liệu lịch sử cho biểu đồ
     const roomTypeIds = [...new Set(scope.rooms.map((room) => String(room.roomTypeId)).filter(Boolean))];
-    const [roomTypes, allOccupants, paidInvoices, allIncidents] = await Promise.all([
+    const hasManager = Boolean(targetBuilding?.managerId);
+
+    const [managerDoc, managerUser, roomTypes, allOccupants, paidInvoices, allIncidents] = await Promise.all([
+        hasManager ? Manager.findOne({ userId: targetBuilding.managerId }).select('name phone').lean() : null,
+        hasManager ? User.findById(targetBuilding.managerId).select('email status').lean() : null,
         RoomType.find({ _id: { $in: roomTypeIds } }).select('_id name capacity').lean(),
         Occupant.find({ contractId: { $in: scope.contractIds } })
             .select('_id contractId userId name isRepresentative status joinDate exitDate')
@@ -449,6 +423,27 @@ const loadDashboardExtras = async (scope, isFilteredByBuilding) => {
             .select('_id incidentCode roomId reportedBy title status createdAt')
             .lean(),
     ]);
+
+    const managerInfo = hasManager && (managerDoc || managerUser)
+        ? {
+            _id: targetBuilding.managerId,
+            name: managerDoc?.name ?? '',
+            phone: managerDoc?.phone ?? '',
+            email: managerUser?.email ?? '',
+            status: managerUser?.status ?? '',
+        }
+        : null;
+
+    const buildingOverview = targetBuilding
+        ? {
+            _id: targetBuilding._id,
+            name: targetBuilding.name,
+            address: targetBuilding.address,
+            floorCount: targetBuilding.floorCount,
+            images: targetBuilding.images ?? [],
+            manager: managerInfo,
+        }
+        : null;
 
     const activeContractIdSet = new Set(scope.activeContractIds.map(String));
     const roomTypeById = new Map(roomTypes.map((type) => [String(type._id), type]));
@@ -679,14 +674,6 @@ export const getAdminDashboard = async ({ query = {} }) => {
     const { start, end } = currentMonthRange(now);
     const scope = await loadScope(buildingId);
 
-    const pendingInvoices = await Invoice.find({
-        contractId: { $in: scope.contractIds },
-        status: INVOICE_STATUS.PENDING,
-    })
-        .select('totalAmount dueDate')
-        .lean();
-    const overdueInvoices = pendingInvoices.filter((inv) => inv.dueDate && new Date(inv.dueDate) < now);
-
     const in30Days = endOfVietnamDay(new Date(now.getTime() + 30 * DAY_MS));
     const expiringContracts = scope.contracts.filter(
         (contract) =>
@@ -711,7 +698,35 @@ export const getAdminDashboard = async ({ query = {} }) => {
         };
     });
 
-    const [monthlyRevenue, openIncidents, users, residents, movedIn, movedOut, totalLeft, terminations, extras] = await Promise.all([
+    const endedUnrefunded = scope.contracts.filter(
+        (c) => c.status === CONTRACT_STATUS.ENDED && !c.depositRefundedAt,
+    );
+
+    const [
+        pendingInvoices,
+        confirmedTermIds,
+        monthlyRevenue,
+        openIncidents,
+        users,
+        residents,
+        movedIn,
+        movedOut,
+        totalLeft,
+        terminations,
+        extras,
+    ] = await Promise.all([
+        Invoice.find({
+            contractId: { $in: scope.contractIds },
+            status: INVOICE_STATUS.PENDING,
+        })
+            .select('totalAmount dueDate')
+            .lean(),
+        endedUnrefunded.length > 0
+            ? TerminationRequest.distinct('contractId', {
+                contractId: { $in: endedUnrefunded.map((c) => c._id) },
+                status: TERMINATION_STATUS.CONFIRMED,
+            })
+            : [],
         sumRevenue(scope.contractIds, start, end),
         countOpenIncidents(scope.roomIds),
         countUsers(scope, buildingId),
@@ -736,15 +751,7 @@ export const getAdminDashboard = async ({ query = {} }) => {
         loadDashboardExtras(scope, Boolean(buildingId)),
     ]);
 
-    const endedUnrefunded = scope.contracts.filter(
-        (c) => c.status === CONTRACT_STATUS.ENDED && !c.depositRefundedAt,
-    );
-    const confirmedTermIds = endedUnrefunded.length > 0
-        ? await TerminationRequest.distinct('contractId', {
-            contractId: { $in: endedUnrefunded.map((c) => c._id) },
-            status: TERMINATION_STATUS.CONFIRMED,
-        })
-        : [];
+    const overdueInvoices = pendingInvoices.filter((inv) => inv.dueDate && new Date(inv.dueDate) < now);
     const confirmedTermSet = new Set(confirmedTermIds.map(String));
     const pendingRefundContracts = endedUnrefunded.filter(
         (c) => !confirmedTermSet.has(String(c._id)),
@@ -790,14 +797,6 @@ export const getManagerDashboard = async ({ managerId }) => {
     const { start, end } = currentMonthRange(now);
     const scope = await loadScope(building._id);
 
-    const pendingInvoices = await Invoice.find({
-        contractId: { $in: scope.contractIds },
-        status: INVOICE_STATUS.PENDING,
-    })
-        .select('totalAmount dueDate')
-        .lean();
-    const overdueInvoices = pendingInvoices.filter((inv) => inv.dueDate && new Date(inv.dueDate) < now);
-
     const in30Days = endOfVietnamDay(new Date(now.getTime() + 30 * DAY_MS));
     const expiringContracts = scope.contracts.filter(
         (contract) =>
@@ -809,19 +808,32 @@ export const getManagerDashboard = async ({ managerId }) => {
     const endedUnrefunded = scope.contracts.filter(
         (c) => c.status === CONTRACT_STATUS.ENDED && !c.depositRefundedAt,
     );
-    const confirmedTermIds = endedUnrefunded.length > 0
-        ? await TerminationRequest.distinct('contractId', {
-            contractId: { $in: endedUnrefunded.map((c) => c._id) },
-            status: TERMINATION_STATUS.CONFIRMED,
-        })
-        : [];
-    const confirmedTermSet = new Set(confirmedTermIds.map(String));
-    const pendingRefundContracts = endedUnrefunded.filter(
-        (c) => !confirmedTermSet.has(String(c._id)),
-    ).length;
     const draftContracts = scope.contracts.filter((c) => c.status === CONTRACT_STATUS.DRAFT).length;
 
-    const [monthlyRevenue, openIncidents, residents, movedIn, movedOut, totalLeft, terminations, extras] = await Promise.all([
+    const [
+        pendingInvoices,
+        confirmedTermIds,
+        monthlyRevenue,
+        openIncidents,
+        residents,
+        movedIn,
+        movedOut,
+        totalLeft,
+        terminations,
+        extras,
+    ] = await Promise.all([
+        Invoice.find({
+            contractId: { $in: scope.contractIds },
+            status: INVOICE_STATUS.PENDING,
+        })
+            .select('totalAmount dueDate')
+            .lean(),
+        endedUnrefunded.length > 0
+            ? TerminationRequest.distinct('contractId', {
+                contractId: { $in: endedUnrefunded.map((c) => c._id) },
+                status: TERMINATION_STATUS.CONFIRMED,
+            })
+            : [],
         sumRevenue(scope.contractIds, start, end),
         countOpenIncidents(scope.roomIds),
         Occupant.countDocuments({
@@ -844,6 +856,12 @@ export const getManagerDashboard = async ({ managerId }) => {
         summarizeTerminations(scope.contractIds),
         loadDashboardExtras(scope, true),
     ]);
+
+    const overdueInvoices = pendingInvoices.filter((inv) => inv.dueDate && new Date(inv.dueDate) < now);
+    const confirmedTermSet = new Set(confirmedTermIds.map(String));
+    const pendingRefundContracts = endedUnrefunded.filter(
+        (c) => !confirmedTermSet.has(String(c._id)),
+    ).length;
 
     return {
         rooms: roomStats(scope.rooms),

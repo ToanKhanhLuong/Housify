@@ -1,13 +1,20 @@
 // UC-30 (Customer): xem hồ sơ một thành viên trong phòng mình, kể cả ảnh CCCD (link có ký tạm thời)
 // Người ở cùng đang ở → nút Sửa thông tin (UC-31). Chính người đại diện → sửa ở trang Hồ sơ (UC-05), BE chặn sửa ở đây
-import { Button, Modal } from 'react-bootstrap';
+import { Alert, Button, Modal } from 'react-bootstrap';
 import { BiEditAlt, BiUser } from 'react-icons/bi';
 import { Link } from 'react-router-dom';
 import { OCCUPANT_STATUS } from '../../../constants/enums';
 import OccupantInfo from './OccupantInfo';
 
-const MemberModal = ({ member, onHide, onEdit }) => {
-  const canEdit = !member.isRepresentative && member.status === OCCUPANT_STATUS.STAYED;
+const MemberModal = ({
+  member,
+  canEditCoOccupant = true,
+  editDisabledReason = null,
+  onHide,
+  onEdit,
+}) => {
+  const canEdit =
+    canEditCoOccupant && !member.isRepresentative && member.status === OCCUPANT_STATUS.STAYED;
 
   return (
     <Modal show onHide={onHide} centered size="lg">
@@ -20,6 +27,11 @@ const MemberModal = ({ member, onHide, onEdit }) => {
         </div>
       </Modal.Header>
       <Modal.Body>
+        {!canEditCoOccupant && !member.isRepresentative && editDisabledReason && (
+          <Alert variant="warning" className="small mb-3">
+            {editDisabledReason}
+          </Alert>
+        )}
         <OccupantInfo occupant={member} />
       </Modal.Body>
       <Modal.Footer className="justify-content-start">

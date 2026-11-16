@@ -4,7 +4,7 @@
 // - Phải: tóm tắt hợp đồng (giá, thời hạn, còn bao nhiêu ngày), quản lý tòa (gọi điện), lối tắt
 // Dữ liệu: GET /me/room-members, rồi GET /contracts/:id (lỗi thì chỉ ẩn phần tóm tắt hợp đồng). Thêm / bớt người do Manager làm
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Card, Col, Image, Modal, Row } from 'react-bootstrap';
+import { Alert, Button, Card, Col, Image, Modal, Row } from 'react-bootstrap';
 import { BiBed, BiBuildings, BiChevronLeft, BiChevronRight, BiExpandAlt, BiGroup, BiMap } from 'react-icons/bi';
 import EmptyState from '../../components/EmptyState';
 import ErrorState from '../../components/ErrorState';
@@ -256,6 +256,11 @@ const MyRoomPage = () => {
                 <BiGroup className="text-secondary" />
                 Thành viên phòng <span className="fw-normal text-secondary">({members.length})</span>
               </h2>
+              {state.data.canEditMembers === false && state.data.editMembersDisabledReason && (
+                <Alert variant="warning" className="mb-0">
+                  {state.data.editMembersDisabledReason}
+                </Alert>
+              )}
               <div className="grid sm:grid-cols-2 2xl:grid-cols-3 gap-4">
                 {members.map((member) => (
                   <MemberTile key={member._id} member={member} onClick={() => setSelected(member)} />
@@ -277,6 +282,8 @@ const MyRoomPage = () => {
       {selected && (
         <MemberModal
           member={selected}
+          canEditCoOccupant={state.data.canEditMembers !== false}
+          editDisabledReason={state.data.editMembersDisabledReason}
           onHide={() => setSelected(null)}
           onEdit={() => {
             setEditing(selected);

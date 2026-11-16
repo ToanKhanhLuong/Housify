@@ -36,4 +36,6 @@ const paymentSchema = new Schema(
     { timestamps: true },
 );
 
+paymentSchema.index({ invoiceId: 1, paidAt: -1 });
+
 export default mongoose.model('Payment', paymentSchema, 'payments');

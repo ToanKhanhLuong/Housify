@@ -109,6 +109,7 @@ export const refundDeposit = asyncHandler(async (request, response) => {
     const { contract, invoiceWarning, warning, ...rest } = await contractService.refundDeposit({
         managerId: request.user.id,
         contractId: request.params.id,
+        data: request.body,
     });
 
     const responseData = {
@@ -118,5 +119,9 @@ export const refundDeposit = asyncHandler(async (request, response) => {
         warning,
     };
 
-    return ok(response, responseData, 'Ghi nhận hoàn trả tiền đặt cọc thành công');
+    const message = rest.settledInvoiceCount > 0
+        ? 'Ghi nhận quyết toán công nợ và hoàn cọc thành công'
+        : 'Ghi nhận hoàn trả tiền đặt cọc thành công';
+
+    return ok(response, responseData, message);
 });

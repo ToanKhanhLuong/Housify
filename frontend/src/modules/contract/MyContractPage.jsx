@@ -156,7 +156,7 @@ const MyContractPage = () => {
             ? 'Hiện tại bạn không có hợp đồng đang hiệu lực. Dưới đây là hợp đồng đã kết thúc gần nhất (chỉ xem).'
             : 'Đây là hợp đồng đã kết thúc (chỉ xem). Bạn không thể chỉnh sửa hay gửi yêu cầu trên hợp đồng này.'}
           {state.contract.depositRefundedAt && (
-            <> Tiền cọc đã được hoàn trả lúc {formatDateTime(state.contract.depositRefundedAt)}.</>
+            <> Thủ tục hoàn/quyết toán tiền cọc đã được ghi nhận lúc {formatDateTime(state.contract.depositRefundedAt)}.</>
           )}
         </Alert>
       )}

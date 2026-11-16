@@ -25,6 +25,11 @@ import { generateActivationToken, ACTIVATION_TOKEN_TTL_MS } from '../../helpers/
 import { escapeRegex } from '../../helpers/filter.js';
 import { startOfVietnamDay, endOfVietnamDay } from '../../helpers/date.js';
 import { getRepresentativeRecipientEmail } from '../../helpers/representativeEmail.js';
+import {
+    findBlacklistedCccds,
+    findDraftCccdConflict,
+    findDraftEmailConflict,
+} from '../../helpers/customerRestriction.js';
 import Contract from '../../models/Contract.js';
 import Room from '../../models/Room.js';
 import RoomType from '../../models/RoomType.js';
@@ -118,26 +123,27 @@ const validateRepresentativeCccdAndEmail = async (cleanRepCccd, cleanRepEmail, e
     }
 
     // 2. Chặn nếu tài khoản gắn với CCCD đã bị khóa do vi phạm (LOCKED) hoặc từng bị chấm dứt đơn phương đã duyệt
-    const repOccupants = await Occupant.find({ cccd: cleanRepCccd, isRepresentative: true }).lean();
-    const occupantRep = repOccupants.find((o) => o.userId) || repOccupants[0] || null;
-    if (repOccupants.length > 0) {
-        const [repUser, hasConfirmedUnilateral] = await Promise.all([
-            occupantRep?.userId ? User.findById(occupantRep.userId).select('status').lean() : null,
-            TerminationRequest.exists({
-                contractId: { $in: repOccupants.map((o) => o.contractId) },
-                type: TERMINATION_TYPE.UNILATERAL,
-                status: TERMINATION_STATUS.CONFIRMED,
-            }),
-        ]);
-        if (repUser?.status === USER_STATUS.LOCKED || hasConfirmedUnilateral) {
-            throw fieldError(
-                'representativeCccd',
-                'Tài khoản khách hàng này đã bị khóa do vi phạm, không thể tạo hợp đồng mới',
-            );
-        }
+    const blacklistedCccds = await findBlacklistedCccds([cleanRepCccd]);
+    if (blacklistedCccds.has(cleanRepCccd)) {
+        throw fieldError(
+            'representativeCccd',
+            'Tài khoản khách hàng này đã bị khóa do vi phạm, không thể tạo hợp đồng mới',
+        );
     }
 
-    // 3. Kiểm tra Email người đại diện
+    // 3. Kiểm tra Email người đại diện (cả hợp đồng nháp khác lẫn tài khoản đã tồn tại)
+    const draftEmailConflict = await findDraftEmailConflict(cleanRepEmail, excludeContractId);
+    if (draftEmailConflict) {
+        throw fieldError(
+            'representativeEmail',
+            'Email này đang được sử dụng cho một hợp đồng nháp khác',
+            409,
+        );
+    }
+
+    const repOccupants = await Occupant.find({ cccd: cleanRepCccd, isRepresentative: true }).lean();
+    const occupantRep = repOccupants.find((o) => o.userId) || repOccupants[0] || null;
+
     const existingUserByEmail = await User.findOne({ email: cleanRepEmail }).select('_id roleId status').lean();
     if (existingUserByEmail) {
         if (existingUserByEmail.status === USER_STATUS.LOCKED) {
@@ -150,13 +156,17 @@ const validateRepresentativeCccdAndEmail = async (cleanRepCccd, cleanRepEmail, e
         const isDifferentUser =
             existingUserByEmail.roleId !== ROLE.CUSTOMER ||
             (occupantRep?.userId && String(occupantRep.userId) !== String(existingUserByEmail._id));
-        const occupantOfEmail = !isDifferentUser
-            ? await Occupant.findOne({ userId: existingUserByEmail._id, isRepresentative: true })
+        const mismatchOccupantOfEmail = !isDifferentUser
+            ? await Occupant.findOne({
+                  userId: existingUserByEmail._id,
+                  isRepresentative: true,
+                  cccd: { $ne: cleanRepCccd },
+              })
                   .select('cccd')
                   .lean()
             : null;
 
-        if (isDifferentUser || (occupantOfEmail && occupantOfEmail.cccd !== cleanRepCccd)) {
+        if (isDifferentUser || mismatchOccupantOfEmail) {
             throw fieldError(
                 'representativeEmail',
                 'Email này đã được sử dụng bởi người dùng khác trong hệ thống',
@@ -281,9 +291,19 @@ export const createContract = async ({ managerId, data }) => {
     await validateRepresentativeCccdAndEmail(cleanRepCccd, cleanRepEmail);
 
     // 3d. Kiểm tra người ở cùng trên toàn hệ thống
+    const blacklistedCoCccds = await findBlacklistedCccds(coOccupants.map((co) => co.cccd));
     for (const co of coOccupants) {
         const coCccd = co.cccd.trim();
         const coPhone = co.phone.trim();
+
+        if (blacklistedCoCccds.has(coCccd)) {
+            throw new AppError(`Người ở cùng mang CCCD ${coCccd} đã bị khóa do vi phạm, không thể đăng ký cư trú`, 403);
+        }
+
+        const draftRepConflict = await findDraftCccdConflict(coCccd);
+        if (draftRepConflict) {
+            throw new AppError(`Người ở cùng mang CCCD ${coCccd} đang là người đại diện của một hợp đồng nháp khác`, 400);
+        }
 
         const stayedOther = await Occupant.findOne({ cccd: coCccd, status: OCCUPANT_STATUS.STAYED });
         if (stayedOther) {
@@ -498,7 +518,6 @@ export const getContracts = async ({ userId, roleId, query = {} }) => {
         const buildingRooms = await Room.find({ buildingId: building._id, isDeleted: false })
             .select('_id roomNumber floorNumber status')
             .lean();
-        const buildingRoomIds = buildingRooms.map((r) => String(r._id));
 
         let eligibleRooms = buildingRooms;
         if (floorList && floorList.length > 0) {
@@ -506,11 +525,12 @@ export const getContracts = async ({ userId, roleId, query = {} }) => {
         }
 
         if (roomId) {
-            const targetRoom = await Room.findOne({ _id: roomId, isDeleted: false }).lean();
+            const targetRoom = buildingRooms.find((r) => String(r._id) === String(roomId));
             if (!targetRoom) {
-                throw new AppError('Không tìm thấy phòng', 404);
-            }
-            if (!buildingRoomIds.includes(String(roomId))) {
+                const roomExists = await Room.exists({ _id: roomId, isDeleted: false });
+                if (!roomExists) {
+                    throw new AppError('Không tìm thấy phòng', 404);
+                }
                 throw new AppError('Bạn không có quyền thực hiện thao tác này', 403);
             }
             if (floorList && floorList.length > 0 && !floorList.includes(targetRoom.floorNumber)) {
@@ -1195,17 +1215,98 @@ const resolveUserDisplayName = async (userId) => {
     return user?.email || 'Không xác định';
 };
 
-const sendDepositRefundEmail = (to, roomNumber, buildingName, depositAmount, refundedAt) => sendMail(
-    to,
-    `[Housify] Xác nhận hoàn trả tiền đặt cọc phòng ${roomNumber} - ${buildingName}`,
-    `<p>Xin chào,</p>
-<p>Tiền đặt cọc của hợp đồng thuê phòng <b>${escapeHtml(roomNumber)}</b> tại <b>${escapeHtml(buildingName)}</b> đã được hoàn trả bằng tiền mặt.</p>
+const formatMoneyVn = (amount) => Number(amount || 0).toLocaleString('vi-VN');
+
+/**
+ * Tính toán khấu trừ tiền cọc và công nợ hóa đơn khi kết thúc hợp đồng (UC-45)
+ */
+const computeDepositSettlement = (deposit, pendingInvoiceTotal) => {
+    const safeDeposit = Number(deposit || 0);
+    const safeDebt = Number(pendingInvoiceTotal || 0);
+    const deductedAmount = Math.min(safeDeposit, safeDebt);
+    const netRefundAmount = Math.max(0, safeDeposit - safeDebt);
+    const extraCollectAmount = Math.max(0, safeDebt - safeDeposit);
+
+    return {
+        deposit: safeDeposit,
+        debt: safeDebt,
+        deductedAmount,
+        netRefundAmount,
+        extraCollectAmount,
+        requiresExtraCollection: extraCollectAmount > 0,
+    };
+};
+
+/**
+ * Tạo nội dung thông báo và email hoàn cọc/tất toán khớp đúng từng kịch bản (UC-45)
+ */
+const buildDepositSettlementMessages = ({
+    roomNumber,
+    buildingName,
+    settlement,
+    settledInvoices,
+    refundedAt,
+}) => {
+    const depositStr = formatMoneyVn(settlement.deposit);
+    const deductedStr = formatMoneyVn(settlement.deductedAmount);
+    const netRefundStr = formatMoneyVn(settlement.netRefundAmount);
+    const extraStr = formatMoneyVn(settlement.extraCollectAmount);
+    const debtStr = formatMoneyVn(settlement.debt);
+    const safeRoom = escapeHtml(roomNumber);
+    const safeBuilding = escapeHtml(buildingName);
+    const refundedTimeStr = formatDateTimeVn(refundedAt);
+    const invoiceCodesText = settledInvoices.map((inv) => inv.invoiceCode).join(', ');
+    const safeInvoiceCodes = escapeHtml(invoiceCodesText);
+
+    if (settledInvoices.length === 0) {
+        return {
+            notificationTitle: 'Đã hoàn trả tiền đặt cọc',
+            notificationMessage: `Tiền đặt cọc ${depositStr}đ của hợp đồng phòng ${roomNumber} (${buildingName}) đã được hoàn trả bằng tiền mặt.`,
+            emailSubject: `[Housify] Xác nhận hoàn trả tiền đặt cọc phòng ${roomNumber} - ${buildingName}`,
+            emailHtml: `<p>Xin chào,</p>
+<p>Tiền đặt cọc của hợp đồng thuê phòng <b>${safeRoom}</b> tại <b>${safeBuilding}</b> đã được hoàn trả bằng tiền mặt.</p>
 <ul>
-  <li>Số tiền hoàn trả: <b>${Number(depositAmount).toLocaleString('vi-VN')}đ</b></li>
-  <li>Thời điểm ghi nhận: <b>${formatDateTimeVn(refundedAt)}</b></li>
+  <li>Số tiền hoàn trả: <b>${depositStr}đ</b></li>
+  <li>Thời điểm ghi nhận: <b>${refundedTimeStr}</b></li>
 </ul>
 <p>Cảm ơn bạn đã sử dụng dịch vụ của Housify.</p>`,
-);
+        };
+    }
+
+    if (settlement.extraCollectAmount > 0) {
+        return {
+            notificationTitle: 'Đã quyết toán tiền cọc và công nợ phòng',
+            notificationMessage: `Hợp đồng phòng ${roomNumber} (${buildingName}) đã giữ toàn bộ ${depositStr}đ tiền cọc và ghi nhận thu thêm ${extraStr}đ tiền mặt để tất toán ${settledInvoices.length} hóa đơn (${invoiceCodesText}). Số tiền hoàn trả khách: 0đ.`,
+            emailSubject: `[Housify] Xác nhận quyết toán tiền cọc và công nợ phòng ${roomNumber} - ${buildingName}`,
+            emailHtml: `<p>Xin chào,</p>
+<p>Thủ tục quyết toán tiền đặt cọc và công nợ của hợp đồng thuê phòng <b>${safeRoom}</b> tại <b>${safeBuilding}</b> đã được hoàn tất.</p>
+<ul>
+  <li>Tiền đặt cọc gốc: <b>${depositStr}đ</b></li>
+  <li>Tổng công nợ đã tất toán (${settledInvoices.length} hóa đơn: ${safeInvoiceCodes}): <b>${debtStr}đ</b></li>
+  <li>Số tiền khấu trừ từ tiền cọc: <b>${deductedStr}đ</b></li>
+  <li>Số tiền mặt đã thu thêm từ khách: <b>${extraStr}đ</b></li>
+  <li>Số tiền cọc hoàn trả bằng tiền mặt: <b>0đ</b></li>
+  <li>Thời điểm ghi nhận: <b>${refundedTimeStr}</b></li>
+</ul>
+<p>Cảm ơn bạn đã sử dụng dịch vụ của Housify.</p>`,
+        };
+    }
+
+    return {
+        notificationTitle: 'Đã quyết toán công nợ và hoàn cọc',
+        notificationMessage: `Hợp đồng phòng ${roomNumber} (${buildingName}) đã khấu trừ ${deductedStr}đ từ tiền cọc ${depositStr}đ cho ${settledInvoices.length} hóa đơn (${invoiceCodesText}). Số tiền hoàn trả bằng tiền mặt: ${netRefundStr}đ.`,
+        emailSubject: `[Housify] Xác nhận quyết toán công nợ và hoàn cọc phòng ${roomNumber} - ${buildingName}`,
+        emailHtml: `<p>Xin chào,</p>
+<p>Thủ tục quyết toán công nợ và hoàn trả tiền đặt cọc của hợp đồng thuê phòng <b>${safeRoom}</b> tại <b>${safeBuilding}</b> đã được hoàn tất.</p>
+<ul>
+  <li>Tiền đặt cọc gốc: <b>${depositStr}đ</b></li>
+  <li>Đã khấu trừ công nợ (${settledInvoices.length} hóa đơn: ${safeInvoiceCodes}): <b>${deductedStr}đ</b></li>
+  <li>Số tiền thực hoàn trả bằng tiền mặt: <b>${netRefundStr}đ</b></li>
+  <li>Thời điểm ghi nhận: <b>${refundedTimeStr}</b></li>
+</ul>
+<p>Cảm ơn bạn đã sử dụng dịch vụ của Housify.</p>`,
+    };
+};
 
 const sendContractEndedEmail = (to, roomNumber, buildingName, endDate) => sendMail(
     to,
@@ -1219,8 +1320,10 @@ const sendContractEndedEmail = (to, roomNumber, buildingName, endDate) => sendMa
 /**
  * Kiểm tra điều kiện hoàn cọc và lấy danh sách hóa đơn chưa thanh toán của hợp đồng (UC-45)
  */
-const validateAndInspectRefund = async (managerId, contractId) => {
-    const contract = await Contract.findById(contractId);
+const validateAndInspectRefund = async (managerId, contractId, session = null) => {
+    const contractQuery = Contract.findById(contractId);
+    if (session) contractQuery.session(session);
+    const contract = await contractQuery;
     if (!contract) {
         throw new AppError('Không tìm thấy hợp đồng', 404);
     }
@@ -1228,10 +1331,12 @@ const validateAndInspectRefund = async (managerId, contractId) => {
     const { room, building } = await verifyManagerContractScope(managerId, contract);
 
     // Kiểm tra có đơn chấm dứt CONFIRMED hay không (chấm dứt trước hạn thì không được hoàn cọc)
-    const confirmedTermination = await TerminationRequest.findOne({
+    const terminationQuery = TerminationRequest.findOne({
         contractId: contract._id,
         status: TERMINATION_STATUS.CONFIRMED,
     }).lean();
+    if (session) terminationQuery.session(session);
+    const confirmedTermination = await terminationQuery;
 
     if (confirmedTermination) {
         throw new AppError('Hợp đồng chấm dứt trước hạn không được hoàn cọc', 400);
@@ -1249,13 +1354,15 @@ const validateAndInspectRefund = async (managerId, contractId) => {
         );
     }
 
-    const pendingInvoices = await Invoice.find({
+    const invoiceQuery = Invoice.find({
         contractId: contract._id,
         status: INVOICE_STATUS.PENDING,
     })
         .select('_id invoiceCode month totalAmount status dueDate sentAt')
         .sort({ month: 1 })
         .lean();
+    if (session) invoiceQuery.session(session);
+    const pendingInvoices = await invoiceQuery;
 
     const pendingInvoiceCount = pendingInvoices.length;
     const pendingInvoiceTotal = pendingInvoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
@@ -1291,9 +1398,7 @@ export const getRefundPreview = async ({ managerId, contractId }) => {
         invoiceWarning,
     } = await validateAndInspectRefund(managerId, contractId);
 
-    const deductedAmount = Math.min(contract.deposit || 0, pendingInvoiceTotal || 0);
-    const netRefundAmount = Math.max(0, (contract.deposit || 0) - (pendingInvoiceTotal || 0));
-    const extraCollectAmount = Math.max(0, (pendingInvoiceTotal || 0) - (contract.deposit || 0));
+    const settlement = computeDepositSettlement(contract.deposit, pendingInvoiceTotal);
 
     return {
         contractId: contract._id,
@@ -1303,11 +1408,12 @@ export const getRefundPreview = async ({ managerId, contractId }) => {
             floorNumber: room.floorNumber,
             buildingName: building.name,
         },
-        deposit: contract.deposit,
-        deductedAmount,
-        netRefundAmount,
-        extraCollectAmount,
-        canRefund: true,
+        deposit: settlement.deposit,
+        deductedAmount: settlement.deductedAmount,
+        netRefundAmount: settlement.netRefundAmount,
+        extraCollectAmount: settlement.extraCollectAmount,
+        requiresExtraCollection: settlement.requiresExtraCollection,
+        canRefund: !settlement.requiresExtraCollection,
         hasPendingInvoices,
         pendingInvoiceCount,
         pendingInvoiceTotal,
@@ -1317,39 +1423,101 @@ export const getRefundPreview = async ({ managerId, contractId }) => {
 };
 
 /**
- * Xác nhận hoàn cọc hợp đồng hết hạn (UC-45)
+ * Xác nhận hoàn cọc / tất toán công nợ hợp đồng hết hạn (UC-45)
  */
-export const refundDeposit = async ({ managerId, contractId }) => {
-    const {
-        contract,
-        room,
-        building,
-        pendingInvoices,
-        pendingInvoiceCount,
-        pendingInvoiceTotal,
-        hasPendingInvoices,
-        invoiceWarning,
-    } = await validateAndInspectRefund(managerId, contractId);
-
-    const repOccupant = await Occupant.findOne({
-        contractId: contract._id,
-        isRepresentative: true,
-    }).lean();
-
+export const refundDeposit = async ({ managerId, contractId, data = {} }) => {
+    const confirmExtraCollected = Boolean(data?.confirmExtraCollected);
     const refundedAt = new Date();
 
+    let updatedContract = null;
+    let settlement = null;
+    let settledInvoices = [];
+    let messages = null;
+
     await withTransaction(async (session) => {
-        contract.depositRefundedAt = refundedAt;
-        contract.depositRefundedBy = managerId;
-        await contract.save({ session });
+        const inspected = await validateAndInspectRefund(managerId, contractId, session);
+        const { contract, room, building, pendingInvoices, pendingInvoiceTotal } = inspected;
+
+        settledInvoices = pendingInvoices;
+        settlement = computeDepositSettlement(contract.deposit, pendingInvoiceTotal);
+
+        if (settlement.requiresExtraCollection && !confirmExtraCollected) {
+            throw new AppError(
+                `Công nợ hóa đơn (${formatMoneyVn(settlement.debt)}đ) vượt quá tiền đặt cọc (${formatMoneyVn(settlement.deposit)}đ) là ${formatMoneyVn(settlement.extraCollectAmount)}đ. Vui lòng yêu cầu khách thanh toán bớt hoặc xác nhận đã thu thêm đủ tiền mặt trước khi hoàn tất.`,
+                400,
+            );
+        }
+
+        // Cập nhật nguyên tử để chống hoàn cọc trùng khi hai yêu cầu đến cùng lúc
+        updatedContract = await Contract.findOneAndUpdate(
+            {
+                _id: contract._id,
+                status: CONTRACT_STATUS.ENDED,
+                $or: [
+                    { depositRefundedAt: null },
+                    { depositRefundedAt: { $exists: false } },
+                ],
+            },
+            {
+                $set: {
+                    depositRefundedAt: refundedAt,
+                    depositRefundedBy: managerId,
+                },
+            },
+            { new: true, session },
+        );
+
+        if (!updatedContract) {
+            throw new AppError('Hợp đồng này đã được hoàn cọc hoặc không còn ở trạng thái hợp lệ', 400);
+        }
+
+        // Nếu có hóa đơn PENDING đi kèm, đánh dấu PAID đồng bộ trong cùng transaction để dừng nhắc nợ và khớp doanh thu
+        if (settledInvoices.length > 0) {
+            const invoiceIds = settledInvoices.map((inv) => inv._id);
+            const invoiceUpdate = await Invoice.updateMany(
+                {
+                    _id: { $in: invoiceIds },
+                    status: INVOICE_STATUS.PENDING,
+                },
+                {
+                    $set: {
+                        status: INVOICE_STATUS.PAID,
+                        paidAt: refundedAt,
+                    },
+                },
+                { session },
+            );
+
+            if (invoiceUpdate.modifiedCount !== settledInvoices.length) {
+                throw new AppError(
+                    'Danh sách hóa đơn chưa thanh toán vừa thay đổi, vui lòng tải lại trang và thử lại',
+                    409,
+                );
+            }
+        }
+
+        const repOccupant = await Occupant.findOne({
+            contractId: contract._id,
+            isRepresentative: true,
+        })
+            .session(session)
+            .lean();
+
+        messages = buildDepositSettlementMessages({
+            roomNumber: room.roomNumber,
+            buildingName: building.name,
+            settlement,
+            settledInvoices,
+            refundedAt,
+        });
 
         if (repOccupant?.userId) {
             await notify(
                 {
                     userIds: repOccupant.userId,
                     type: NOTIFICATION_TYPE.DEPOSIT_REFUNDED,
-                    title: 'Đã hoàn trả tiền đặt cọc',
-                    message: `Tiền đặt cọc ${contract.deposit.toLocaleString('vi-VN')}đ của hợp đồng phòng ${room.roomNumber} (${building.name}) đã được hoàn trả bằng tiền mặt.`,
+                    title: messages.notificationTitle,
+                    message: messages.notificationMessage,
                     refId: contract._id,
                     createdBy: managerId,
                 },
@@ -1357,44 +1525,64 @@ export const refundDeposit = async ({ managerId, contractId }) => {
             );
         }
 
+        const auditReason = settledInvoices.length === 0
+            ? 'Ghi nhận hoàn trả tiền đặt cọc khi kết thúc hợp đồng'
+            : settlement.requiresExtraCollection
+                ? `Quyết toán kết thúc hợp đồng: giữ ${formatMoneyVn(settlement.deductedAmount)}đ cọc và thu thêm ${formatMoneyVn(settlement.extraCollectAmount)}đ tiền mặt để tất toán ${settledInvoices.length} hóa đơn`
+                : `Quyết toán kết thúc hợp đồng: khấu trừ ${formatMoneyVn(settlement.deductedAmount)}đ từ tiền cọc cho ${settledInvoices.length} hóa đơn và hoàn ${formatMoneyVn(settlement.netRefundAmount)}đ`;
+
         await audit(
             {
                 actorId: managerId,
                 action: AUDIT_ACTION.UPDATE_CONTRACT,
                 targetType: 'contracts',
                 targetId: contract._id,
-                reason: 'Ghi nhận hoàn trả tiền đặt cọc khi kết thúc hợp đồng',
+                reason: auditReason,
                 metadata: {
-                    deposit: contract.deposit,
+                    deposit: settlement.deposit,
+                    deductedAmount: settlement.deductedAmount,
+                    netRefundAmount: settlement.netRefundAmount,
+                    extraCollectAmount: settlement.extraCollectAmount,
+                    confirmExtraCollected,
                     before: { depositRefundedAt: null, depositRefundedBy: null },
                     after: { depositRefundedAt: refundedAt, depositRefundedBy: managerId },
-                    pendingInvoiceCount,
-                    pendingInvoiceTotal,
+                    settledInvoiceCount: settledInvoices.length,
+                    settledInvoiceTotal: settlement.debt,
+                    settledInvoiceIds: settledInvoices.map((inv) => inv._id),
+                    settledInvoiceCodes: settledInvoices.map((inv) => inv.invoiceCode),
                 },
             },
             session,
         );
     });
 
-    const mailSent = await sendDepositRefundEmail(
-        await getRepresentativeRecipientEmail(contract._id, contract.representativeEmail),
-        room.roomNumber,
-        building.name,
-        contract.deposit,
-        refundedAt,
+    const recipientEmail = await getRepresentativeRecipientEmail(
+        updatedContract._id,
+        updatedContract.representativeEmail,
+    );
+    const mailSent = await sendMail(
+        recipientEmail,
+        messages.emailSubject,
+        messages.emailHtml,
     );
 
     return {
-        contract,
-        deposit: contract.deposit,
-        depositRefundedAt: contract.depositRefundedAt,
-        depositRefundedBy: contract.depositRefundedBy,
-        hasPendingInvoices,
-        pendingInvoiceCount,
-        pendingInvoiceTotal,
-        pendingInvoices,
-        invoiceWarning,
-        warning: mailSent ? undefined : 'Gửi email xác nhận hoàn cọc thất bại',
+        contract: updatedContract,
+        deposit: settlement.deposit,
+        deductedAmount: settlement.deductedAmount,
+        netRefundAmount: settlement.netRefundAmount,
+        extraCollectAmount: settlement.extraCollectAmount,
+        depositRefundedAt: updatedContract.depositRefundedAt,
+        depositRefundedBy: updatedContract.depositRefundedBy,
+        settledInvoiceCount: settledInvoices.length,
+        settledInvoiceTotal: settlement.debt,
+        settledInvoices,
+        hasPendingInvoices: false,
+        pendingInvoiceCount: 0,
+        pendingInvoiceTotal: 0,
+        pendingInvoices: [],
+        invoiceWarning: null,
+        warning: mailSent ? undefined : 'Ghi nhận thành công nhưng gửi email thông báo hoàn cọc thất bại',
     };
 };
 

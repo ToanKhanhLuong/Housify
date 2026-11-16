@@ -35,11 +35,11 @@ const contractApi = {
   terminations: (contractId) => api.get('/terminations', { params: { contractId, limit: 10 } }),
 
   // UC-45 (Manager): xem trước hoàn cọc – chỉ HĐ Đã kết thúc do hết hạn, chưa hoàn. Không đủ điều kiện → 400 kèm lý do
-  // → { deposit, canRefund, hasPendingInvoices, pendingInvoiceCount, pendingInvoiceTotal, pendingInvoices[], warning }
+  // → { deposit, deductedAmount, netRefundAmount, extraCollectAmount, requiresExtraCollection, canRefund, hasPendingInvoices, pendingInvoiceCount, pendingInvoiceTotal, pendingInvoices[], warning }
   refundPreview: (id) => api.get(`/contracts/${id}/refund-preview`),
 
-  // UC-45 (Manager): xác nhận đã hoàn cọc (tiền mặt, 1 lần) → { depositRefundedAt, …, warning? }
-  refundDeposit: (id) => api.post(`/contracts/${id}/refund-deposit`),
+  // UC-45 (Manager): xác nhận hoàn cọc / quyết toán công nợ (tiền mặt, 1 lần) { confirmExtraCollected?: boolean }
+  refundDeposit: (id, data = {}) => api.post(`/contracts/${id}/refund-deposit`, data),
 };
 
 export default contractApi;

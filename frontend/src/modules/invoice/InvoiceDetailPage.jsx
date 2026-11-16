@@ -121,7 +121,7 @@ const InvoiceDetailPage = () => {
     loadInvoice();
   }, [loadInvoice]);
 
-  // Tự động kiểm tra trạng thái ngầm mỗi 5 giây (khi đang mở chi tiết mà không đang sửa/mở modal)
+  // Hóa đơn chờ thanh toán (PENDING) kiểm tra ngầm mỗi 10 giây (cùng cơ chế chuông); bản nháp giãn 60 giây
   const currentStatus = state.invoice?.status;
   useAutoRefresh(
     () =>
@@ -139,6 +139,7 @@ const InvoiceDetailPage = () => {
         });
       }),
     {
+      intervalMs: currentStatus === INVOICE_STATUS.PENDING ? 10000 : 60000,
       enabled:
         state.status === 'ok' &&
         (currentStatus === INVOICE_STATUS.DRAFT || currentStatus === INVOICE_STATUS.PENDING) &&

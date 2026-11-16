@@ -73,4 +73,7 @@ const terminationRequestSchema = new Schema(
     { timestamps: true },
 );
 
+terminationRequestSchema.index({ contractId: 1, status: 1 });
+terminationRequestSchema.index({ status: 1, type: 1, createdAt: -1 });
+
 export default mongoose.model('TerminationRequest', terminationRequestSchema, 'termination_requests');

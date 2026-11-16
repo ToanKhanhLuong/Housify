@@ -9,13 +9,15 @@ import {
     TOKEN_STATUS,
     CONTRACT_STATUS,
     OCCUPANT_STATUS,
-    TERMINATION_TYPE,
-    TERMINATION_STATUS,
 } from '../../constants/enums.js';
 import { MSG } from '../../constants/messages.js';
 import { AppError } from '../../utils/AppError.js';
 import { sendMail } from '../../config/mail.js';
 import { withTransaction } from '../../helpers/withTransaction.js';
+import {
+    findDraftEmailConflict,
+    getCustomerContractAccessState,
+} from '../../helpers/customerRestriction.js';
 import { getSignedUrl } from '../upload/upload.service.js';
 import User from '../../models/User.js';
 import Manager from '../../models/Manager.js';
@@ -24,45 +26,6 @@ import Building from '../../models/Building.js';
 import Contract from '../../models/Contract.js';
 import Room from '../../models/Room.js';
 import OtpToken from '../../models/OtpToken.js';
-import TerminationRequest from '../../models/TerminationRequest.js';
-
-// Kiểm tra Customer còn hợp đồng ACTIVE hay đã có đơn chấm dứt đơn phương CONFIRMED (chặn sửa hồ sơ / đổi mật khẩu ở cửa sổ 0h-23h59)
-const getCustomerContractAccessState = async (userId) => {
-    const repOccupants = await Occupant.find({ userId, isRepresentative: true })
-        .select('contractId status')
-        .lean();
-
-    if (repOccupants.length === 0) {
-        return {
-            hasActiveContract: false,
-            hasConfirmedUnilateral: false,
-        };
-    }
-
-    const allContractIds = repOccupants.map((item) => item.contractId).filter(Boolean);
-    const stayedContractIds = repOccupants
-        .filter((item) => item.status === OCCUPANT_STATUS.STAYED)
-        .map((item) => item.contractId)
-        .filter(Boolean);
-
-    const [hasActiveContract, hasConfirmedUnilateral] = await Promise.all([
-        stayedContractIds.length > 0
-            ? Contract.exists({ _id: { $in: stayedContractIds }, status: CONTRACT_STATUS.ACTIVE })
-            : false,
-        allContractIds.length > 0
-            ? TerminationRequest.exists({
-                contractId: { $in: allContractIds },
-                type: TERMINATION_TYPE.UNILATERAL,
-                status: TERMINATION_STATUS.CONFIRMED,
-            })
-            : false,
-    ]);
-
-    return {
-        hasActiveContract: Boolean(hasActiveContract),
-        hasConfirmedUnilateral: Boolean(hasConfirmedUnilateral),
-    };
-};
 
 // Tòa Customer đang ở: người ở STAYED → hợp đồng ACTIVE → phòng → tòa (cùng chuỗi kiểm tra với GET /buildings/:id/rules)
 // Trả { _id, name, address, images, manager: { name, phone } | null } hoặc null khi chưa có phòng đang thuê
@@ -349,7 +312,16 @@ const findProfile = async (user) => {
     return profile;
 };
 
-const buildProfile = (user, profile, { canEdit = true, editDisabledReason = null } = {}) => {
+const buildProfile = (
+    user,
+    profile,
+    {
+        canEdit = true,
+        editDisabledReason = null,
+        canChangeEmail = true,
+        emailDisabledReason = null,
+    } = {},
+) => {
     const data = {
         _id: user._id,
         email: user.email,
@@ -362,6 +334,8 @@ const buildProfile = (user, profile, { canEdit = true, editDisabledReason = null
         cccdBackUrl: getSignedUrl(profile.cccdBackImage),
         canEdit,
         editDisabledReason,
+        canChangeEmail,
+        emailDisabledReason,
     };
 
     // Manager không dùng số CCCD nên không trả; Customer chỉ để xem
@@ -384,14 +358,24 @@ export const getProfile = async (userId) => {
     const profile = await findProfile(user);
 
     if (user.roleId === ROLE.CUSTOMER) {
-        const { hasActiveContract, hasConfirmedUnilateral } = await getCustomerContractAccessState(user._id);
+        const {
+            hasActiveContract,
+            hasConfirmedUnilateral,
+            canChangeEmail,
+            emailDisabledReason,
+        } = await getCustomerContractAccessState(user._id);
         const canEdit = hasActiveContract && !hasConfirmedUnilateral;
         const editDisabledReason = hasConfirmedUnilateral
             ? 'Hợp đồng đã chấm dứt đơn phương do vi phạm — hồ sơ đang ở chế độ chỉ xem.'
             : !hasActiveContract
                 ? 'Hợp đồng thuê phòng đã kết thúc — hồ sơ đang ở chế độ chỉ xem.'
                 : null;
-        return buildProfile(user, profile, { canEdit, editDisabledReason });
+        return buildProfile(user, profile, {
+            canEdit,
+            editDisabledReason,
+            canChangeEmail: canEdit ? canChangeEmail : false,
+            emailDisabledReason: canEdit ? emailDisabledReason : null,
+        });
     }
 
     return buildProfile(user, profile);
@@ -411,12 +395,13 @@ export const updateProfile = async (userId, body) => {
     const user = await findUser(userId);
     const profile = await findProfile(user);
 
+    let customerAccess = null;
     if (user.roleId === ROLE.CUSTOMER) {
-        const { hasActiveContract, hasConfirmedUnilateral } = await getCustomerContractAccessState(user._id);
-        if (hasConfirmedUnilateral) {
+        customerAccess = await getCustomerContractAccessState(user._id);
+        if (customerAccess.hasConfirmedUnilateral) {
             throw new AppError('Tài khoản đã bị chấm dứt hợp đồng đơn phương do vi phạm, không thể chỉnh sửa hồ sơ', 403);
         }
-        if (!hasActiveContract) {
+        if (!customerAccess.hasActiveContract) {
             throw new AppError('Hợp đồng thuê phòng đã kết thúc, không thể chỉnh sửa hồ sơ', 403);
         }
     }
@@ -448,11 +433,19 @@ export const updateProfile = async (userId, body) => {
         if (changes.name !== undefined || (body.cccd !== undefined && body.cccd !== profile.cccd)) {
             throw new AppError('Họ tên, số CCCD chỉ Manager được chỉnh sửa', 400);
         }
-        // BR-010: email, số điện thoại không trùng người khác
+        // BR-010: email, số điện thoại không trùng người khác; khóa đổi email khi đang có đơn UNILATERAL PENDING hoặc MUTUAL CONFIRMED
         if (emailChanged) {
+            if (!customerAccess?.canChangeEmail) {
+                const reason = customerAccess?.emailDisabledReason || 'Không thể thay đổi email ở trạng thái hợp đồng hiện tại';
+                throw new AppError(reason, 403, [{ field: 'email', message: reason }]);
+            }
             const emailUsed = await User.findOne({ email: body.email, _id: { $ne: user._id } });
             if (emailUsed) {
                 throw new AppError('Email đã tồn tại trong hệ thống', 409);
+            }
+            const draftEmailConflict = await findDraftEmailConflict(body.email);
+            if (draftEmailConflict) {
+                throw new AppError('Email này đang được sử dụng cho một hợp đồng nháp khác', 409);
             }
         }
         if (changes.phone !== undefined) {
@@ -469,10 +462,19 @@ export const updateProfile = async (userId, body) => {
         }
     }
 
+    const profileFlags = user.roleId === ROLE.CUSTOMER && customerAccess
+        ? {
+            canEdit: true,
+            editDisabledReason: null,
+            canChangeEmail: customerAccess.canChangeEmail,
+            emailDisabledReason: customerAccess.emailDisabledReason,
+        }
+        : undefined;
+
     if (!emailChanged && Object.keys(changes).length === 0) {
         return {
             changed: false,
-            profile: buildProfile(user, profile),
+            profile: buildProfile(user, profile, profileFlags),
         };
     }
 
@@ -490,6 +492,6 @@ export const updateProfile = async (userId, body) => {
 
     return {
         changed: true,
-        profile: buildProfile(user, profile),
+        profile: buildProfile(user, profile, profileFlags),
     };
 };

@@ -7,6 +7,10 @@ import { notify } from '../../helpers/notify.js';
 import { sendMail } from '../../config/mail.js';
 import { hashActivationToken } from '../../helpers/activationToken.js';
 import {
+    findBlacklistedCccds,
+    findDraftCccdConflict,
+} from '../../helpers/customerRestriction.js';
+import {
     ROLE,
     ACTIVATION_TYPE,
     TOKEN_STATUS,
@@ -336,8 +340,30 @@ export const activateCustomerContract = async ({
         phoneSet.add(co.phone);
     }
 
-    // trên toàn hệ thống: không đang ở phòng khác, SĐT không thuộc Manager hay người mang CCCD khác
+    // trên toàn hệ thống: không nằm trong danh sách đen, không đang là đại diện HĐ nháp khác, không đang ở phòng khác
+    const allCccdsToCheck = [
+        contract.representativeCccd,
+        ...existingCoOccupants.map((co) => co.cccd),
+        ...newCoOccupants.map((co) => co.cccd),
+    ];
+    const blacklistedCccds = await findBlacklistedCccds(allCccdsToCheck);
+    if (blacklistedCccds.has(contract.representativeCccd)) {
+        throw new AppError('Tài khoản của bạn đã bị khóa do vi phạm trước đó, không thể kích hoạt hợp đồng', 403);
+    }
+    for (const co of [...existingCoOccupants, ...newCoOccupants]) {
+        if (blacklistedCccds.has(co.cccd)) {
+            throw new AppError(
+                `Người ở cùng mang CCCD ${co.cccd} đã bị khóa do vi phạm trước đó, không thể kích hoạt hợp đồng`,
+                403,
+            );
+        }
+    }
+
     for (const co of newCoOccupants) {
+        const draftRepConflict = await findDraftCccdConflict(co.cccd, contract._id);
+        if (draftRepConflict) {
+            throw new AppError(`Người ở cùng mang CCCD ${co.cccd} đang là người đại diện của một hợp đồng nháp khác`, 400);
+        }
         const stayedOther = await Occupant.findOne({ cccd: co.cccd, status: OCCUPANT_STATUS.STAYED });
         if (stayedOther) {
             throw new AppError(`Người ở cùng mang CCCD ${co.cccd} hiện đang ở phòng khác`, 400);
@@ -354,8 +380,55 @@ export const activateCustomerContract = async ({
 
     // 3. Thực hiện trong 1 MongoDB Transaction duy nhất (BR-015)
     await withTransaction(async (session) => {
+        const sessionBlacklisted = await findBlacklistedCccds(allCccdsToCheck, session);
+        if (sessionBlacklisted.has(contract.representativeCccd)) {
+            throw new AppError('Tài khoản của bạn đã bị khóa do vi phạm trước đó, không thể kích hoạt hợp đồng', 403);
+        }
+        for (const co of [...existingCoOccupants, ...newCoOccupants]) {
+            if (sessionBlacklisted.has(co.cccd)) {
+                throw new AppError(
+                    `Người ở cùng mang CCCD ${co.cccd} đã bị khóa do vi phạm trước đó, không thể kích hoạt hợp đồng`,
+                    403,
+                );
+            }
+        }
+
+        // Chặn nếu CCCD đại diện đang cư trú ở một hợp đồng ACTIVE khác (kể cả với vai trò người ở cùng)
+        const stayedElsewhere = await Occupant.find({
+            cccd: contract.representativeCccd,
+            status: OCCUPANT_STATUS.STAYED,
+            contractId: { $ne: contract._id },
+        })
+            .select('contractId')
+            .session(session)
+            .lean();
+        if (stayedElsewhere.length > 0) {
+            const activeOtherContract = await Contract.exists({
+                _id: { $in: stayedElsewhere.map((item) => item.contractId) },
+                status: CONTRACT_STATUS.ACTIVE,
+            }).session(session);
+            if (activeOtherContract) {
+                throw new AppError('Số CCCD này hiện đang thuê hoặc cư trú ở phòng khác', 400);
+            }
+        }
+
         // Tìm xem khách đã có tài khoản trước đó hay chưa (theo email hoặc CCCD cũ)
         let user = await User.findOne({ email: contract.representativeEmail }).session(session);
+        if (user) {
+            if (user.roleId !== ROLE.CUSTOMER) {
+                throw new AppError('Email hợp đồng đã thuộc về tài khoản khác trong hệ thống', 409);
+            }
+            const emailOwnerOccupants = await Occupant.find({
+                userId: user._id,
+                isRepresentative: true,
+            })
+                .select('cccd')
+                .session(session)
+                .lean();
+            if (emailOwnerOccupants.some((item) => item.cccd !== contract.representativeCccd)) {
+                throw new AppError('Email hợp đồng đã thuộc về tài khoản khách hàng khác trong hệ thống', 409);
+            }
+        }
 
         if (!user) {
             // Tra theo CCCD đại diện cũ nếu email khác
@@ -370,6 +443,15 @@ export const activateCustomerContract = async ({
         }
 
         if (user) {
+            const conflictingRepAccount = await Occupant.exists({
+                cccd: contract.representativeCccd,
+                isRepresentative: true,
+                userId: { $nin: [null, user._id] },
+            }).session(session);
+            if (conflictingRepAccount) {
+                throw new AppError('Số CCCD này đã gắn với tài khoản khách hàng khác trong hệ thống', 409);
+            }
+
             if (user.status === USER_STATUS.LOCKED) {
                 throw new AppError('Tài khoản của bạn đã bị khóa do vi phạm trước đó, không thể kích hoạt hợp đồng', 403);
             }

@@ -12,6 +12,7 @@ import authApi from '../auth.api';
 import { validateCustomerProfile } from '../auth.validate';
 
 const CustomerProfileModal = ({ profile, onHide, onSaved }) => {
+  const canChangeEmail = profile.canChangeEmail !== false;
   const [form, setForm] = useState({
     phone: profile.phone ?? '',
     email: profile.email ?? '',
@@ -48,7 +49,7 @@ const CustomerProfileModal = ({ profile, onHide, onSaved }) => {
     const address = form.address.trim();
     const data = {
       phone: form.phone.trim(),
-      email: form.email.trim(),
+      ...(canChangeEmail && { email: form.email.trim() }),
       dateOfBirth: form.dateOfBirth,
       ...(address && { address }),
       ...(form.cccdFrontImage && { cccdFrontImage: form.cccdFrontImage }),
@@ -115,6 +116,9 @@ const CustomerProfileModal = ({ profile, onHide, onSaved }) => {
                 value={form.email}
                 onChange={handleChange}
                 error={errors.email}
+                helpText={!canChangeEmail ? profile.emailDisabledReason : undefined}
+                readOnly={!canChangeEmail}
+                disabled={!canChangeEmail || submitting}
                 required
               />
             </Col>

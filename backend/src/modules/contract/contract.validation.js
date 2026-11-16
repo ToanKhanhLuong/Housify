@@ -230,3 +230,12 @@ export const cancelContractSchema = Joi.object({
             'string.max': 'Lý do hủy tối đa 500 ký tự',
         }),
 });
+
+// Schema xác nhận hoàn cọc / tất toán công nợ cuối hợp đồng (UC-45)
+export const refundDepositSchema = Joi.object({
+    confirmExtraCollected: Joi.boolean()
+        .default(false)
+        .messages({
+            'boolean.base': 'Trường xác nhận thu thêm tiền mặt không hợp lệ',
+        }),
+}).default({});

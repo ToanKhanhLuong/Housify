@@ -23,7 +23,9 @@ export const auth = async (req, res, next) => {
         }
 
         // Đọc lại trạng thái tài khoản trong database mỗi request (BR-027)
-        const user = await User.findById(decoded.id);
+        const user = await User.findById(decoded.id)
+            .select('email roleId status activeSessionId')
+            .lean();
         if (!user) {
             throw new AppError(MSG.UNAUTHORIZED, 401);
         }
