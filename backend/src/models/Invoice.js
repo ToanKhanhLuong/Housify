@@ -107,5 +107,17 @@ const invoiceSchema = new Schema(
 invoiceSchema.index({ contractId: 1, status: 1 });
 invoiceSchema.index({ contractId: 1, month: -1 });
 invoiceSchema.index({ status: 1, dueDate: 1 });
+// Chống tạo trùng hóa đơn chưa hủy trong cùng 1 kỳ của hợp đồng khi có request đồng thời
+invoiceSchema.index(
+    { contractId: 1, month: 1 },
+    {
+        unique: true,
+        partialFilterExpression: {
+            status: {
+                $in: [INVOICE_STATUS.DRAFT, INVOICE_STATUS.PENDING, INVOICE_STATUS.PAID],
+            },
+        },
+    },
+);
 
 export default mongoose.model('Invoice', invoiceSchema, 'invoices');

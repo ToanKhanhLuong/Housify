@@ -7,14 +7,18 @@ import Building from "../../models/Building.js";
 import Manager from "../../models/Manager.js";
 import Occupant from "../../models/Occupant.js";
 import User from "../../models/User.js";
+import AuditLog from "../../models/AuditLog.js";
+import { env } from "../../config/env.js";
 import { withTransaction } from "../../helpers/withTransaction.js";
 import { endOfVietnamDay, startOfVietnamDay } from "../../helpers/date.js";
+import { getRepresentativeRecipientEmail } from "../../helpers/representativeEmail.js";
 import { notify } from "../../helpers/notify.js";
 import { audit } from "../../helpers/audit.js";
 import { sendMail } from "../../config/mail.js";
 import { AppError } from "../../utils/AppError.js";
 import {
   ROLE,
+  USER_STATUS,
   INVOICE_STATUS,
   NOTIFICATION_TYPE,
   AUDIT_ACTION,
@@ -45,23 +49,71 @@ const parseSepayDate = (value) => {
   return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
 };
 
+const normalizeAccountNo = (value) =>
+  String(value || "").replace(/\s+/g, "").trim();
+
+const extractUniqueInvoiceCodes = (content) => {
+  const text = String(content || "");
+  const strictMatches = [...text.matchAll(/\bHD\d{4}[A-Z0-9]{4}\b/gi)];
+  const rawMatches =
+    strictMatches.length > 0
+      ? strictMatches
+      : [...text.matchAll(/\bHD[A-Z0-9]{6,12}\b/gi)].length > 0
+        ? [...text.matchAll(/\bHD[A-Z0-9]{6,12}\b/gi)]
+        : [...text.matchAll(/HD\d{4}[A-Z0-9]{4}/gi)];
+  return [...new Set(rawMatches.map((match) => match[0].toUpperCase()))];
+};
+
+const logReconciliation = (reason, details) => {
+  console.warn(`[SePay Reconciliation] ${reason}:`, JSON.stringify(details));
+};
+
+const makeAbortError = (flag) => {
+  const error = new Error(flag);
+  error[flag] = true;
+  return error;
+};
+
+const safeNotify = async (notifyFn, payload, warnings, label) => {
+  try {
+    await notifyFn(payload);
+  } catch (error) {
+    console.error(`[SePay Notification Error] ${label}:`, error.message);
+    warnings.push(`Gửi thông báo ${label} thất bại`);
+  }
+};
+
 // Xử lý webhook từ SePay khi có biến động số dư ngân hàng (UC-38, UC-42)
-export const processSepayWebhook = async (payload) => {
-  const sepayTxnId = String(payload.id);
-  const transferContent = payload.content || "";
-  const amount = Number(payload.transferAmount) || 0;
-  const bankName = payload.gateway || "Ngân hàng";
-  const paidAt = parseSepayDate(payload.transactionDate);
+export const processSepayWebhook = async (payload, deps = {}) => {
+  const {
+    notifyFn = notify,
+    sendMailFn = sendMail,
+    onBeforePaymentCreate = null,
+  } = deps;
+
+  const sepayTxnId = String(payload?.id ?? "").trim();
+  const transferContent = String(payload?.content || "").trim();
+  const amount = Number(payload?.transferAmount);
+  const bankName = String(payload?.gateway || "Ngân hàng").trim() || "Ngân hàng";
+  const paidAt = parseSepayDate(payload?.transactionDate);
+
+  if (!sepayTxnId || !Number.isFinite(amount) || amount <= 0) {
+    throw new AppError("Dữ liệu giao dịch SePay không hợp lệ", 422);
+  }
 
   console.log(
-    `[SePay Webhook] Nhận giao dịch ${sepayTxnId}: ${amount} đ, loại: "${payload.transferType || 'in'}", nội dung: "${transferContent}"`,
+    `[SePay Webhook] Nhận giao dịch ${sepayTxnId}: ${amount} đ, loại: "${payload.transferType || "in"}", nội dung: "${transferContent}"`,
   );
 
-  // 0. Chỉ xử lý giao dịch tiền VÀO tài khoản (bỏ qua giao dịch tiền ra như hoàn tiền / chuyển khoản đi)
+  // 0. Chỉ xử lý giao dịch tiền VÀO tài khoản và khớp số tài khoản nhận tiền (nếu payload có gửi)
   if (payload.transferType && payload.transferType !== "in") {
-    console.log(
-      `[SePay Webhook] Bỏ qua giao dịch tiền ra (${payload.transferType}) mã ${sepayTxnId}.`,
-    );
+    logReconciliation("OUTGOING_TRANSFER_IGNORED", {
+      sepayTxnId,
+      transferType: payload.transferType,
+      amount,
+      bankName,
+      paidAt,
+    });
     return {
       success: true,
       message: `Bỏ qua giao dịch tiền ra (${payload.transferType})`,
@@ -70,8 +122,32 @@ export const processSepayWebhook = async (payload) => {
     };
   }
 
-  // 1. Chống xử lý trùng giao dịch (BR-105)
-  const existingPayment = await Payment.findOne({ sepayTxnId });
+  const expectedAccountNo = normalizeAccountNo(env.BANK_ACCOUNT_NO);
+  const receivedAccountNo = normalizeAccountNo(payload.accountNumber);
+  if (expectedAccountNo && receivedAccountNo && receivedAccountNo !== expectedAccountNo) {
+    logReconciliation("ACCOUNT_NUMBER_MISMATCH", {
+      sepayTxnId,
+      receivedAccountNo,
+      amount,
+      bankName,
+      paidAt,
+    });
+    return {
+      success: true,
+      message: "Giao dịch không thuộc số tài khoản nhận tiền của hệ thống",
+      sepayTxnId,
+      ignored: true,
+    };
+  }
+
+  // 1. Chống xử lý trùng giao dịch đã khớp hoặc giao dịch lệch tiền đã ghi nhận trước đó (BR-105)
+  const [existingPayment, existingMismatchAudit] = await Promise.all([
+    Payment.findOne({ sepayTxnId }).lean(),
+    AuditLog.exists({
+      action: { $in: [AUDIT_ACTION.PAYMENT_UNDERPAID, AUDIT_ACTION.PAYMENT_OVERPAID] },
+      "metadata.sepayTxnId": sepayTxnId,
+    }),
+  ]);
   if (existingPayment) {
     console.log(
       `[SePay Webhook] Giao dịch ${sepayTxnId} đã được xử lý trước đó, bỏ qua.`,
@@ -83,24 +159,53 @@ export const processSepayWebhook = async (payload) => {
       ignored: true,
     };
   }
-
-  // 2. Trích xuất mã hóa đơn từ nội dung chuyển khoản (Định dạng: HD + YYMM + 4 ký tự)
-  const match =
-    transferContent.match(/\bHD\d{4}[A-Z0-9]{4}\b/i) ||
-    transferContent.match(/\bHD[A-Z0-9]{6,12}\b/i) ||
-    transferContent.match(/HD\d{4}[A-Z0-9]{4}/i);
-  if (!match) {
+  if (existingMismatchAudit) {
     console.log(
-      `[SePay Webhook] Nội dung "${transferContent}" không chứa mã hóa đơn nào, bỏ qua.`,
+      `[SePay Webhook] Giao dịch không khớp ${sepayTxnId} đã được ghi nhận trước đó, bỏ qua.`,
     );
     return {
       success: true,
-      message: "Nội dung chuyển khoản không chứa mã hóa đơn",
+      message: "Giao dịch đã được ghi nhận đối soát trước đó",
+      sepayTxnId,
       ignored: true,
     };
   }
 
-  const invoiceCode = match[0].toUpperCase();
+  // 2. Trích xuất mã hóa đơn duy nhất từ nội dung chuyển khoản (Định dạng: HD + YYMM + 4 ký tự)
+  const matchedCodes = extractUniqueInvoiceCodes(transferContent);
+  if (matchedCodes.length === 0) {
+    logReconciliation("NO_INVOICE_CODE", {
+      sepayTxnId,
+      amount,
+      bankName,
+      transferContent,
+      paidAt,
+    });
+    return {
+      success: true,
+      message: "Nội dung chuyển khoản không chứa mã hóa đơn",
+      sepayTxnId,
+      ignored: true,
+    };
+  }
+  if (matchedCodes.length > 1) {
+    logReconciliation("MULTIPLE_INVOICE_CODES", {
+      sepayTxnId,
+      matchedCodes,
+      amount,
+      bankName,
+      transferContent,
+      paidAt,
+    });
+    return {
+      success: true,
+      message: "Nội dung chuyển khoản chứa nhiều mã hóa đơn, không thể tự động đối soát",
+      sepayTxnId,
+      ignored: true,
+    };
+  }
+
+  const invoiceCode = matchedCodes[0];
 
   // 3. Tìm hóa đơn trong database
   const invoice = await Invoice.findOne({ invoiceCode }).populate({
@@ -109,95 +214,214 @@ export const processSepayWebhook = async (payload) => {
   });
 
   if (!invoice) {
-    console.log(
-      `[SePay Webhook] Không tìm thấy hóa đơn có mã ${invoiceCode}, bỏ qua.`,
-    );
+    logReconciliation("INVOICE_NOT_FOUND", {
+      sepayTxnId,
+      invoiceCode,
+      amount,
+      bankName,
+      transferContent,
+      paidAt,
+    });
     return {
       success: true,
       message: `Không tìm thấy hóa đơn ${invoiceCode}`,
+      sepayTxnId,
       ignored: true,
     };
   }
 
-  // 4. Chỉ hóa đơn PENDING mới được thanh toán. DRAFT, PAID, CANCELLED -> Chỉ ghi log theo quy tắc nghiệp vụ
+  // 4. Chỉ hóa đơn PENDING mới được thanh toán. DRAFT, PAID, CANCELLED -> Chỉ ghi nhận log đối soát
   if (invoice.status !== INVOICE_STATUS.PENDING) {
-    console.log(
-      `[SePay Webhook] Hóa đơn ${invoiceCode} đang ở trạng thái [${invoice.status}], chỉ ghi log.`,
-    );
+    logReconciliation("INVOICE_NOT_PENDING", {
+      sepayTxnId,
+      invoiceId: invoice._id,
+      invoiceCode,
+      invoiceStatus: invoice.status,
+      amount,
+      expectedAmount: invoice.totalAmount,
+      bankName,
+      transferContent,
+      paidAt,
+    });
     return {
       success: true,
       message: `Hóa đơn đã ở trạng thái ${invoice.status}, chỉ ghi log`,
+      sepayTxnId,
       ignored: true,
     };
   }
 
-  // 5. Nếu hóa đơn đang PENDING -> Lưu giao dịch; chỉ gạch nợ PAID khi số tiền khớp chính xác tổng hóa đơn
+  // 5. Đối chiếu số tiền và ghi dữ liệu nguyên tử trong Transaction
   const expectedAmount = Number(invoice.totalAmount || 0);
   const isExactAmount = amount === expectedAmount;
   const isUnderpaid = amount < expectedAmount;
   const isOverpaid = amount > expectedAmount;
 
   let newPayment = null;
-  await withTransaction(async (session) => {
-    // 5.1. Tạo bản ghi giao dịch trong bảng payments (kể cả chuyển thiếu/thừa để đối chiếu sao kê)
-    const [createdPayment] = await Payment.create(
-      [
-        {
+  try {
+    await withTransaction(async (session) => {
+      if (isExactAmount) {
+        // Khóa và chuyển trạng thái PENDING -> PAID có điều kiện trước khi lưu Payment
+        const updatedInvoice = await Invoice.findOneAndUpdate(
+          { _id: invoice._id, status: INVOICE_STATUS.PENDING },
+          { $set: { status: INVOICE_STATUS.PAID, paidAt } },
+          { session, returnDocument: "after" },
+        );
+        if (!updatedInvoice) {
+          throw makeAbortError("isInvoiceStateChanged");
+        }
+        invoice.status = updatedInvoice.status;
+        invoice.paidAt = updatedInvoice.paidAt;
+
+        if (typeof onBeforePaymentCreate === "function") {
+          await onBeforePaymentCreate(session);
+        }
+
+        // Chỉ tạo Payment trong bảng payments khi giao dịch khớp đúng số tiền và đối soát thành công
+        const [createdPayment] = await Payment.create(
+          [
+            {
+              sepayTxnId,
+              invoiceId: invoice._id,
+              amount,
+              transferContent,
+              bankName,
+              paidAt,
+            },
+          ],
+          { session },
+        );
+        newPayment = createdPayment;
+      } else {
+        // Chuyển thiếu hoặc thừa: giữ PENDING, không tạo Payment vào bảng payments; lưu AuditLog để đối soát
+        const stillPending = await Invoice.exists({
+          _id: invoice._id,
+          status: INVOICE_STATUS.PENDING,
+        }).session(session);
+        if (!stillPending) {
+          throw makeAbortError("isInvoiceStateChanged");
+        }
+
+        const dupAudit = await AuditLog.exists({
+          action: { $in: [AUDIT_ACTION.PAYMENT_UNDERPAID, AUDIT_ACTION.PAYMENT_OVERPAID] },
+          "metadata.sepayTxnId": sepayTxnId,
+        }).session(session);
+        if (dupAudit) {
+          throw makeAbortError("isDuplicateMismatch");
+        }
+
+        const amountStr = amount.toLocaleString("vi-VN");
+        const expectedStr = expectedAmount.toLocaleString("vi-VN");
+        await audit(
+          {
+            action: isUnderpaid
+              ? AUDIT_ACTION.PAYMENT_UNDERPAID
+              : AUDIT_ACTION.PAYMENT_OVERPAID,
+            targetType: invoice.contractId?._id ? "contracts" : "invoices",
+            targetId: invoice.contractId?._id ?? invoice._id,
+            reason: isUnderpaid
+              ? `Hóa đơn ${invoice.invoiceCode}: chuyển ${amountStr} đ (thiếu so với ${expectedStr} đ) — Mã GD ${sepayTxnId}`
+              : `Hóa đơn ${invoice.invoiceCode}: chuyển ${amountStr} đ (thừa so với ${expectedStr} đ) — Mã GD ${sepayTxnId}`,
+            metadata: {
+              invoiceId: invoice._id,
+              invoiceCode: invoice.invoiceCode,
+              sepayTxnId,
+              amount,
+              expectedAmount,
+              transferContent,
+              bankName,
+              paidAt,
+            },
+          },
+          session,
+        );
+        logReconciliation(isUnderpaid ? "PAYMENT_UNDERPAID" : "PAYMENT_OVERPAID", {
           sepayTxnId,
           invoiceId: invoice._id,
+          invoiceCode: invoice.invoiceCode,
           amount,
+          expectedAmount,
+          bankName,
           transferContent,
+          paidAt,
+        });
+      }
+    });
+  } catch (error) {
+    if (error?.isInvoiceStateChanged) {
+      logReconciliation("CONCURRENT_INVOICE_STATE_CHANGED", {
+        sepayTxnId,
+        invoiceId: invoice._id,
+        invoiceCode,
+        amount,
+        bankName,
+        paidAt,
+      });
+      return {
+        success: true,
+        message: "Trạng thái hóa đơn vừa thay đổi, bỏ qua giao dịch",
+        sepayTxnId,
+        ignored: true,
+      };
+    }
+    if (error?.isDuplicateMismatch) {
+      return {
+        success: true,
+        message: "Giao dịch đã được ghi nhận đối soát trước đó",
+        sepayTxnId,
+        ignored: true,
+      };
+    }
+    if (error?.code === 11000) {
+      if (error.keyPattern?.invoiceId && !error.keyPattern?.sepayTxnId) {
+        logReconciliation("DUPLICATE_INVOICE_PAYMENT", {
+          sepayTxnId,
+          invoiceId: invoice._id,
+          invoiceCode,
+          amount,
           bankName,
           paidAt,
-        },
-      ],
-      { session },
-    );
-    newPayment = createdPayment;
-
-    // 5.2. Chỉ cập nhật hóa đơn sang PAID khi số tiền chuyển khoản khớp chính xác tổng tiền hóa đơn
-    if (isExactAmount) {
-      invoice.status = INVOICE_STATUS.PAID;
-      invoice.paidAt = paidAt;
-      await invoice.save({ session });
-    } else if (invoice.contractId?._id) {
-      const amountStr = amount.toLocaleString("vi-VN");
-      const expectedStr = expectedAmount.toLocaleString("vi-VN");
-      await audit(
-        {
-          action: isUnderpaid
-            ? AUDIT_ACTION.PAYMENT_UNDERPAID
-            : AUDIT_ACTION.PAYMENT_OVERPAID,
-          targetType: "contracts",
-          targetId: invoice.contractId._id,
-          reason: isUnderpaid
-            ? `Hóa đơn ${invoice.invoiceCode}: chuyển ${amountStr} đ (thiếu so với ${expectedStr} đ) — Mã GD ${sepayTxnId}`
-            : `Hóa đơn ${invoice.invoiceCode}: chuyển ${amountStr} đ (thừa so với ${expectedStr} đ) — Mã GD ${sepayTxnId}`,
-          metadata: {
-            invoiceId: invoice._id,
-            invoiceCode: invoice.invoiceCode,
-            sepayTxnId,
-            amount,
-            expectedAmount,
-          },
-        },
-        session,
-      );
+        });
+        return {
+          success: true,
+          message: "Hóa đơn đã được ghi nhận thanh toán trước đó, bỏ qua giao dịch trùng",
+          sepayTxnId,
+          ignored: true,
+        };
+      }
+      return {
+        success: true,
+        message: "Giao dịch đã được xử lý trước đó",
+        sepayTxnId,
+        ignored: true,
+      };
     }
-  });
+    throw error;
+  }
 
-  // 6. Lấy thông tin phòng, tòa, Admin, Customer để gửi thông báo
+  // 6. Lấy thông tin phòng, tòa, Admin, Customer để gửi thông báo SAU KHI transaction đã commit
   const room = invoice.contractId?.roomId;
   const building = room?.buildingId;
   const roomNumber = room?.roomNumber || "Phòng";
-  const adminUsers = await User.find({
-    roleId: ROLE.ADMIN,
-    status: "ACTIVE",
-  }).select("_id");
-  const representative = await Occupant.findOne({
-    contractId: invoice.contractId?._id,
-    isRepresentative: true,
-  });
+  const deliveryWarnings = [];
+
+  let adminUsers = [];
+  let representative = null;
+  try {
+    [adminUsers, representative] = await Promise.all([
+      User.find({
+        roleId: ROLE.ADMIN,
+        status: USER_STATUS.ACTIVE,
+      }).select("_id"),
+      Occupant.findOne({
+        contractId: invoice.contractId?._id,
+        isRepresentative: true,
+      }),
+    ]);
+  } catch (error) {
+    console.error("[SePay Post-Commit Lookup Error]:", error.message);
+    deliveryWarnings.push("Không tra cứu được người nhận thông báo");
+  }
 
   // Trường hợp chuyển thiếu hoặc thừa (!== totalAmount): giữ PENDING và cảnh báo Manager, Admin, Customer
   if (!isExactAmount) {
@@ -226,33 +450,48 @@ export const processSepayWebhook = async (payload) => {
       : `Giao dịch ${amountStr} đ cho hóa đơn ${invoice.invoiceCode} vượt quá số tiền hóa đơn (${expectedStr} đ). Hóa đơn chưa được gạch nợ, vui lòng liên hệ quản lý để được hỗ trợ.`;
 
     if (building?.managerId) {
-      await notify({
-        userIds: [building.managerId],
-        type: NOTIFICATION_TYPE.PAYMENT_REMINDER,
-        title: managerTitle,
-        message: managerMessage,
-        refId: invoice._id,
-      });
+      await safeNotify(
+        notifyFn,
+        {
+          userIds: [building.managerId],
+          type: NOTIFICATION_TYPE.PAYMENT_REMINDER,
+          title: managerTitle,
+          message: managerMessage,
+          refId: invoice._id,
+        },
+        deliveryWarnings,
+        "Manager",
+      );
     }
 
     if (adminUsers.length > 0) {
-      await notify({
-        userIds: adminUsers.map((a) => a._id),
-        type: NOTIFICATION_TYPE.PAYMENT_REMINDER,
-        title: adminTitle,
-        message: adminMessage,
-        refId: invoice._id,
-      });
+      await safeNotify(
+        notifyFn,
+        {
+          userIds: adminUsers.map((a) => a._id),
+          type: NOTIFICATION_TYPE.PAYMENT_REMINDER,
+          title: adminTitle,
+          message: adminMessage,
+          refId: invoice._id,
+        },
+        deliveryWarnings,
+        "Admin",
+      );
     }
 
     if (representative?.userId) {
-      await notify({
-        userIds: [representative.userId],
-        type: NOTIFICATION_TYPE.PAYMENT_REMINDER,
-        title: customerTitle,
-        message: customerMessage,
-        refId: invoice._id,
-      });
+      await safeNotify(
+        notifyFn,
+        {
+          userIds: [representative.userId],
+          type: NOTIFICATION_TYPE.PAYMENT_REMINDER,
+          title: customerTitle,
+          message: customerMessage,
+          refId: invoice._id,
+        },
+        deliveryWarnings,
+        "Customer",
+      );
     }
 
     return {
@@ -265,54 +504,67 @@ export const processSepayWebhook = async (payload) => {
       invoiceCode,
       amount,
       expectedAmount,
-      payment: newPayment,
+      payment: null,
+      ...(deliveryWarnings.length > 0 && { warning: deliveryWarnings.join("; ") }),
     };
   }
 
-  // Trường hợp chuyển khớp chính xác (=== totalAmount): hóa đơn thành PAID
+  // Trường hợp chuyển khớp chính xác (=== totalAmount): hóa đơn thành PAID (gửi thông báo UC-42 an toàn)
   const statusLabel = calculateOverdueLabel(paidAt, invoice.dueDate);
 
-  // 7.1. Báo chuông cho Manager phụ trách tòa
   if (building?.managerId) {
-    await notify({
-      userIds: [building.managerId],
-      type: NOTIFICATION_TYPE.PAYMENT_SUCCESS,
-      title: "Hóa đơn đã được thanh toán",
-      message: `Phòng ${roomNumber} đã thanh toán hóa đơn tháng ${invoice.month} — ${amount.toLocaleString("vi-VN")} đ (${statusLabel}).`,
-      refId: invoice._id,
-    });
+    await safeNotify(
+      notifyFn,
+      {
+        userIds: [building.managerId],
+        type: NOTIFICATION_TYPE.PAYMENT_SUCCESS,
+        title: "Hóa đơn đã được thanh toán",
+        message: `Phòng ${roomNumber} đã thanh toán hóa đơn tháng ${invoice.month} — ${amount.toLocaleString("vi-VN")} đ (${statusLabel}).`,
+        refId: invoice._id,
+      },
+      deliveryWarnings,
+      "Manager",
+    );
   }
 
-  // 7.2. Báo chuông cho Admin (chủ nhà)
   if (adminUsers.length > 0) {
-    await notify({
-      userIds: adminUsers.map((a) => a._id),
-      type: NOTIFICATION_TYPE.PAYMENT_SUCCESS,
-      title: "Tiền về tài khoản",
-      message: `Giao dịch ${amount.toLocaleString("vi-VN")} đ về tài khoản — hóa đơn ${invoice.invoiceCode} phòng ${roomNumber} đã thanh toán (${statusLabel}).`,
-      refId: invoice._id,
-    });
+    await safeNotify(
+      notifyFn,
+      {
+        userIds: adminUsers.map((a) => a._id),
+        type: NOTIFICATION_TYPE.PAYMENT_SUCCESS,
+        title: "Tiền về tài khoản",
+        message: `Giao dịch ${amount.toLocaleString("vi-VN")} đ về tài khoản — hóa đơn ${invoice.invoiceCode} phòng ${roomNumber} đã thanh toán (${statusLabel}).`,
+        refId: invoice._id,
+      },
+      deliveryWarnings,
+      "Admin",
+    );
   }
 
-  // 7.3. Báo chuông cho Customer (Người đại diện)
   if (representative?.userId) {
-    await notify({
-      userIds: [representative.userId],
-      type: NOTIFICATION_TYPE.PAYMENT_SUCCESS,
-      title: "Thanh toán thành công",
-      message: `Hóa đơn ${invoice.invoiceCode} tháng ${invoice.month} đã thanh toán thành công — ${amount.toLocaleString("vi-VN")} đ (${statusLabel}).`,
-      refId: invoice._id,
-    });
+    await safeNotify(
+      notifyFn,
+      {
+        userIds: [representative.userId],
+        type: NOTIFICATION_TYPE.PAYMENT_SUCCESS,
+        title: "Thanh toán thành công",
+        message: `Hóa đơn ${invoice.invoiceCode} tháng ${invoice.month} đã thanh toán thành công — ${amount.toLocaleString("vi-VN")} đ (${statusLabel}).`,
+        refId: invoice._id,
+      },
+      deliveryWarnings,
+      "Customer",
+    );
   }
 
-  // 8. Gửi email xác nhận thanh toán cho Customer (UC-42)
-  let customerEmail = invoice.contractId?.representativeEmail;
-  if (representative?.userId) {
-    const repUser = await User.findById(representative.userId).select('email').lean();
-    if (repUser?.email) customerEmail = repUser.email;
-  }
-  if (customerEmail) {
-    const emailHtml = `
+  // 8. Gửi email xác nhận thanh toán cho Customer (UC-42) — lỗi email không làm mất giao dịch đã commit
+  try {
+    const customerEmail = await getRepresentativeRecipientEmail(
+      invoice.contractId?._id,
+      invoice.contractId?.representativeEmail,
+    );
+    if (customerEmail) {
+      const emailHtml = `
       <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
         <h2 style="color: #2b6cb0;">Xác nhận thanh toán hóa đơn thành công</h2>
         <p>Xin chào quý khách,</p>
@@ -330,11 +582,19 @@ export const processSepayWebhook = async (payload) => {
       </div>
     `;
 
-    await sendMail(
-      customerEmail,
-      `[Housify] Xác nhận thanh toán hóa đơn ${invoice.invoiceCode}`,
-      emailHtml,
-    );
+      const mailSent = await sendMailFn(
+        customerEmail,
+        `[Housify] Xác nhận thanh toán hóa đơn ${invoice.invoiceCode}`,
+        emailHtml,
+      );
+      if (!mailSent) {
+        console.error(`[SePay Mail Error] Gửi email xác nhận hóa đơn ${invoice.invoiceCode} thất bại`);
+        deliveryWarnings.push("Gửi email xác nhận thất bại");
+      }
+    }
+  } catch (error) {
+    console.error(`[SePay Mail Error] Gửi email xác nhận hóa đơn ${invoice.invoiceCode}:`, error.message);
+    deliveryWarnings.push("Gửi email xác nhận thất bại");
   }
 
   return {
@@ -344,6 +604,7 @@ export const processSepayWebhook = async (payload) => {
     amount,
     statusLabel,
     payment: newPayment,
+    ...(deliveryWarnings.length > 0 && { warning: deliveryWarnings.join("; ") }),
   };
 };
 
@@ -373,21 +634,39 @@ export const getPayments = async (query, user) => {
     }
     invoiceFilter.contractId = { $in: contractIds };
   } else if (userRole === ROLE.MANAGER) {
-    // Manager: Xem các phòng thuộc tòa mình phụ trách
+    // Manager: Xem các phòng thuộc tòa mình phụ trách (phòng tòa khác trả 403)
     const managerBuilding = await Building.findOne({
       managerId: user._id,
       isDeleted: false,
     });
     if (!managerBuilding) {
-      return emptyResult;
+      throw new AppError("Bạn chưa được phân công phụ trách tòa nhà nào", 403);
     }
-    // Lọc theo 1 phòng (roomId) – chỉ trong tòa mình, phòng tòa khác trả rỗng
-    const roomFilter = { buildingId: managerBuilding._id };
-    if (roomId) roomFilter._id = roomId;
-    const rooms = await Room.find(roomFilter).select("_id");
+    let targetRoomIds;
+    if (roomId) {
+      const targetRoom = await Room.findOne({ _id: roomId, isDeleted: false })
+        .select("buildingId")
+        .lean();
+      if (!targetRoom) {
+        throw new AppError("Không tìm thấy phòng", 404);
+      }
+      if (String(targetRoom.buildingId) !== String(managerBuilding._id)) {
+        throw new AppError(
+          "Bạn không có quyền xem lịch sử thanh toán của phòng thuộc tòa nhà khác",
+          403,
+        );
+      }
+      targetRoomIds = [targetRoom._id];
+    } else {
+      targetRoomIds = await Room.distinct("_id", { buildingId: managerBuilding._id });
+    }
     const contracts = await Contract.find({
-      roomId: { $in: rooms.map((r) => r._id) },
+      roomId: { $in: targetRoomIds },
     }).select("_id");
+    invoiceFilter.contractId = { $in: contracts.map((c) => c._id) };
+  } else if (roomId) {
+    // Admin: hỗ trợ lọc theo roomId
+    const contracts = await Contract.find({ roomId }).select("_id");
     invoiceFilter.contractId = { $in: contracts.map((c) => c._id) };
   }
 
@@ -458,17 +737,31 @@ export const getPayments = async (query, user) => {
   const repMap = new Map(representatives.map((r) => [r.contractId.toString(), r]));
   const managerMap = new Map(managers.map((m) => [m.userId.toString(), m]));
 
-  const missingRepCccds = payments
-    .filter((p) => {
-      const cId = p.invoiceId?.contractId?._id?.toString();
-      return cId && !repMap.has(cId) && p.invoiceId?.contractId?.representativeCccd;
-    })
-    .map((p) => p.invoiceId.contractId.representativeCccd);
+  const missingRepCccds = [
+    ...new Set(
+      payments
+        .filter((p) => {
+          const cId = p.invoiceId?.contractId?._id?.toString();
+          return cId && !repMap.has(cId) && p.invoiceId?.contractId?.representativeCccd;
+        })
+        .map((p) => p.invoiceId.contractId.representativeCccd),
+    ),
+  ];
 
-  let userMap = new Map();
+  const fallbackRepMap = new Map();
   if (missingRepCccds.length > 0) {
-    const users = await User.find({ cccd: { $in: missingRepCccds } }).select("name phone cccd email");
-    userMap = new Map(users.map((u) => [u.cccd, u]));
+    const fallbackReps = await Occupant.find({
+      cccd: { $in: missingRepCccds },
+      isRepresentative: true,
+    })
+      .sort({ createdAt: -1 })
+      .select("name phone cccd")
+      .lean();
+    for (const occ of fallbackReps) {
+      if (!fallbackRepMap.has(occ.cccd)) {
+        fallbackRepMap.set(occ.cccd, occ);
+      }
+    }
   }
 
   // 4. Định dạng dữ liệu trả về và tính nhãn "Đúng hạn" / "Quá hạn X ngày"
@@ -478,7 +771,9 @@ export const getPayments = async (query, user) => {
     const room = contract?.roomId;
     const building = room?.buildingId;
     const cId = contract?._id?.toString();
-    const rep = (cId ? repMap.get(cId) : null) || (contract?.representativeCccd ? userMap.get(contract.representativeCccd) : null);
+    const rep =
+      (cId ? repMap.get(cId) : null) ||
+      (contract?.representativeCccd ? fallbackRepMap.get(contract.representativeCccd) : null);
     const bManager = building?.managerId ? managerMap.get(building.managerId.toString()) : null;
     const isUnderpaid = inv && Number(p.amount) < Number(inv.totalAmount);
     const isOverpaid = inv && Number(p.amount) > Number(inv.totalAmount);
@@ -598,13 +893,20 @@ export const getPaymentById = async (id, user) => {
   const rep = contract?._id
     ? await Occupant.findOne({ contractId: contract._id, isRepresentative: true }).select("name phone cccd")
     : null;
-  const userRep = !rep && contract?.representativeCccd
-    ? await User.findOne({ cccd: contract.representativeCccd }).select("name phone cccd email")
+  const fallbackRep = !rep && contract?.representativeCccd
+    ? await Occupant.findOne({
+        cccd: contract.representativeCccd,
+        isRepresentative: true,
+      })
+        .sort({ createdAt: -1 })
+        .select("name phone cccd")
     : null;
 
   const bManager = building?.managerId
     ? await Manager.findOne({ userId: building.managerId }).select("name phone")
     : null;
+
+  const repInfo = rep || fallbackRep;
 
   // Xác định trạng thái khớp tiền (đủ, thiếu, thừa) và nhãn hiển thị tương ứng
   const isUnderpaid = inv && Number(payment.amount) < Number(inv.totalAmount);
@@ -625,8 +927,8 @@ export const getPaymentById = async (id, user) => {
     paidAt: payment.paidAt,
     paymentStatus,
     statusLabel,
-    representativeName: rep?.name || userRep?.name || "",
-    representativePhone: rep?.phone || userRep?.phone || "",
+    representativeName: repInfo?.name || "",
+    representativePhone: repInfo?.phone || "",
     invoice: inv
       ? {
         _id: inv._id,
@@ -650,13 +952,13 @@ export const getPaymentById = async (id, user) => {
           }
           : null,
         representative: {
-          name: rep?.name || userRep?.name || "",
-          phone: rep?.phone || userRep?.phone || "",
-          email: contract?.representativeEmail || userRep?.email || "",
-          cccd: contract?.representativeCccd || rep?.cccd || userRep?.cccd || "",
+          name: repInfo?.name || "",
+          phone: repInfo?.phone || "",
+          email: contract?.representativeEmail || "",
+          cccd: contract?.representativeCccd || repInfo?.cccd || "",
         },
-        representativeName: rep?.name || userRep?.name || "",
-        representativePhone: rep?.phone || userRep?.phone || "",
+        representativeName: repInfo?.name || "",
+        representativePhone: repInfo?.phone || "",
       }
       : null,
   };
@@ -670,6 +972,7 @@ export const simulateSepay = async (data) => {
     id: `DEV_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
     gateway: "TPBank",
     transactionDate: new Date().toISOString(),
+    accountNumber: env.BANK_ACCOUNT_NO || undefined,
     content: `${invoiceCode} thanh toan test`,
     transferType: "in",
     transferAmount: Number(amount),

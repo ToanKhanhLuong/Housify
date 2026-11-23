@@ -3,21 +3,28 @@ import Joi from "joi";
 
 // 1. Schema kiểm tra Webhook do SePay gửi sang (UC-38)
 export const sepayWebhookSchema = Joi.object({
-  id: Joi.alternatives().try(Joi.number(), Joi.string()).required().messages({
-    "any.required": "Thiếu mã giao dịch SePay (id)",
-  }),
-  gateway: Joi.string().trim().required().messages({
+  id: Joi.alternatives()
+    .try(Joi.number().integer().positive(), Joi.string().trim().min(1))
+    .required()
+    .messages({
+      "any.required": "Thiếu mã giao dịch SePay (id)",
+      "alternatives.match": "Mã giao dịch SePay (id) không hợp lệ",
+    }),
+  gateway: Joi.string().trim().min(1).required().messages({
     "any.required": "Thiếu tên ngân hàng (gateway)",
+    "string.empty": "Thiếu tên ngân hàng (gateway)",
   }),
-  transactionDate: Joi.string().required().messages({
+  transactionDate: Joi.string().trim().min(1).required().messages({
     "any.required": "Thiếu thời gian giao dịch (transactionDate)",
+    "string.empty": "Thiếu thời gian giao dịch (transactionDate)",
   }),
   accountNumber: Joi.string().allow("", null).optional(),
   content: Joi.string().trim().allow("").default(""),
   transferType: Joi.string().valid("in", "out").optional(),
-  transferAmount: Joi.number().min(0).required().messages({
+  transferAmount: Joi.number().greater(0).required().messages({
     "any.required": "Thiếu số tiền giao dịch (transferAmount)",
-    "number.min": "Số tiền không được âm",
+    "number.greater": "Số tiền giao dịch phải lớn hơn 0",
+    "number.base": "Số tiền giao dịch phải là số hợp lệ",
   }),
   accumulated: Joi.number().optional(),
   subAccount: Joi.string().allow("", null).optional(),

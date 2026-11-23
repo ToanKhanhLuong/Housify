@@ -6,9 +6,10 @@ import Building from "../../models/Building.js";
 import Service from "../../models/Service.js";
 import ServicePrice from "../../models/ServicePrice.js";
 import Occupant from "../../models/Occupant.js";
-import User from "../../models/User.js";
 import Manager from "../../models/Manager.js";
 import { getCurrentPrice } from "../../helpers/getCurrentPrice.js";
+import { endOfVietnamDay } from "../../helpers/date.js";
+import { getRepresentativeRecipientEmail } from "../../helpers/representativeEmail.js";
 import { notify } from "../../helpers/notify.js";
 import { sendMail } from "../../config/mail.js";
 import { env } from "../../config/env.js";
@@ -34,6 +35,35 @@ const formatMoney = (amount) => Number(amount || 0).toLocaleString("vi-VN");
 
 const formatDate = (date) =>
   new Date(date).toLocaleDateString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
+
+const formatVietnamMonth = (date) =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric",
+    month: "2-digit",
+  }).format(new Date(date));
+
+// Kiểm tra kỳ hóa đơn nằm trong khoảng [tháng bắt đầu, tháng kết thúc] của hợp đồng theo giờ Việt Nam
+const assertMonthWithinContract = (contract, month) => {
+  const startMonth = formatVietnamMonth(contract.startDate);
+  const endMonth = formatVietnamMonth(contract.endDate);
+  if (month < startMonth || month > endMonth) {
+    throw new AppError(
+      `Kỳ hóa đơn (${month}) phải nằm trong thời hạn hợp đồng (${startMonth} đến ${endMonth})`,
+      400,
+    );
+  }
+};
+
+// Kỳ quá khứ lấy đơn giá hiệu lực tới cuối tháng đó; kỳ hiện tại/tương lai lấy theo ngày lập hóa đơn (BR-057)
+const getPriceLookupDate = (month) => {
+  const currentMonth = formatVietnamMonth(new Date());
+  if (month < currentMonth) {
+    const [year, mon] = month.split("-").map(Number);
+    return endOfVietnamDay(new Date(Date.UTC(year, mon, 0, 12, 0, 0)));
+  }
+  return new Date();
+};
 
 const generateInvoiceCode = async (month) => {
   const [yearStr, monthStr] = month.split("-");
@@ -162,9 +192,13 @@ const getBuildingServices = async (buildingId) => {
   });
 };
 
-// Đơn giá đang hiệu lực tại ngày lập (BR-057). Chưa có thì cảnh báo, dùng giá 0 (UC-34 E03)
-const getUnitPriceOrWarn = async (service, buildingId, warnings) => {
-  const priceDoc = await getCurrentPrice(service._id, buildingId, new Date());
+// Đơn giá đang hiệu lực tại kỳ / ngày lập (BR-057). Chưa có thì cảnh báo, dùng giá 0 (UC-34 E03)
+const getUnitPriceOrWarn = async (service, buildingId, month, warnings) => {
+  const priceDoc = await getCurrentPrice(
+    service._id,
+    buildingId,
+    getPriceLookupDate(month),
+  );
   if (!priceDoc) {
     warnings.push(`Chưa có đơn giá [${service.name}] cho tòa nhà này`);
     return 0;
@@ -193,16 +227,17 @@ const buildSuggestedItems = async ({ contract, month, fillNewReading }) => {
   const items = [buildRentItem(contract, month)];
   const warnings = [];
 
+  // Chỉ lấy kỳ đã gửi / đã thanh toán để gợi ý chỉ số cũ, tránh lấy nhầm DRAFT chưa nhập xong
   const previousInvoice = await Invoice.findOne({
     contractId: contract._id,
     month: { $lt: month },
-    status: { $ne: INVOICE_STATUS.CANCELLED },
+    status: { $in: [INVOICE_STATUS.PENDING, INVOICE_STATUS.PAID] },
   }).sort({ month: -1, createdAt: -1 });
 
   const services = await getBuildingServices(buildingId);
 
   for (const service of services) {
-    const unitPrice = await getUnitPriceOrWarn(service, buildingId, warnings);
+    const unitPrice = await getUnitPriceOrWarn(service, buildingId, month, warnings);
 
     if (service.isFixed) {
       items.push({
@@ -268,9 +303,15 @@ const buildInvoiceItems = async ({
     if (item.type === INVOICE_ITEM_TYPE.RENT) continue;
 
     if (item.type === INVOICE_ITEM_TYPE.EXTRA) {
-      const quantity = Number(item.quantity ?? 1);
+      if (item.quantity !== undefined && Number(item.quantity) !== 1) {
+        throw itemError(
+          index,
+          "quantity",
+          "Số lượng khoản phát sinh luôn phải bằng 1",
+        );
+      }
       const unitPrice = Number(item.unitPrice ?? 0);
-      if (unitPrice <= 0) {
+      if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
         throw itemError(
           index,
           "unitPrice",
@@ -280,9 +321,9 @@ const buildInvoiceItems = async ({
       items.push({
         type: INVOICE_ITEM_TYPE.EXTRA,
         description: item.description,
-        quantity,
+        quantity: 1,
         unitPrice,
-        amount: quantity * unitPrice,
+        amount: unitPrice,
       });
       continue;
     }
@@ -346,11 +387,18 @@ const buildInvoiceItems = async ({
         );
       }
       description = service.name;
-      unitPrice = await getUnitPriceOrWarn(service, buildingId, warnings);
+      unitPrice = await getUnitPriceOrWarn(service, buildingId, month, warnings);
     }
 
     if (item.type === INVOICE_ITEM_TYPE.FIXED) {
       const quantity = Number(item.quantity ?? 1);
+      if (!Number.isInteger(quantity) || quantity < 0) {
+        throw itemError(
+          index,
+          "quantity",
+          "Số lượng dịch vụ cố định phải là số nguyên không âm",
+        );
+      }
       items.push({
         serviceId,
         type: INVOICE_ITEM_TYPE.FIXED,
@@ -379,6 +427,12 @@ const buildInvoiceItems = async ({
     }
     const oldReading = Number(item.oldReading);
     const newReading = Number(item.newReading);
+    if (!Number.isFinite(oldReading) || oldReading < 0) {
+      throw itemError(index, "oldReading", "Chỉ số cũ không hợp lệ");
+    }
+    if (!Number.isFinite(newReading) || newReading < 0) {
+      throw itemError(index, "newReading", "Chỉ số mới không hợp lệ");
+    }
     if (newReading < oldReading) {
       throw itemError(
         index,
@@ -469,15 +523,10 @@ const deliverInvoiceNotice = async ({
     delivered = false;
   }
 
-  let recipientEmail = contract.representativeEmail;
-  if (repUserId) {
-    try {
-      const repUser = await User.findById(repUserId).select("email").lean();
-      if (repUser?.email) recipientEmail = repUser.email;
-    } catch {
-      // fallback
-    }
-  }
+  const recipientEmail = await getRepresentativeRecipientEmail(
+    contract._id,
+    contract.representativeEmail,
+  );
 
   if (!recipientEmail) {
     delivered = false;
@@ -493,6 +542,30 @@ const deliverInvoiceNotice = async ({
   return delivered ? null : NOTICE_FAILED_MESSAGE;
 };
 
+// Tạo bản ghi Invoice kèm bảo vệ chống đúp kỳ (unique index) và thử lại nếu trùng mã hóa đơn
+const createInvoiceRecord = async ({ contractId, month, built, createdBy }) => {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await Invoice.create({
+        invoiceCode: await generateInvoiceCode(month),
+        contractId,
+        month,
+        items: built.items,
+        totalAmount: built.totalAmount,
+        status: INVOICE_STATUS.DRAFT,
+        createdBy,
+      });
+    } catch (error) {
+      if (error?.code !== 11000) throw error;
+      if (error.keyPattern?.invoiceCode && attempt === 0) continue;
+      throw new AppError(
+        `Phòng này đã có hóa đơn hiệu lực trong tháng ${month}. Vui lòng mở hóa đơn đã có để chỉnh sửa hoặc hủy hóa đơn cũ nếu muốn tạo mới.`,
+        409,
+      );
+    }
+  }
+};
+
 /**
  * UC-34: Dữ liệu gợi ý trước khi lập hóa đơn
  * GET /api/invoices/prefill?contractId=&month=
@@ -500,6 +573,7 @@ const deliverInvoiceNotice = async ({
 export const getPrefill = async (query, user) => {
   const { contractId, month } = query;
   const contract = await getActiveContractForManager(contractId, user);
+  assertMonthWithinContract(contract, month);
 
   const { items, warnings } = await buildSuggestedItems({
     contract,
@@ -538,6 +612,7 @@ export const getPrefill = async (query, user) => {
 export const createInvoice = async (data, user) => {
   const { contractId, month, items } = data;
   const contract = await getActiveContractForManager(contractId, user);
+  assertMonthWithinContract(contract, month);
 
   // Chặn trùng kỳ tuyệt đối: mỗi phòng trong một tháng chỉ có 1 hóa đơn hiệu lực (Nháp / Chờ thanh toán / Đã thanh toán)
   const existing = await findExistingInvoiceInMonth(contractId, month);
@@ -550,13 +625,10 @@ export const createInvoice = async (data, user) => {
 
   const built = await buildInvoiceItems({ inputItems: items, contract, month });
 
-  const invoice = await Invoice.create({
-    invoiceCode: await generateInvoiceCode(month),
+  const invoice = await createInvoiceRecord({
     contractId,
     month,
-    items: built.items,
-    totalAmount: built.totalAmount,
-    status: INVOICE_STATUS.DRAFT,
+    built,
     createdBy: user._id,
   });
 
@@ -595,6 +667,8 @@ export const createBulkInvoices = async (data, user) => {
         continue;
       }
 
+      assertMonthWithinContract(contract, month);
+
       // Không tạo trùng kỳ khi lập hàng loạt
       const existing = await findExistingInvoiceInMonth(contractId, month);
       if (existing) {
@@ -612,13 +686,10 @@ export const createBulkInvoices = async (data, user) => {
         fillNewReading: true,
       });
 
-      const invoice = await Invoice.create({
-        invoiceCode: await generateInvoiceCode(month),
+      const invoice = await createInvoiceRecord({
         contractId,
         month,
-        items: built.items,
-        totalAmount: built.totalAmount,
-        status: INVOICE_STATUS.DRAFT,
+        built,
         createdBy: user._id,
       });
 
@@ -705,7 +776,11 @@ export const sendInvoice = async (id, user) => {
       500,
     );
   }
-  const qrContent = `https://img.vietqr.io/image/${env.BANK_ID}-${env.BANK_ACCOUNT_NO}-compact2.png?amount=${invoice.totalAmount}&addInfo=${encodeURIComponent(invoice.invoiceCode)}&accountName=${encodeURIComponent(env.BANK_ACCOUNT_NAME)}`;
+  const accountName = env.BANK_ACCOUNT_NAME?.trim();
+  const accountNameParam = accountName
+    ? `&accountName=${encodeURIComponent(accountName)}`
+    : "";
+  const qrContent = `https://img.vietqr.io/image/${env.BANK_ID}-${env.BANK_ACCOUNT_NO}-compact2.png?amount=${invoice.totalAmount}&addInfo=${encodeURIComponent(invoice.invoiceCode)}${accountNameParam}`;
 
   const sentAt = new Date();
   const dueDate = new Date(sentAt.getTime() + DUE_DAYS * 24 * 60 * 60 * 1000);
@@ -799,11 +874,13 @@ export const getInvoices = async (query, user) => {
     const managerBuilding = await getManagerBuilding(user._id);
     let roomFilter;
     if (roomId) {
-      const room = await Room.exists({
-        _id: roomId,
-        buildingId: managerBuilding._id,
-      });
-      if (!room) {
+      const targetRoom = await Room.findOne({ _id: roomId, isDeleted: false })
+        .select("buildingId")
+        .lean();
+      if (!targetRoom) {
+        throw new AppError("Không tìm thấy phòng", 404);
+      }
+      if (toId(targetRoom.buildingId) !== managerBuilding._id.toString()) {
         throw new AppError(
           "Bạn không có quyền xem hóa đơn của phòng thuộc tòa nhà khác",
           403,
@@ -818,8 +895,12 @@ export const getInvoices = async (query, user) => {
     filter.contractId = {
       $in: await Contract.distinct("_id", { roomId: roomFilter }),
     };
-  } else if (buildingId) {
-    const roomIds = await Room.distinct("_id", { buildingId });
+  } else if (roomId || buildingId) {
+    // Admin: hỗ trợ lọc theo roomId hoặc buildingId
+    const roomQuery = { isDeleted: false };
+    if (buildingId) roomQuery.buildingId = buildingId;
+    if (roomId) roomQuery._id = roomId;
+    const roomIds = await Room.distinct("_id", roomQuery);
     filter.contractId = {
       $in: await Contract.distinct("_id", { roomId: { $in: roomIds } }),
     };
@@ -890,8 +971,13 @@ export const getInvoiceById = async (id, user) => {
   const rep = contractId
     ? await Occupant.findOne({ contractId, isRepresentative: true }).select("name phone cccd")
     : null;
-  const userRep = !rep && invoice.contractId?.representativeCccd
-    ? await User.findOne({ cccd: invoice.contractId.representativeCccd }).select("name phone cccd email")
+  const fallbackRep = !rep && invoice.contractId?.representativeCccd
+    ? await Occupant.findOne({
+        cccd: invoice.contractId.representativeCccd,
+        isRepresentative: true,
+      })
+        .sort({ createdAt: -1 })
+        .select("name phone cccd")
     : null;
 
   const building = invoice.contractId?.roomId?.buildingId;
@@ -899,11 +985,14 @@ export const getInvoiceById = async (id, user) => {
     ? await Manager.findOne({ userId: building.managerId }).select("name phone")
     : null;
 
+  const repInfo = rep || fallbackRep;
   formatted.representative = {
-    name: rep?.name || userRep?.name || "",
-    phone: rep?.phone || userRep?.phone || "",
-    email: invoice.contractId?.representativeEmail || userRep?.email || "",
-    cccd: invoice.contractId?.representativeCccd || rep?.cccd || userRep?.cccd || "",
+    name: repInfo?.name || "",
+    phone: repInfo?.phone || "",
+    email: contractId
+      ? await getRepresentativeRecipientEmail(contractId, invoice.contractId?.representativeEmail || "")
+      : (invoice.contractId?.representativeEmail || ""),
+    cccd: invoice.contractId?.representativeCccd || repInfo?.cccd || "",
   };
   formatted.representativeName = formatted.representative.name;
   formatted.representativePhone = formatted.representative.phone;

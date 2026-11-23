@@ -44,20 +44,20 @@ router.post(
   invoiceController.createInvoice,
 );
 
-// 4. Lấy danh sách hóa đơn (UC-36: Manager xem tòa mình, Customer xem phòng mình)
+// 4. Lấy danh sách hóa đơn (UC-36: Admin xem toàn hệ thống, Manager xem tòa mình, Customer xem phòng mình)
 router.get(
   "/invoices",
   auth,
-  requireRole(ROLE.MANAGER, ROLE.CUSTOMER),
+  requireRole(ROLE.ADMIN, ROLE.MANAGER, ROLE.CUSTOMER),
   validate(listInvoicesQuerySchema, "query"),
   invoiceController.getInvoices,
 );
 
-// 5. Lấy chi tiết hóa đơn (UC-36: Manager, Customer)
+// 5. Lấy chi tiết hóa đơn (UC-36: Admin, Manager, Customer)
 router.get(
   "/invoices/:id",
   auth,
-  requireRole(ROLE.MANAGER, ROLE.CUSTOMER),
+  requireRole(ROLE.ADMIN, ROLE.MANAGER, ROLE.CUSTOMER),
   validate(invoiceIdParamSchema, "params"),
   invoiceController.getInvoiceById,
 );

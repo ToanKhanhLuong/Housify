@@ -21,20 +21,20 @@ router.post(
   paymentController.handleSepayWebhook,
 );
 
-// 2. Lấy lịch sử thanh toán (UC-39: Manager xem tòa mình, Customer xem phòng mình)
+// 2. Lấy lịch sử thanh toán (UC-39: Admin xem toàn hệ thống, Manager xem tòa mình, Customer xem phòng mình)
 router.get(
   "/payments",
   auth,
-  requireRole(ROLE.MANAGER, ROLE.CUSTOMER),
+  requireRole(ROLE.ADMIN, ROLE.MANAGER, ROLE.CUSTOMER),
   validate(paymentHistoryQuerySchema, "query"),
   paymentController.getPayments,
 );
 
-// 3. Lấy chi tiết 1 biên lai thanh toán (UC-39)
+// 3. Lấy chi tiết 1 biên lai thanh toán (UC-39: Admin, Manager, Customer)
 router.get(
   "/payments/:id",
   auth,
-  requireRole(ROLE.MANAGER, ROLE.CUSTOMER),
+  requireRole(ROLE.ADMIN, ROLE.MANAGER, ROLE.CUSTOMER),
   paymentController.getPaymentById,
 );
 

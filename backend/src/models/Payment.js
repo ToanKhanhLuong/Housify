@@ -13,8 +13,9 @@ const paymentSchema = new Schema(
         invoiceId: {
             type: Schema.Types.ObjectId,
             ref: 'Invoice',
-            required: true
-        },
+            required: true,
+            unique: true
+        }, // quan hệ Invoice (1..1) — (0..1) Payment
         amount: {
             type: Number,
             required: true,
@@ -36,6 +37,6 @@ const paymentSchema = new Schema(
     { timestamps: true },
 );
 
-paymentSchema.index({ invoiceId: 1, paidAt: -1 });
+paymentSchema.index({ paidAt: -1 });
 
 export default mongoose.model('Payment', paymentSchema, 'payments');

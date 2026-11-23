@@ -23,8 +23,9 @@ export const validateInvoiceItems = (items) => {
     }
 
     if (item.type === INVOICE_ITEM_TYPE.FIXED) {
-      if (isBlank(item.quantity) || Number(item.quantity) < 0)
-        errors[key('quantity')] = 'Số lượng không được âm';
+      const qty = Number(item.quantity);
+      if (isBlank(item.quantity) || !Number.isInteger(qty) || qty < 0)
+        errors[key('quantity')] = 'Số lượng phải là số nguyên không âm';
     }
 
     if (item.type === INVOICE_ITEM_TYPE.EXTRA) {
