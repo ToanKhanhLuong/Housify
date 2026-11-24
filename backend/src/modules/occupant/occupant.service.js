@@ -464,9 +464,20 @@ export const updateOccupant = async ({ userId, roleId, occupantId, data }) => {
         }
     }
 
-    // 3. Kiểm tra SĐT không trùng người khác (kiểm chéo Manager và cư dân thuộc hợp đồng ACTIVE)
+    // 3. Kiểm tra SĐT không trùng trong cùng hợp đồng (kể cả DRAFT) và không trùng người khác trên toàn hệ thống
     const phoneChanged = data.phone !== undefined && targetPhone !== occupant.phone;
     if (phoneChanged) {
+        // Bắt trùng SĐT nội bộ hợp đồng ngay lúc sửa vì hasActiveStayingPhone bên dưới bỏ qua hợp đồng DRAFT
+        const dupPhoneInContract = await Occupant.exists({
+            contractId: contract._id,
+            status: OCCUPANT_STATUS.STAYED,
+            _id: { $ne: occupant._id },
+            phone: targetPhone,
+        });
+        if (dupPhoneInContract) {
+            throw new AppError('Số điện thoại trùng với cư dân khác trong cùng hợp đồng', 422);
+        }
+
         const phoneInManager = await Manager.exists({ phone: targetPhone });
         const phoneInOccupant = await hasActiveStayingPhone(targetPhone, {
             excludeOccupantId: occupant._id,

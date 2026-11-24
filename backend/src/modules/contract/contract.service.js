@@ -128,6 +128,16 @@ const validateRepresentativeCccdAndEmail = async (cleanRepCccd, cleanRepEmail, e
         );
     }
 
+    // Chặn cùng 1 CCCD đứng tên đại diện ở 2 hợp đồng nháp (DRAFT) cùng lúc dù dùng email khác nhau
+    const draftRepConflict = await findDraftCccdConflict(cleanRepCccd, excludeContractId);
+    if (draftRepConflict) {
+        throw fieldError(
+            'representativeCccd',
+            'Số CCCD này đang là người đại diện của một hợp đồng nháp khác chờ kích hoạt',
+            409,
+        );
+    }
+
     // 2. Chặn nếu tài khoản gắn với CCCD đã bị khóa do vi phạm (LOCKED) hoặc từng bị chấm dứt đơn phương đã duyệt
     const blacklistedCccds = await findBlacklistedCccds([cleanRepCccd]);
     if (blacklistedCccds.has(cleanRepCccd)) {

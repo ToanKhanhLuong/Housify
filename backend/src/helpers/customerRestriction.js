@@ -218,6 +218,7 @@ export const hasActiveStayingCccd = async (cccd, excludeContractId = null, sessi
     ).lean();
     if (stayedOccupants.length === 0) return false;
 
+    // Người ở cùng trên hợp đồng DRAFT cũng mang status STAYED, nên phải đối chiếu thêm Contract.status === ACTIVE để không khóa oan
     const activeContract = await withOptionalSession(
         Contract.exists({
             _id: { $in: stayedOccupants.map((item) => item.contractId) },
@@ -245,6 +246,7 @@ export const hasActiveStayingPhone = async (
         status: OCCUPANT_STATUS.STAYED,
     };
 
+    // Cùng số CCCD (khách cũ thuê lại phòng mới) thì được giữ lại SĐT cũ của chính mình
     const cleanExcludeCccds = [...new Set(excludeCccds.map((item) => String(item || '').trim()).filter(Boolean))];
     if (cleanExcludeCccds.length === 1) {
         filter.cccd = { $ne: cleanExcludeCccds[0] };
@@ -265,6 +267,7 @@ export const hasActiveStayingPhone = async (
     ).lean();
     if (matchedOccupants.length === 0) return false;
 
+    // Chỉ chặn SĐT khi cư dân giữ số đó thuộc hợp đồng đã kích hoạt (ACTIVE), bỏ qua bản nháp (DRAFT)
     const activeContract = await withOptionalSession(
         Contract.exists({
             _id: { $in: matchedOccupants.map((item) => item.contractId) },
