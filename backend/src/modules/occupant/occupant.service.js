@@ -15,6 +15,8 @@ import {
     findBlacklistedCccds,
     findDraftCccdConflict,
     getCustomerContractAccessState,
+    hasActiveStayingCccd,
+    hasActiveStayingPhone,
 } from '../../helpers/customerRestriction.js';
 import { getSignedUrl } from '../upload/upload.service.js';
 import Occupant from '../../models/Occupant.js';
@@ -456,29 +458,19 @@ export const updateOccupant = async ({ userId, roleId, occupantId, data }) => {
             throw new AppError('Số CCCD mới đang được sử dụng trong một hợp đồng nháp chờ kích hoạt', 400);
         }
 
-        // Không được trùng người đang ở (STAYED) tại hợp đồng ACTIVE khác
-        const stayedOther = await Occupant.findOne({
-            cccd: targetCccd,
-            status: OCCUPANT_STATUS.STAYED,
-            contractId: { $ne: contract._id },
-        });
-        if (stayedOther) {
-            const otherContract = await Contract.findById(stayedOther.contractId).select('status').lean();
-            if (otherContract?.status === CONTRACT_STATUS.ACTIVE) {
-                throw new AppError('Số CCCD mới hiện đang thuộc cư dân đang ở phòng khác', 400);
-            }
+        // Không được trùng người đang ở (STAYED) tại bất kỳ hợp đồng ACTIVE nào khác
+        if (await hasActiveStayingCccd(targetCccd, contract._id)) {
+            throw new AppError('Số CCCD mới hiện đang thuộc cư dân đang ở phòng khác', 400);
         }
     }
 
-    // 3. Kiểm tra SĐT không trùng người khác (kiểm chéo Manager và cư dân)
+    // 3. Kiểm tra SĐT không trùng người khác (kiểm chéo Manager và cư dân thuộc hợp đồng ACTIVE)
     const phoneChanged = data.phone !== undefined && targetPhone !== occupant.phone;
     if (phoneChanged) {
-        const phoneInManager = await Manager.findOne({ phone: targetPhone });
-        const phoneInOccupant = await Occupant.findOne({
-            phone: targetPhone,
-            status: OCCUPANT_STATUS.STAYED,
-            _id: { $ne: occupant._id },
-            cccd: { $nin: [occupant.cccd, targetCccd] },
+        const phoneInManager = await Manager.exists({ phone: targetPhone });
+        const phoneInOccupant = await hasActiveStayingPhone(targetPhone, {
+            excludeOccupantId: occupant._id,
+            excludeCccds: [occupant.cccd, targetCccd],
         });
         if (phoneInManager || phoneInOccupant) {
             throw new AppError('Số điện thoại đã tồn tại trong hệ thống', 409);
@@ -611,25 +603,15 @@ export const addOccupant = async ({ managerId, contractId, data }) => {
         throw new AppError('CCCD đã tồn tại trong danh sách cư dân của phòng', 400);
     }
 
-    // Kiểm tra CCCD đang ở phòng khác
-    const stayedOther = await Occupant.findOne({
-        cccd: cleanCccd,
-        status: OCCUPANT_STATUS.STAYED,
-        contractId: { $ne: contract._id },
-    });
-    if (stayedOther) {
-        const otherContract = await Contract.findById(stayedOther.contractId).select('status').lean();
-        if (otherContract?.status === CONTRACT_STATUS.ACTIVE) {
-            throw new AppError('Người mang số CCCD này hiện đang ở phòng khác', 400);
-        }
+    // Kiểm tra CCCD đang ở phòng khác thuộc hợp đồng ACTIVE
+    if (await hasActiveStayingCccd(cleanCccd, contract._id)) {
+        throw new AppError('Người mang số CCCD này hiện đang ở phòng khác', 400);
     }
 
-    // Kiểm tra SĐT không trùng người khác
-    const phoneInManager = await Manager.findOne({ phone: cleanPhone });
-    const phoneInOccupant = await Occupant.findOne({
-        phone: cleanPhone,
-        status: OCCUPANT_STATUS.STAYED,
-        cccd: { $ne: cleanCccd },
+    // Kiểm tra SĐT không trùng người khác (chỉ xét cư dân thuộc hợp đồng ACTIVE)
+    const phoneInManager = await Manager.exists({ phone: cleanPhone });
+    const phoneInOccupant = await hasActiveStayingPhone(cleanPhone, {
+        excludeCccds: [cleanCccd],
     });
     if (phoneInManager || phoneInOccupant) {
         throw new AppError('Số điện thoại đã tồn tại trong hệ thống', 409);

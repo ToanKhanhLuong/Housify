@@ -18,7 +18,10 @@ import { withTransaction } from '../../helpers/withTransaction.js';
 import { notify } from '../../helpers/notify.js';
 import { audit } from '../../helpers/audit.js';
 import { generateActivationToken, ACTIVATION_TOKEN_TTL_MS } from '../../helpers/activationToken.js';
-import { findDraftEmailConflict } from '../../helpers/customerRestriction.js';
+import {
+    findDraftEmailConflict,
+    hasActiveStayingPhone,
+} from '../../helpers/customerRestriction.js';
 import { getSignedUrl } from '../upload/upload.service.js';
 import User from '../../models/User.js';
 import Manager from '../../models/Manager.js';
@@ -122,13 +125,13 @@ const ensureEmailAvailable = async (email, exceptUserId) => {
     }
 };
 
-// BR-010: 1 số chỉ thuộc 1 người – kiểm chéo managers và occupants, Manager so theo userId
+// BR-010: 1 số chỉ thuộc 1 người – kiểm chéo managers và cư dân thuộc hợp đồng ACTIVE, Manager so theo userId
 const ensurePhoneAvailable = async (phone, exceptUserId) => {
     const managerFilter = { phone };
     if (exceptUserId) {
         managerFilter.userId = { $ne: exceptUserId };
     }
-    const phoneUsed = await Manager.exists(managerFilter) || await Occupant.exists({ phone, status: OCCUPANT_STATUS.STAYED });
+    const phoneUsed = Boolean(await Manager.exists(managerFilter)) || (await hasActiveStayingPhone(phone));
     if (phoneUsed) {
         throw new AppError('Số điện thoại đã tồn tại trong hệ thống', 409);
     }

@@ -12,6 +12,7 @@ import {
   OCCUPANT_STATUS,
 } from '../../constants/enums.js';
 import { escapeRegex } from '../../helpers/filter.js';
+import { getRequiredCapacityByRoom } from '../../helpers/customerRestriction.js';
 
 // Tìm tòa chưa xóa; Manager chỉ được thao tác trên tòa mình phụ trách
 const findBuilding = async (buildingId, user) => {
@@ -112,15 +113,6 @@ const countStayingOccupantsByRoom = async (roomIds) => {
     }
   }
   return counts;
-};
-
-const countStayingOccupants = async (roomId) => {
-  try {
-    const counts = await countStayingOccupantsByRoom([roomId]);
-    return counts.get(String(roomId)) ?? 0;
-  } catch {
-    return 0;
-  }
 };
 
 // Thêm building { _id, name, floorCount }, roomType { _id, name, capacity }, occupantCount cho từng phòng
@@ -288,16 +280,18 @@ export const updateRoom = async (id, data, user) => {
     room.floorNumber = data.floorNumber;
   }
 
-  // Đổi loại phòng: capacity của loại mới phải ≥ số người đang ở
+  // Đổi loại phòng: capacity của loại mới phải ≥ số người đang ở (ACTIVE) hoặc số chỗ cần giữ cho hợp đồng nháp (DRAFT)
   if (data.roomTypeId !== undefined) {
     const newRoomType = await ensureRoomTypeExists(data.roomTypeId);
     if (String(room.roomTypeId) !== String(data.roomTypeId)) {
-      const occupantCount = await countStayingOccupants(room._id);
-      if (newRoomType.capacity < occupantCount) {
-        throw new AppError(
-          `Loại phòng mới không đủ chỗ cho số người đang ở (${occupantCount} người)`,
-          400,
-        );
+      const capacityMap = await getRequiredCapacityByRoom([room._id]);
+      const requirement = capacityMap.get(String(room._id));
+      if (requirement && newRoomType.capacity < requirement.required) {
+        const message =
+          requirement.contractStatus === CONTRACT_STATUS.DRAFT
+            ? `Loại phòng mới không đủ sức chứa cho hợp đồng nháp đang chờ ký (${requirement.required} người)`
+            : `Loại phòng mới không đủ chỗ cho số người đang ở (${requirement.required} người)`;
+        throw new AppError(message, 400);
       }
       room.roomTypeId = data.roomTypeId;
     }

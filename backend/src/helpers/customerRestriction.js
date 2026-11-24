@@ -1,6 +1,7 @@
-// Kiểm tra danh sách đen, xung đột hợp đồng nháp và trạng thái khóa chỉnh sửa của khách thuê (UC-05, UC-06, UC-24, UC-26, UC-31, UC-32)
+// Kiểm tra danh sách đen, xung đột hợp đồng nháp, cư trú ACTIVE và sức chứa phòng cần giữ chỗ (UC-05, UC-06, UC-17, UC-20, UC-24, UC-26, UC-31, UC-32)
 import {
     CONTRACT_STATUS,
+    CONTRACT_TYPE,
     OCCUPANT_STATUS,
     TERMINATION_STATUS,
     TERMINATION_TYPE,
@@ -194,4 +195,151 @@ export const getCustomerContractAccessState = async (userId) => {
         canChangeEmail: hasActiveContract && !confirmedUnilateral && !emailLockedTermination,
         emailDisabledReason,
     };
+};
+
+/**
+ * Kiểm tra số CCCD có đang cư trú (STAYED) trong một hợp đồng ACTIVE hay không (bỏ qua người ở cùng trên hợp đồng DRAFT)
+ */
+export const hasActiveStayingCccd = async (cccd, excludeContractId = null, session = null) => {
+    const cleanCccd = String(cccd || '').trim();
+    if (!cleanCccd) return false;
+
+    const filter = {
+        cccd: cleanCccd,
+        status: OCCUPANT_STATUS.STAYED,
+    };
+    if (excludeContractId) {
+        filter.contractId = { $ne: excludeContractId };
+    }
+
+    const stayedOccupants = await withOptionalSession(
+        Occupant.find(filter).select('contractId'),
+        session,
+    ).lean();
+    if (stayedOccupants.length === 0) return false;
+
+    const activeContract = await withOptionalSession(
+        Contract.exists({
+            _id: { $in: stayedOccupants.map((item) => item.contractId) },
+            status: CONTRACT_STATUS.ACTIVE,
+        }),
+        session,
+    );
+
+    return Boolean(activeContract);
+};
+
+/**
+ * Kiểm tra số điện thoại có đang được sử dụng bởi cư dân STAYED thuộc một hợp đồng ACTIVE khác hay không
+ */
+export const hasActiveStayingPhone = async (
+    phone,
+    { excludeCccds = [], excludeOccupantId = null, excludeContractId = null } = {},
+    session = null,
+) => {
+    const cleanPhone = String(phone || '').trim();
+    if (!cleanPhone) return false;
+
+    const filter = {
+        phone: cleanPhone,
+        status: OCCUPANT_STATUS.STAYED,
+    };
+
+    const cleanExcludeCccds = [...new Set(excludeCccds.map((item) => String(item || '').trim()).filter(Boolean))];
+    if (cleanExcludeCccds.length === 1) {
+        filter.cccd = { $ne: cleanExcludeCccds[0] };
+    } else if (cleanExcludeCccds.length > 1) {
+        filter.cccd = { $nin: cleanExcludeCccds };
+    }
+
+    if (excludeOccupantId) {
+        filter._id = { $ne: excludeOccupantId };
+    }
+    if (excludeContractId) {
+        filter.contractId = { $ne: excludeContractId };
+    }
+
+    const matchedOccupants = await withOptionalSession(
+        Occupant.find(filter).select('contractId'),
+        session,
+    ).lean();
+    if (matchedOccupants.length === 0) return false;
+
+    const activeContract = await withOptionalSession(
+        Contract.exists({
+            _id: { $in: matchedOccupants.map((item) => item.contractId) },
+            status: CONTRACT_STATUS.ACTIVE,
+        }),
+        session,
+    );
+
+    return Boolean(activeContract);
+};
+
+/**
+ * Tính sức chứa tối thiểu cần đảm bảo của từng phòng theo hợp đồng đang mở (ACTIVE hoặc DRAFT)
+ * - ACTIVE: số cư dân đang STAYED thực tế
+ * - DRAFT: SINGLE = 1; GROUP = max(2, 1 + số người ở cùng đã nhập sẵn trên bản nháp)
+ */
+export const getRequiredCapacityByRoom = async (roomIds = []) => {
+    const result = new Map();
+    if (!Array.isArray(roomIds) || roomIds.length === 0) return result;
+
+    const openContracts = await Contract.find({
+        roomId: { $in: roomIds },
+        status: { $in: [CONTRACT_STATUS.DRAFT, CONTRACT_STATUS.ACTIVE] },
+    })
+        .select('_id roomId status contractType')
+        .lean();
+
+    if (openContracts.length === 0) return result;
+
+    const occupantStats = await Occupant.aggregate([
+        {
+            $match: {
+                contractId: { $in: openContracts.map((contract) => contract._id) },
+                status: OCCUPANT_STATUS.STAYED,
+            },
+        },
+        {
+            $group: {
+                _id: '$contractId',
+                stayedCount: { $sum: 1 },
+                coOccupantCount: {
+                    $sum: { $cond: [{ $eq: ['$isRepresentative', false] }, 1, 0] },
+                },
+            },
+        },
+    ]);
+
+    const statsByContractId = new Map(
+        occupantStats.map((row) => [
+            String(row._id),
+            { stayedCount: row.stayedCount, coOccupantCount: row.coOccupantCount },
+        ]),
+    );
+
+    for (const contract of openContracts) {
+        const stats = statsByContractId.get(String(contract._id)) || {
+            stayedCount: 0,
+            coOccupantCount: 0,
+        };
+        const required =
+            contract.status === CONTRACT_STATUS.ACTIVE
+                ? stats.stayedCount
+                : contract.contractType === CONTRACT_TYPE.GROUP
+                  ? Math.max(2, 1 + stats.coOccupantCount)
+                  : 1;
+
+        const roomKey = String(contract.roomId);
+        const current = result.get(roomKey);
+        if (!current || required > current.required) {
+            result.set(roomKey, {
+                required,
+                contractStatus: contract.status,
+            });
+        }
+    }
+
+    return result;
 };

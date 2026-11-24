@@ -17,6 +17,7 @@ import { withTransaction } from '../../helpers/withTransaction.js';
 import {
     findDraftEmailConflict,
     getCustomerContractAccessState,
+    hasActiveStayingPhone,
 } from '../../helpers/customerRestriction.js';
 import { getSignedUrl } from '../upload/upload.service.js';
 import User from '../../models/User.js';
@@ -420,10 +421,11 @@ export const updateProfile = async (userId, body) => {
         if (emailChanged || changes.name !== undefined) {
             throw new AppError('Họ tên, email chỉ Admin được chỉnh sửa', 400);
         }
-        // BR-010: số điện thoại không trùng người khác
+        // BR-010: số điện thoại không trùng người khác (chỉ xét cư dân thuộc hợp đồng ACTIVE)
         if (changes.phone !== undefined) {
-            const phoneUsed = await Manager.findOne({ phone: changes.phone, userId: { $ne: user._id } })
-                || await Occupant.findOne({ phone: changes.phone, status: OCCUPANT_STATUS.STAYED });
+            const phoneUsed =
+                Boolean(await Manager.exists({ phone: changes.phone, userId: { $ne: user._id } })) ||
+                (await hasActiveStayingPhone(changes.phone));
             if (phoneUsed) {
                 throw new AppError('Số điện thoại đã tồn tại trong hệ thống', 409);
             }
@@ -449,13 +451,10 @@ export const updateProfile = async (userId, body) => {
             }
         }
         if (changes.phone !== undefined) {
-            // Cùng CCCD là cùng một người (thuê lại) nên được dùng lại số cũ
-            const phoneUsed = await Manager.findOne({ phone: changes.phone })
-                || await Occupant.findOne({
-                    phone: changes.phone,
-                    status: OCCUPANT_STATUS.STAYED,
-                    cccd: { $ne: profile.cccd },
-                });
+            // Cùng CCCD là cùng một người (thuê lại) nên được dùng lại số cũ; bỏ qua người ở cùng trên hợp đồng DRAFT
+            const phoneUsed =
+                Boolean(await Manager.exists({ phone: changes.phone })) ||
+                (await hasActiveStayingPhone(changes.phone, { excludeCccds: [profile.cccd] }));
             if (phoneUsed) {
                 throw new AppError('Số điện thoại đã tồn tại trong hệ thống', 409);
             }

@@ -29,6 +29,8 @@ import {
     findBlacklistedCccds,
     findDraftCccdConflict,
     findDraftEmailConflict,
+    hasActiveStayingCccd,
+    hasActiveStayingPhone,
 } from '../../helpers/customerRestriction.js';
 import Contract from '../../models/Contract.js';
 import Room from '../../models/Room.js';
@@ -102,20 +104,24 @@ const fieldError = (field, message, statusCode = 400) =>
     new AppError(message, statusCode, [{ field, message }]);
 
 /**
+ * Chặn tạo hoặc sửa hợp đồng nháp có ngày kết thúc đã qua hoặc rơi đúng vào hôm nay (khớp mốc quét của runContractExpiryJob)
+ */
+const assertContractEndDateAfterToday = (endDate, now = new Date()) => {
+    if (startOfVietnamDay(endDate) <= startOfVietnamDay(now)) {
+        throw fieldError(
+            'startDate',
+            'Ngày kết thúc hợp đồng phải sau ngày hiện tại, vui lòng kiểm tra lại ngày bắt đầu và thời hạn thuê',
+            400,
+        );
+    }
+};
+
+/**
  * Kiểm tra CCCD và Email của người đại diện khi tạo hoặc sửa hợp đồng nháp (UC-24, UC-26)
  */
 const validateRepresentativeCccdAndEmail = async (cleanRepCccd, cleanRepEmail, excludeContractId = null) => {
-    // 1. Chặn nếu CCCD đang ở phòng khác (STAYED)
-    const stayedFilter = {
-        cccd: cleanRepCccd,
-        status: OCCUPANT_STATUS.STAYED,
-    };
-    if (excludeContractId) {
-        stayedFilter.contractId = { $ne: excludeContractId };
-    }
-
-    const activeOccupant = await Occupant.findOne(stayedFilter);
-    if (activeOccupant) {
+    // 1. Chặn nếu CCCD đang ở phòng khác thuộc hợp đồng ACTIVE (không khóa cứng người ở cùng của hợp đồng DRAFT)
+    if (await hasActiveStayingCccd(cleanRepCccd, excludeContractId)) {
         throw fieldError(
             'representativeCccd',
             'Số CCCD này hiện đang thuê phòng khác',
@@ -265,6 +271,11 @@ export const createContract = async ({ managerId, data }) => {
         throw new AppError(`Số người (${totalOccupants}) vượt quá sức chứa tối đa của phòng (${roomType.capacity} người)`, 400);
     }
 
+    // 2b. Kiểm tra thời hạn hợp đồng: cho phép lùi startDate nhưng endDate phải còn hiệu lực sau hôm nay
+    const parsedStartDate = new Date(startDate);
+    const parsedEndDate = calculateEndDate(parsedStartDate, durationMonths);
+    assertContractEndDateAfterToday(parsedEndDate);
+
     // 3. Kiểm tra tính duy nhất (CCCD, SĐT, Email) trong toàn hệ thống
     const cleanRepCccd = representativeCccd.trim();
     const cleanRepEmail = representativeEmail.trim().toLowerCase();
@@ -305,8 +316,7 @@ export const createContract = async ({ managerId, data }) => {
             throw new AppError(`Người ở cùng mang CCCD ${coCccd} đang là người đại diện của một hợp đồng nháp khác`, 400);
         }
 
-        const stayedOther = await Occupant.findOne({ cccd: coCccd, status: OCCUPANT_STATUS.STAYED });
-        if (stayedOther) {
+        if (await hasActiveStayingCccd(coCccd)) {
             throw new AppError(`Người ở cùng mang CCCD ${coCccd} hiện đang ở phòng khác`, 400);
         }
 
@@ -315,19 +325,12 @@ export const createContract = async ({ managerId, data }) => {
             throw new AppError(`Số điện thoại ${coPhone} đã thuộc tài khoản quản lý`, 409);
         }
 
-        const phoneInOccupant = await Occupant.findOne({
-            phone: coPhone,
-            status: OCCUPANT_STATUS.STAYED,
-            cccd: { $ne: coCccd },
-        });
-        if (phoneInOccupant) {
+        if (await hasActiveStayingPhone(coPhone, { excludeCccds: [coCccd] })) {
             throw new AppError(`Số điện thoại ${coPhone} đang được sử dụng bởi cư dân khác`, 409);
         }
     }
 
     // 4. Tạo hợp đồng trong Transaction
-    const parsedStartDate = new Date(startDate);
-    const parsedEndDate = calculateEndDate(parsedStartDate, durationMonths);
     const { token, tokenHash } = generateActivationToken();
 
     let createdContractDoc = null;
@@ -954,6 +957,7 @@ export const updateContract = async ({ managerId, contractId, data }) => {
     let nextEndDate = contract.endDate;
     if (data.startDate !== undefined || data.durationMonths !== undefined) {
         nextEndDate = calculateEndDate(nextStartDate, nextDurationMonths);
+        assertContractEndDateAfterToday(nextEndDate);
     }
 
     contract.representativeCccd = nextRepCccd;

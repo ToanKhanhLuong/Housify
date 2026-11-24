@@ -1,33 +1,15 @@
 // Service cho module roomType (UC-20)
 import RoomType from '../../models/RoomType.js';
 import Room from '../../models/Room.js';
-import Contract from '../../models/Contract.js';
-import Occupant from '../../models/Occupant.js';
 import { AppError } from '../../utils/AppError.js';
-import { CONTRACT_STATUS, OCCUPANT_STATUS } from '../../constants/enums.js';
+import { CONTRACT_STATUS } from '../../constants/enums.js';
 import { escapeRegex } from '../../helpers/filter.js';
+import { getRequiredCapacityByRoom } from '../../helpers/customerRestriction.js';
 
 // So tên không phân biệt hoa thường, khớp nguyên chuỗi
 const sameNameFilter = (name) => ({
   $regex: new RegExp(`^${escapeRegex(name)}$`, 'i'),
 });
-
-// TODO: Đếm cư dân STAYED thuộc hợp đồng ACTIVE khi có module hợp đồng ở Iter 2. Iter 1 chưa có hợp đồng nên luôn trả về 0.
-const countStayingOccupants = async (roomId) => {
-  try {
-    const contract = await Contract.findOne({
-      roomId,
-      status: CONTRACT_STATUS.ACTIVE,
-    });
-    if (!contract) return 0;
-    return Occupant.countDocuments({
-      contractId: contract._id,
-      status: OCCUPANT_STATUS.STAYED,
-    });
-  } catch {
-    return 0;
-  }
-};
 
 // 1. Lấy danh sách loại phòng, sắp xếp theo tên tăng dần (UC-20)
 export const getRoomTypes = async () => {
@@ -132,19 +114,21 @@ export const updateRoomType = async (id, data) => {
     }
   }
 
-  // Sửa capacity: nếu có phòng chưa xóa thuộc loại này có số người đang ở > capacity mới → chặn
+  // Sửa capacity: kiểm tra cả số cư dân đang ở (ACTIVE) lẫn số chỗ tối thiểu của hợp đồng nháp (DRAFT)
   const rooms = await Room.find({
     roomTypeId: id,
     isDeleted: false,
   });
 
+  const capacityMap = await getRequiredCapacityByRoom(rooms.map((room) => room._id));
   for (const room of rooms) {
-    const occupantCount = await countStayingOccupants(room._id);
-    if (occupantCount > data.capacity) {
-      throw new AppError(
-        `Sức chứa mới nhỏ hơn số người đang ở của phòng ${room.roomNumber} (${occupantCount} người)`,
-        400,
-      );
+    const requirement = capacityMap.get(String(room._id));
+    if (requirement && requirement.required > data.capacity) {
+      const message =
+        requirement.contractStatus === CONTRACT_STATUS.DRAFT
+          ? `Sức chứa mới nhỏ hơn số người của hợp đồng nháp đang chờ ký tại phòng ${room.roomNumber} (${requirement.required} người)`
+          : `Sức chứa mới nhỏ hơn số người đang ở của phòng ${room.roomNumber} (${requirement.required} người)`;
+      throw new AppError(message, 400);
     }
   }
 

@@ -2,6 +2,7 @@
 // Câu lỗi giống contract.validation.js của BE; lỗi người ở cùng theo khóa coOccupants.0.cccd như BE trả
 import { CONTRACT_TYPE } from '../../constants/enums';
 import { CCCD_REGEX, PHONE_REGEX } from '../../constants/regex';
+import { endDateOf } from './contractFormat';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -34,6 +35,16 @@ export const validateContractFields = (form) => {
   if (!form.startDate) errors.startDate = 'Vui lòng nhập ngày bắt đầu';
   const monthsError = validateMonths(form.durationMonths);
   if (monthsError) errors.durationMonths = monthsError;
+
+  if (!errors.startDate && !errors.durationMonths) {
+    const computedEnd = endDateOf(form.startDate, form.durationMonths);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (computedEnd && computedEnd <= today) {
+      errors.startDate =
+        'Ngày kết thúc hợp đồng phải sau ngày hiện tại, vui lòng kiểm tra lại ngày bắt đầu và thời hạn thuê';
+    }
+  }
 
   if ((form.notes ?? '').length > 1000) errors.notes = 'Ghi chú tối đa 1000 ký tự';
   return errors;

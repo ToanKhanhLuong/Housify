@@ -9,6 +9,8 @@ import { hashActivationToken } from '../../helpers/activationToken.js';
 import {
     findBlacklistedCccds,
     findDraftCccdConflict,
+    hasActiveStayingCccd,
+    hasActiveStayingPhone,
 } from '../../helpers/customerRestriction.js';
 import {
     ROLE,
@@ -279,19 +281,19 @@ export const activateCustomerContract = async ({
 
     const building = await Building.findById(room.buildingId);
 
-    // 2. Kiểm tra tính duy nhất của SĐT trên toàn hệ thống
+    // 2. Kiểm tra tính duy nhất của SĐT đại diện trên toàn hệ thống (chỉ xét hợp đồng ACTIVE, bỏ qua DRAFT)
     const cleanPhone = phone.trim();
-    const phoneInManager = await Manager.findOne({ phone: cleanPhone });
+    const phoneInManager = await Manager.exists({ phone: cleanPhone });
     if (phoneInManager) {
         throw new AppError('Số điện thoại đã tồn tại trong hệ thống', 409);
     }
 
-    const phoneInOccupant = await Occupant.findOne({
-        phone: cleanPhone,
-        status: OCCUPANT_STATUS.STAYED,
-        cccd: { $ne: contract.representativeCccd },
-    });
-    if (phoneInOccupant) {
+    if (
+        await hasActiveStayingPhone(cleanPhone, {
+            excludeCccds: [contract.representativeCccd],
+            excludeContractId: contract._id,
+        })
+    ) {
         throw new AppError('Số điện thoại đã tồn tại trong hệ thống', 409);
     }
 
@@ -326,9 +328,19 @@ export const activateCustomerContract = async ({
         );
     }
 
-    // trùng trong chính hợp đồng: so với người đại diện, người đã có và nhau
-    const cccdSet = new Set([contract.representativeCccd, ...existingCoOccupants.map((co) => co.cccd)]);
-    const phoneSet = new Set([cleanPhone, ...existingCoOccupants.map((co) => co.phone)]);
+    // trùng trong chính hợp đồng: so giữa người đại diện, người đã có sẵn trên bản nháp và người mới nhập
+    const cccdSet = new Set([contract.representativeCccd]);
+    const phoneSet = new Set([cleanPhone]);
+    for (const co of existingCoOccupants) {
+        if (cccdSet.has(co.cccd)) {
+            throw new AppError(`Số CCCD ${co.cccd} bị trùng lặp trong hợp đồng`, 422);
+        }
+        cccdSet.add(co.cccd);
+        if (phoneSet.has(co.phone)) {
+            throw new AppError(`Số điện thoại ${co.phone} bị trùng lặp trong hợp đồng`, 422);
+        }
+        phoneSet.add(co.phone);
+    }
     for (const co of newCoOccupants) {
         if (cccdSet.has(co.cccd)) {
             throw new AppError(`Số CCCD ${co.cccd} bị trùng lặp trong hợp đồng`, 422);
@@ -340,17 +352,17 @@ export const activateCustomerContract = async ({
         phoneSet.add(co.phone);
     }
 
-    // trên toàn hệ thống: không nằm trong danh sách đen, không đang là đại diện HĐ nháp khác, không đang ở phòng khác
+    // trên toàn hệ thống: kiểm tra cả người ở cùng có sẵn trên DRAFT lẫn người ở cùng mới nhập
+    const allCoOccupants = [...existingCoOccupants, ...newCoOccupants];
     const allCccdsToCheck = [
         contract.representativeCccd,
-        ...existingCoOccupants.map((co) => co.cccd),
-        ...newCoOccupants.map((co) => co.cccd),
+        ...allCoOccupants.map((co) => co.cccd),
     ];
     const blacklistedCccds = await findBlacklistedCccds(allCccdsToCheck);
     if (blacklistedCccds.has(contract.representativeCccd)) {
         throw new AppError('Tài khoản của bạn đã bị khóa do vi phạm trước đó, không thể kích hoạt hợp đồng', 403);
     }
-    for (const co of [...existingCoOccupants, ...newCoOccupants]) {
+    for (const co of allCoOccupants) {
         if (blacklistedCccds.has(co.cccd)) {
             throw new AppError(
                 `Người ở cùng mang CCCD ${co.cccd} đã bị khóa do vi phạm trước đó, không thể kích hoạt hợp đồng`,
@@ -359,19 +371,23 @@ export const activateCustomerContract = async ({
         }
     }
 
-    for (const co of newCoOccupants) {
+    for (const co of allCoOccupants) {
         const draftRepConflict = await findDraftCccdConflict(co.cccd, contract._id);
         if (draftRepConflict) {
             throw new AppError(`Người ở cùng mang CCCD ${co.cccd} đang là người đại diện của một hợp đồng nháp khác`, 400);
         }
-        const stayedOther = await Occupant.findOne({ cccd: co.cccd, status: OCCUPANT_STATUS.STAYED });
-        if (stayedOther) {
+        if (await hasActiveStayingCccd(co.cccd, contract._id)) {
             throw new AppError(`Người ở cùng mang CCCD ${co.cccd} hiện đang ở phòng khác`, 400);
         }
-        if (await Manager.findOne({ phone: co.phone })) {
+        if (await Manager.exists({ phone: co.phone })) {
             throw new AppError(`Số điện thoại ${co.phone} đã thuộc tài khoản quản lý`, 409);
         }
-        if (await Occupant.findOne({ phone: co.phone, status: OCCUPANT_STATUS.STAYED, cccd: { $ne: co.cccd } })) {
+        if (
+            await hasActiveStayingPhone(co.phone, {
+                excludeCccds: [co.cccd],
+                excludeContractId: contract._id,
+            })
+        ) {
             throw new AppError(`Số điện thoại ${co.phone} đã tồn tại trong hệ thống`, 409);
         }
     }
@@ -384,7 +400,7 @@ export const activateCustomerContract = async ({
         if (sessionBlacklisted.has(contract.representativeCccd)) {
             throw new AppError('Tài khoản của bạn đã bị khóa do vi phạm trước đó, không thể kích hoạt hợp đồng', 403);
         }
-        for (const co of [...existingCoOccupants, ...newCoOccupants]) {
+        for (const co of allCoOccupants) {
             if (sessionBlacklisted.has(co.cccd)) {
                 throw new AppError(
                     `Người ở cùng mang CCCD ${co.cccd} đã bị khóa do vi phạm trước đó, không thể kích hoạt hợp đồng`,
@@ -393,22 +409,45 @@ export const activateCustomerContract = async ({
             }
         }
 
-        // Chặn nếu CCCD đại diện đang cư trú ở một hợp đồng ACTIVE khác (kể cả với vai trò người ở cùng)
-        const stayedElsewhere = await Occupant.find({
-            cccd: contract.representativeCccd,
-            status: OCCUPANT_STATUS.STAYED,
-            contractId: { $ne: contract._id },
-        })
-            .select('contractId')
-            .session(session)
-            .lean();
-        if (stayedElsewhere.length > 0) {
-            const activeOtherContract = await Contract.exists({
-                _id: { $in: stayedElsewhere.map((item) => item.contractId) },
-                status: CONTRACT_STATUS.ACTIVE,
-            }).session(session);
-            if (activeOtherContract) {
-                throw new AppError('Số CCCD này hiện đang thuê hoặc cư trú ở phòng khác', 400);
+        // Chặn nếu CCCD hoặc SĐT đại diện vừa phát sinh xung đột trên hợp đồng ACTIVE khác
+        if (await hasActiveStayingCccd(contract.representativeCccd, contract._id, session)) {
+            throw new AppError('Số CCCD này hiện đang thuê hoặc cư trú ở phòng khác', 400);
+        }
+        if (await Manager.exists({ phone: cleanPhone }).session(session)) {
+            throw new AppError('Số điện thoại đã tồn tại trong hệ thống', 409);
+        }
+        if (
+            await hasActiveStayingPhone(
+                cleanPhone,
+                { excludeCccds: [contract.representativeCccd], excludeContractId: contract._id },
+                session,
+            )
+        ) {
+            throw new AppError('Số điện thoại đã tồn tại trong hệ thống', 409);
+        }
+
+        // Chốt chặn trong transaction cho cả người ở cùng lưu sẵn trên DRAFT lẫn người ở cùng mới nhập
+        for (const co of allCoOccupants) {
+            if (await findDraftCccdConflict(co.cccd, contract._id, session)) {
+                throw new AppError(
+                    `Người ở cùng mang CCCD ${co.cccd} đang là người đại diện của một hợp đồng nháp khác`,
+                    400,
+                );
+            }
+            if (await hasActiveStayingCccd(co.cccd, contract._id, session)) {
+                throw new AppError(`Người ở cùng mang CCCD ${co.cccd} hiện đang ở phòng khác`, 400);
+            }
+            if (await Manager.exists({ phone: co.phone }).session(session)) {
+                throw new AppError(`Số điện thoại ${co.phone} đã thuộc tài khoản quản lý`, 409);
+            }
+            if (
+                await hasActiveStayingPhone(
+                    co.phone,
+                    { excludeCccds: [co.cccd], excludeContractId: contract._id },
+                    session,
+                )
+            ) {
+                throw new AppError(`Số điện thoại ${co.phone} đã tồn tại trong hệ thống`, 409);
             }
         }
 
@@ -478,11 +517,17 @@ export const activateCustomerContract = async ({
                 }
             }
 
-            const isStayingOtherRoom = pastRepOccupants.some(
-                (o) => o.status === OCCUPANT_STATUS.STAYED && String(o.contractId) !== String(contract._id),
-            );
-            if (user.status === USER_STATUS.ACTIVE && isStayingOtherRoom) {
-                throw new AppError('Tài khoản của bạn đang hoạt động ở phòng khác', 400);
+            const stayedRepContractIds = pastRepOccupants
+                .filter((o) => o.status === OCCUPANT_STATUS.STAYED && String(o.contractId) !== String(contract._id))
+                .map((o) => o.contractId);
+            if (user.status === USER_STATUS.ACTIVE && stayedRepContractIds.length > 0) {
+                const hasOtherActiveRepContract = await Contract.exists({
+                    _id: { $in: stayedRepContractIds },
+                    status: CONTRACT_STATUS.ACTIVE,
+                }).session(session);
+                if (hasOtherActiveRepContract) {
+                    throw new AppError('Tài khoản của bạn đang hoạt động ở phòng khác', 400);
+                }
             }
 
             // Khách cũ thuê lại (INACTIVE hoặc vừa kết thúc hợp đồng chưa qua 24h): cập nhật mật khẩu và mở lại tài khoản
