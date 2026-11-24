@@ -52,16 +52,12 @@ const parseSepayDate = (value) => {
 const normalizeAccountNo = (value) =>
   String(value || "").replace(/\s+/g, "").trim();
 
-const extractUniqueInvoiceCodes = (content) => {
+// Tách các cụm ký tự độc lập trong nội dung chuyển khoản để đối chiếu khớp 100% với invoiceCode lưu trong DB
+// (không ép khuôn cứng số ký tự hay chữ hoa/thường — mã hóa đơn trên DB là gì thì phải khớp y hệt 100% chuỗi đó)
+const extractContentTokens = (content) => {
   const text = String(content || "");
-  const strictMatches = [...text.matchAll(/\bHD\d{4}[A-Z0-9]{4}\b/gi)];
-  const rawMatches =
-    strictMatches.length > 0
-      ? strictMatches
-      : [...text.matchAll(/\bHD[A-Z0-9]{6,12}\b/gi)].length > 0
-        ? [...text.matchAll(/\bHD[A-Z0-9]{6,12}\b/gi)]
-        : [...text.matchAll(/HD\d{4}[A-Z0-9]{4}/gi)];
-  return [...new Set(rawMatches.map((match) => match[0].toUpperCase()))];
+  const tokens = text.match(/[A-Za-z0-9_-]+/g) || [];
+  return [...new Set(tokens)].slice(0, 50);
 };
 
 const logReconciliation = (reason, details) => {
@@ -171,9 +167,9 @@ export const processSepayWebhook = async (payload, deps = {}) => {
     };
   }
 
-  // 2. Trích xuất mã hóa đơn duy nhất từ nội dung chuyển khoản (Định dạng: HD + YYMM + 4 ký tự)
-  const matchedCodes = extractUniqueInvoiceCodes(transferContent);
-  if (matchedCodes.length === 0) {
+  // 2. Tách từ trong nội dung chuyển khoản và đối chiếu khớp chính xác 100% với invoiceCode trong database
+  const candidateTokens = extractContentTokens(transferContent);
+  if (candidateTokens.length === 0) {
     logReconciliation("NO_INVOICE_CODE", {
       sepayTxnId,
       amount,
@@ -188,7 +184,33 @@ export const processSepayWebhook = async (payload, deps = {}) => {
       ignored: true,
     };
   }
-  if (matchedCodes.length > 1) {
+
+  // 3. Tìm hóa đơn khớp chính xác 100% từng ký tự với invoiceCode đã lưu trong DB
+  const matchedInvoices = await Invoice.find({
+    invoiceCode: { $in: candidateTokens },
+  }).populate({
+    path: "contractId",
+    populate: { path: "roomId", populate: { path: "buildingId" } },
+  });
+
+  if (matchedInvoices.length === 0) {
+    logReconciliation("INVOICE_NOT_FOUND", {
+      sepayTxnId,
+      amount,
+      bankName,
+      transferContent,
+      paidAt,
+    });
+    return {
+      success: true,
+      message: "Nội dung chuyển khoản không khớp chính xác với mã hóa đơn nào",
+      sepayTxnId,
+      ignored: true,
+    };
+  }
+
+  if (matchedInvoices.length > 1) {
+    const matchedCodes = matchedInvoices.map((inv) => inv.invoiceCode);
     logReconciliation("MULTIPLE_INVOICE_CODES", {
       sepayTxnId,
       matchedCodes,
@@ -205,30 +227,8 @@ export const processSepayWebhook = async (payload, deps = {}) => {
     };
   }
 
-  const invoiceCode = matchedCodes[0];
-
-  // 3. Tìm hóa đơn trong database
-  const invoice = await Invoice.findOne({ invoiceCode }).populate({
-    path: "contractId",
-    populate: { path: "roomId", populate: { path: "buildingId" } },
-  });
-
-  if (!invoice) {
-    logReconciliation("INVOICE_NOT_FOUND", {
-      sepayTxnId,
-      invoiceCode,
-      amount,
-      bankName,
-      transferContent,
-      paidAt,
-    });
-    return {
-      success: true,
-      message: `Không tìm thấy hóa đơn ${invoiceCode}`,
-      sepayTxnId,
-      ignored: true,
-    };
-  }
+  const invoice = matchedInvoices[0];
+  const invoiceCode = invoice.invoiceCode;
 
   // 4. Chỉ hóa đơn PENDING mới được thanh toán. DRAFT, PAID, CANCELLED -> Chỉ ghi nhận log đối soát
   if (invoice.status !== INVOICE_STATUS.PENDING) {
@@ -624,15 +624,30 @@ export const getPayments = async (query, user) => {
   let invoiceFilter = {};
 
   if (userRole === ROLE.CUSTOMER) {
-    // Customer: Xem mọi hợp đồng mà mình là người đại diện (khách thuê lại có nhiều hợp đồng)
+    // Customer: Xem các hợp đồng mà mình từng là người đại diện; nếu truyền roomId thì lọc đúng phòng đó và chặn phòng người khác
     const contractIds = await Occupant.distinct("contractId", {
       userId: user._id,
       isRepresentative: true,
     });
-    if (contractIds.length === 0) {
-      return emptyResult;
+    if (roomId) {
+      const roomExists = await Room.exists({ _id: roomId, isDeleted: false });
+      if (!roomExists) {
+        throw new AppError("Không tìm thấy phòng", 404);
+      }
+      const matchedContracts =
+        contractIds.length > 0
+          ? await Contract.find({ _id: { $in: contractIds }, roomId }).select("_id").lean()
+          : [];
+      if (matchedContracts.length === 0) {
+        throw new AppError("Bạn không có quyền xem lịch sử thanh toán của phòng khác", 403);
+      }
+      invoiceFilter.contractId = { $in: matchedContracts.map((c) => c._id) };
+    } else {
+      if (contractIds.length === 0) {
+        return emptyResult;
+      }
+      invoiceFilter.contractId = { $in: contractIds };
     }
-    invoiceFilter.contractId = { $in: contractIds };
   } else if (userRole === ROLE.MANAGER) {
     // Manager: Xem các phòng thuộc tòa mình phụ trách (phòng tòa khác trả 403)
     const managerBuilding = await Building.findOne({
@@ -665,7 +680,11 @@ export const getPayments = async (query, user) => {
     }).select("_id");
     invoiceFilter.contractId = { $in: contracts.map((c) => c._id) };
   } else if (roomId) {
-    // Admin: hỗ trợ lọc theo roomId
+    // Admin: hỗ trợ lọc theo roomId (trả 404 đồng nhất nếu mã phòng không tồn tại)
+    const targetRoom = await Room.exists({ _id: roomId, isDeleted: false });
+    if (!targetRoom) {
+      throw new AppError("Không tìm thấy phòng", 404);
+    }
     const contracts = await Contract.find({ roomId }).select("_id");
     invoiceFilter.contractId = { $in: contracts.map((c) => c._id) };
   }

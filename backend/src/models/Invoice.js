@@ -54,7 +54,7 @@ const invoiceSchema = new Schema(
             type: String,
             required: true,
             unique: true
-        }, // HD + YYMM + 4 ký tự, VD HD2610K7QX
+        }, // <MãPhòng> + HD + YYMM + 4 ký tự IN HOA, VD 101HD2610K7QX
         contractId: {
             type: Schema.Types.ObjectId,
             ref: 'Contract',

@@ -6,6 +6,7 @@ import { audit } from '../../helpers/audit.js';
 import { notify } from '../../helpers/notify.js';
 import { sendMail } from '../../config/mail.js';
 import { hashActivationToken } from '../../helpers/activationToken.js';
+import { startOfVietnamDay } from '../../helpers/date.js';
 import {
     findBlacklistedCccds,
     findDraftCccdConflict,
@@ -272,6 +273,14 @@ export const activateCustomerContract = async ({
     const { activationToken, contract } = await validateCustomerContractActivationToken(token);
     // thời điểm xác nhận điện tử: lưu vào activatedAt và trả về để FE in đúng giờ lên hợp đồng
     const activatedAt = new Date();
+
+    // Chặn kích hoạt nếu bản nháp để ngâm quá lâu khiến ngày kết thúc đã trôi qua
+    if (startOfVietnamDay(contract.endDate) <= startOfVietnamDay(activatedAt)) {
+        throw new AppError(
+            'Thời hạn hợp đồng đã qua ngày kết thúc, vui lòng liên hệ quản lý cập nhật lại thời hạn trước khi kích hoạt',
+            400,
+        );
+    }
 
     // 1. Kiểm tra phòng còn trống
     const room = await Room.findById(contract.roomId);

@@ -80,7 +80,7 @@ Manager chọn nhiều phòng cùng lúc → hệ thống tạo hóa đơn **Nh�
 - Tiền phòng lấy theo **giá đã chốt trên hợp đồng**, Admin đổi giá phòng sau này không ảnh hưởng.
 - Đơn giá dịch vụ **chốt ngay lúc lập**, sau này Admin đổi giá cũng không ảnh hưởng hóa đơn này.
 - Chi phí phát sinh **chỉ thêm được khi còn Nháp**.
-- Mã hóa đơn **duy nhất**, không dấu, không khoảng trắng, vì nó là nội dung chuyển khoản. Dạng `HD` + năm tháng + 4 ký tự, ví dụ `HD2610K7QX`.
+- Mã hóa đơn **duy nhất**, không dấu, không khoảng trắng, vì nó là nội dung chuyển khoản. Dạng `<MãPhòng>` + `HD` + năm tháng + 4 ký tự in hoa, ví dụ `101HD2610K7QX`.
 
 ---
 

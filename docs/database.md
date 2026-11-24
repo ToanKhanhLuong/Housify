@@ -246,7 +246,7 @@ Vòng đời:
 
 ### 14. invoices – hóa đơn tháng
 
-- `invoiceCode`: String, unique – `HD` + YYMM + 4 ký tự in hoa ngẫu nhiên, ví dụ `HD2610K7QX` (chỉ chữ + số, không dấu `-`, BR-096); trùng thì sinh lại. Là nội dung chuyển khoản
+- `invoiceCode`: String, unique – `<MãPhòng>` + `HD` + YYMM + 4 ký tự in hoa ngẫu nhiên, ví dụ `101HD2610K7QX` (chỉ chữ in hoa + số, không dấu `-`, BR-096); trùng thì sinh lại. Là nội dung chuyển khoản (khớp chính xác 100% kể cả chữ hoa/thường)
 - `contractId`: ObjectId → contracts
 - `month`: String – kỳ hóa đơn `"YYYY-MM"`
 - `items`: Array nhúng – các dòng tiền

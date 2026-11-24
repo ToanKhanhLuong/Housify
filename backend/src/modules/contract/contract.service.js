@@ -437,6 +437,14 @@ export const resendInvite = async ({ managerId, contractId }) => {
         throw new AppError('Chỉ có thể gửi lại lời mời cho hợp đồng ở trạng thái nháp', 400);
     }
 
+    // Chặn phát hành lại link mời nếu bản nháp để quá lâu đã trôi qua ngày kết thúc
+    if (startOfVietnamDay(contract.endDate) <= startOfVietnamDay(new Date())) {
+        throw new AppError(
+            'Thời hạn hợp đồng trên bản nháp đã qua ngày kết thúc, vui lòng cập nhật lại ngày bắt đầu hoặc thời hạn thuê trước khi gửi lại lời mời',
+            400,
+        );
+    }
+
     const { token, tokenHash } = generateActivationToken();
 
     await withTransaction(async (session) => {
@@ -1071,6 +1079,14 @@ export const renewContract = async ({ managerId, contractId, data = {} }) => {
 
 
     const newEndDate = calculateEndDate(nextCycleStart, months);
+
+    // Chặn gia hạn nếu ngày kết thúc mới tính ra vẫn nằm trong quá khứ hoặc bằng hôm nay
+    if (startOfVietnamDay(newEndDate) <= startOfVietnamDay(new Date())) {
+        throw new AppError(
+            'Ngày kết thúc sau khi gia hạn vẫn nằm trong quá khứ, vui lòng tăng số tháng gia hạn',
+            400,
+        );
+    }
 
     const repOccupant = await Occupant.findOne({
         contractId: contract._id,

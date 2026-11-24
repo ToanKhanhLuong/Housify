@@ -65,7 +65,12 @@ const getPriceLookupDate = (month) => {
   return new Date();
 };
 
-const generateInvoiceCode = async (month) => {
+// Sinh mã hóa đơn duy nhất: <MãPhòngInHoaSố> + HD + YYMM + 4 ký tự chữ HOA/số ngẫu nhiên (VD: 101HD2611A1B1)
+const generateInvoiceCode = async (month, roomNumber) => {
+  const roomPrefix = String(roomNumber || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
   const [yearStr, monthStr] = month.split("-");
   const yymm = `${yearStr.slice(2)}${monthStr}`;
   const chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -75,7 +80,7 @@ const generateInvoiceCode = async (month) => {
     for (let i = 0; i < 4; i++) {
       randomPart += chars.charAt(Math.floor(Math.random() * chars.length));
     }
-    const code = `HD${yymm}${randomPart}`;
+    const code = `${roomPrefix}HD${yymm}${randomPart}`;
     const exists = await Invoice.exists({ invoiceCode: code });
     if (!exists) return code;
   }
@@ -543,11 +548,11 @@ const deliverInvoiceNotice = async ({
 };
 
 // Tạo bản ghi Invoice kèm bảo vệ chống đúp kỳ (unique index) và thử lại nếu trùng mã hóa đơn
-const createInvoiceRecord = async ({ contractId, month, built, createdBy }) => {
+const createInvoiceRecord = async ({ contractId, roomNumber, month, built, createdBy }) => {
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       return await Invoice.create({
-        invoiceCode: await generateInvoiceCode(month),
+        invoiceCode: await generateInvoiceCode(month, roomNumber),
         contractId,
         month,
         items: built.items,
@@ -627,6 +632,7 @@ export const createInvoice = async (data, user) => {
 
   const invoice = await createInvoiceRecord({
     contractId,
+    roomNumber: contract.roomId?.roomNumber,
     month,
     built,
     createdBy: user._id,
@@ -688,6 +694,7 @@ export const createBulkInvoices = async (data, user) => {
 
       const invoice = await createInvoiceRecord({
         contractId,
+        roomNumber: room?.roomNumber,
         month,
         built,
         createdBy: user._id,
