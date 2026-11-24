@@ -75,5 +75,15 @@ const terminationRequestSchema = new Schema(
 
 terminationRequestSchema.index({ contractId: 1, status: 1 });
 terminationRequestSchema.index({ status: 1, type: 1, createdAt: -1 });
+// Mỗi hợp đồng chỉ được có tối đa 1 đơn chấm dứt đang xử lý (PENDING hoặc CONFIRMED)
+terminationRequestSchema.index(
+    { contractId: 1 },
+    {
+        unique: true,
+        partialFilterExpression: {
+            status: { $in: [TERMINATION_STATUS.PENDING, TERMINATION_STATUS.CONFIRMED] },
+        },
+    },
+);
 
 export default mongoose.model('TerminationRequest', terminationRequestSchema, 'termination_requests');

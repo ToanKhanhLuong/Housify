@@ -1,7 +1,7 @@
 // Nghiệp vụ job nhắc thanh toán (UC-49): quét hóa đơn Chờ thanh toán, nhắc người đại diện qua chuông + email theo mốc
 import { env } from '../../config/env.js';
 import { sendMail } from '../../config/mail.js';
-import { INVOICE_STATUS, NOTIFICATION_TYPE } from '../../constants/enums.js';
+import { INVOICE_STATUS, NOTIFICATION_TYPE, USER_STATUS } from '../../constants/enums.js';
 import { startOfVietnamDay } from '../../helpers/date.js';
 import { notify } from '../../helpers/notify.js';
 import Contract from '../../models/Contract.js';
@@ -62,6 +62,7 @@ export const runPaymentReminderJob = async (now = new Date()) => {
 
     const reminded = [];
     let mailFailedCount = 0;
+    let skippedInactiveCount = 0;
 
     for (const invoice of invoices) {
         const milestone = latestMilestone(daysFromDue(invoice.dueDate, now));
@@ -84,6 +85,13 @@ export const runPaymentReminderJob = async (now = new Date()) => {
             .lean();
         if (!representative?.userId) continue;
 
+        // Bỏ qua tài khoản đã INACTIVE / LOCKED (không thể đăng nhập vào app xem thông báo; công nợ xử lý qua hoàn cọc UC-45 / ngoại tuyến)
+        const repUser = await User.findById(representative.userId).select('email status').lean();
+        if (!repUser || repUser.status !== USER_STATUS.ACTIVE) {
+            skippedInactiveCount += 1;
+            continue;
+        }
+
         await notify({
             userIds: representative.userId,
             type: NOTIFICATION_TYPE.PAYMENT_REMINDER,
@@ -93,8 +101,7 @@ export const runPaymentReminderJob = async (now = new Date()) => {
         });
 
         const contract = await Contract.findById(invoice.contractId).select('representativeEmail').lean();
-        const repUser = await User.findById(representative.userId).select('email').lean();
-        const recipientEmail = repUser?.email || contract?.representativeEmail;
+        const recipientEmail = repUser.email || contract?.representativeEmail;
         const sent = recipientEmail
             ? await sendMail(
                 recipientEmail,
@@ -113,6 +120,7 @@ export const runPaymentReminderJob = async (now = new Date()) => {
     return {
         scannedCount: invoices.length,
         remindedCount: reminded.length,
+        skippedInactiveCount,
         mailFailedCount,
         reminded,
     };

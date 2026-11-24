@@ -614,15 +614,19 @@ export const activateCustomerContract = async ({
 <p>Chúc bạn có trải nghiệm lưu trú tuyệt vời tại Housify!</p>`,
     );
 
-    // Thông báo chuông cho Manager
-    await notify({
-        userIds: contract.createdBy,
-        type: NOTIFICATION_TYPE.ANNOUNCEMENT,
-        title: 'Khách hàng đã kích hoạt hợp đồng',
-        message: `Khách hàng ${name} đã kích hoạt hợp đồng thuê phòng ${room.roomNumber}.`,
-        refId: contract._id,
-        createdBy: customerUserId,
-    });
+    // Thông báo chuông cho Manager hiện đang phụ trách tòa (trường hợp Admin đã đổi Manager sau khi tạo hợp đồng nháp),
+    // chỉ dùng contract.createdBy làm dự phòng nếu tòa chưa có managerId
+    const targetManagerId = building?.managerId || contract.createdBy;
+    if (targetManagerId) {
+        await notify({
+            userIds: targetManagerId,
+            type: NOTIFICATION_TYPE.ANNOUNCEMENT,
+            title: 'Khách hàng đã kích hoạt hợp đồng',
+            message: `Khách hàng ${name} đã kích hoạt hợp đồng thuê phòng ${room.roomNumber}.`,
+            refId: contract._id,
+            createdBy: customerUserId,
+        });
+    }
 
     return {
         activatedAt,

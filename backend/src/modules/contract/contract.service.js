@@ -1731,8 +1731,17 @@ export const runAccountAfterEndJob = async (now = new Date()) => {
     }
 
     const allContractIds = allRepOccupants.map((o) => o.contractId);
-    const allContracts = await Contract.find({ _id: { $in: allContractIds } }).lean();
+    const [allContracts, allConfirmedTerminations] = await Promise.all([
+        Contract.find({ _id: { $in: allContractIds } }).lean(),
+        TerminationRequest.find({
+            contractId: { $in: allContractIds },
+            status: TERMINATION_STATUS.CONFIRMED,
+        }).lean(),
+    ]);
     const contractById = new Map(allContracts.map((c) => [String(c._id), c]));
+    const terminationByContractId = new Map(
+        allConfirmedTerminations.map((t) => [String(t.contractId), t]),
+    );
 
     const contractsByUserId = new Map();
     for (const occ of allRepOccupants) {
@@ -1744,6 +1753,12 @@ export const runAccountAfterEndJob = async (now = new Date()) => {
         }
         contractsByUserId.get(uid).push(contract);
     }
+
+    const getContractEndTimestamp = (contract) => {
+        const term = terminationByContractId.get(String(contract._id));
+        const refDate = term ? new Date(term.effectiveDate) : new Date(contract.endDate);
+        return refDate.getTime();
+    };
 
     for (const user of activeCustomers) {
         const contracts = contractsByUserId.get(String(user._id)) || [];
@@ -1757,34 +1772,45 @@ export const runAccountAfterEndJob = async (now = new Date()) => {
             continue;
         }
 
+        // Sắp xếp theo mốc kết thúc thực tế (ngày hiệu lực đơn chấm dứt / ngày hết hạn hợp đồng), không dựa vào updatedAt (tránh hoàn cọc HĐ cũ làm lệch)
         const endedContracts = contracts
             .filter((c) => c.status === CONTRACT_STATUS.ENDED)
-            .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+            .sort((a, b) => {
+                const diff = getContractEndTimestamp(b) - getContractEndTimestamp(a);
+                if (diff !== 0) return diff;
+                return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+            });
 
         if (endedContracts.length === 0) {
             continue;
         }
 
-        const latestEndedContract = endedContracts[0];
-        const confirmedTermination = await TerminationRequest.findOne({
-            contractId: latestEndedContract._id,
-            status: TERMINATION_STATUS.CONFIRMED,
-        }).lean();
+        // Kiểm tra trên TẤT CẢ các hợp đồng của khách: hễ có bất kỳ đơn UNILATERAL CONFIRMED nào thì bắt buộc LOCKED
+        const unilateralTermination = contracts
+            .map((c) => terminationByContractId.get(String(c._id)))
+            .find((t) => t?.type === TERMINATION_TYPE.UNILATERAL) || null;
+
+        const targetContract = unilateralTermination
+            ? (contractById.get(String(unilateralTermination.contractId)) || endedContracts[0])
+            : endedContracts[0];
+        const confirmedTermination = unilateralTermination
+            || terminationByContractId.get(String(targetContract._id))
+            || null;
 
         const referenceEndDate = confirmedTermination
             ? new Date(confirmedTermination.effectiveDate)
-            : new Date(latestEndedContract.endDate);
-        const updatedTime = new Date(latestEndedContract.updatedAt);
+            : new Date(targetContract.endDate);
+        const updatedTime = new Date(targetContract.updatedAt);
 
         const elapsedFromRefMs = now.getTime() - referenceEndDate.getTime();
         const elapsedFromUpdateMs = now.getTime() - updatedTime.getTime();
 
-        // Đủ 24h tính từ mốc kết thúc hợp đồng (ngày hiệu lực / ngày hết hạn) hoặc từ thời điểm cập nhật ENDED
-        if (elapsedFromRefMs < TWENTY_FOUR_HOURS_MS && elapsedFromUpdateMs < TWENTY_FOUR_HOURS_MS) {
+        // Đảm bảo khách luôn có đủ 24h ân hạn tính từ cả mốc kết thúc lẫn thời điểm hợp đồng thực sự chuyển ENDED
+        if (elapsedFromRefMs < TWENTY_FOUR_HOURS_MS || elapsedFromUpdateMs < TWENTY_FOUR_HOURS_MS) {
             continue;
         }
 
-        const isUnilateral = confirmedTermination?.type === TERMINATION_TYPE.UNILATERAL;
+        const isUnilateral = Boolean(unilateralTermination);
 
         await withTransaction(async (session) => {
             const freshUser = await User.findById(user._id).session(session);
@@ -1801,10 +1827,10 @@ export const runAccountAfterEndJob = async (now = new Date()) => {
                         action: AUDIT_ACTION.LOCK_USER,
                         targetType: 'users',
                         targetId: freshUser._id,
-                        reason: confirmedTermination.reason || 'Khóa tài khoản sau 24 giờ kể từ khi chấm dứt hợp đồng đơn phương',
+                        reason: unilateralTermination.reason || 'Khóa tài khoản sau 24 giờ kể từ khi chấm dứt hợp đồng đơn phương',
                         metadata: {
-                            contractId: latestEndedContract._id,
-                            terminationId: confirmedTermination._id,
+                            contractId: targetContract._id,
+                            terminationId: unilateralTermination._id,
                             before: { status: USER_STATUS.ACTIVE },
                             after: { status: USER_STATUS.LOCKED },
                         },
@@ -1823,7 +1849,7 @@ export const runAccountAfterEndJob = async (now = new Date()) => {
                         targetId: freshUser._id,
                         reason: 'Ngưng hoạt động tài khoản sau 24 giờ kể từ khi kết thúc hợp đồng',
                         metadata: {
-                            contractId: latestEndedContract._id,
+                            contractId: targetContract._id,
                             before: { status: USER_STATUS.ACTIVE },
                             after: { status: USER_STATUS.INACTIVE },
                         },

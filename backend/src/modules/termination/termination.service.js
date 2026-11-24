@@ -132,9 +132,15 @@ const verifyManagerContractScope = async (managerId, contract) => {
 
 /**
  * Thực hiện kết thúc hợp đồng trong cùng một session giao dịch:
- * hợp đồng -> ENDED, phòng -> AVAILABLE, toàn bộ cư dân STAYED -> LEFT (exitDate = effectiveDate)
+ * hợp đồng -> ENDED, phòng -> AVAILABLE, toàn bộ cư dân STAYED -> LEFT
+ * Nếu duyệt/xác nhận muộn sau ngày hiệu lực thì ghi exitDate theo thời điểm thực tế kết thúc (không lùi ngày)
  */
-const endContractByTerminationInSession = async ({ contractId, effectiveDate, session }) => {
+const endContractByTerminationInSession = async ({
+    contractId,
+    effectiveDate,
+    endedAt = new Date(),
+    session,
+}) => {
     const contract = await Contract.findById(contractId).session(session);
     if (!contract || contract.status !== CONTRACT_STATUS.ACTIVE) {
         return false;
@@ -149,11 +155,17 @@ const endContractByTerminationInSession = async ({ contractId, effectiveDate, se
         { session },
     );
 
+    const effective = new Date(effectiveDate);
+    const actualEnd = new Date(endedAt);
+    const exitDate = startOfVietnamDay(effective) < startOfVietnamDay(actualEnd)
+        ? actualEnd
+        : effective;
+
     await Occupant.updateMany(
         { contractId: contract._id, status: OCCUPANT_STATUS.STAYED },
         {
             status: OCCUPANT_STATUS.LEFT,
-            exitDate: new Date(effectiveDate),
+            exitDate,
         },
         { session },
     );
@@ -369,64 +381,80 @@ export const createTermination = async ({ managerId, contractId, data }) => {
 
     let createdTermination;
 
-    await withTransaction(async (session) => {
-        const [doc] = await TerminationRequest.create(
-            [
-                {
-                    contractId: contract._id,
-                    type,
-                    reason: cleanReason,
-                    effectiveDate,
-                    note: cleanNote,
-                    status: TERMINATION_STATUS.PENDING,
-                    autoConfirmed: false,
-                    requestedBy: managerId,
-                },
-            ],
-            { session },
-        );
-        createdTermination = doc;
-
-        if (type === TERMINATION_TYPE.MUTUAL) {
-            if (repOccupant?.userId) {
-                await notify(
-                    {
-                        userIds: repOccupant.userId,
-                        type: NOTIFICATION_TYPE.TERMINATION_REQUEST,
-                        title: `Đơn chấm dứt hợp đồng phòng ${room.roomNumber}`,
-                        message: `Manager đã gửi đơn chấm dứt hợp đồng phòng ${room.roomNumber} (${building.name}) với ngày hiệu lực ${formatDateVn(effectiveDate)}. Vui lòng xem và xác nhận.`,
-                        refId: createdTermination._id,
-                        createdBy: managerId,
-                    },
-                    session,
-                );
+    try {
+        await withTransaction(async (session) => {
+            // Kiểm tra lại trong transaction để chống tạo đúp khi 2 request gửi đồng thời
+            const dupInSession = await TerminationRequest.exists({
+                contractId: contract._id,
+                status: { $in: [TERMINATION_STATUS.PENDING, TERMINATION_STATUS.CONFIRMED] },
+            }).session(session);
+            if (dupInSession) {
+                throw new AppError('Hợp đồng đã có đơn chấm dứt đang xử lý', 400);
             }
-        } else {
-            // Đơn phương (UNILATERAL): thông báo cho Admin duyệt
-            const admins = await User.find({
-                roleId: ROLE.ADMIN,
-                status: USER_STATUS.ACTIVE,
-            })
-                .select('_id')
-                .session(session)
-                .lean();
 
-            const adminIds = admins.map((a) => a._id);
-            if (adminIds.length > 0) {
-                await notify(
+            const [doc] = await TerminationRequest.create(
+                [
                     {
-                        userIds: adminIds,
-                        type: NOTIFICATION_TYPE.TERMINATION_REQUEST,
-                        title: `Đơn chấm dứt đơn phương phòng ${room.roomNumber} chờ duyệt`,
-                        message: `Manager vừa gửi đơn chấm dứt hợp đồng đơn phương cho phòng ${room.roomNumber} (${building.name}). Lý do: ${cleanReason}`,
-                        refId: createdTermination._id,
-                        createdBy: managerId,
+                        contractId: contract._id,
+                        type,
+                        reason: cleanReason,
+                        effectiveDate,
+                        note: cleanNote,
+                        status: TERMINATION_STATUS.PENDING,
+                        autoConfirmed: false,
+                        requestedBy: managerId,
                     },
-                    session,
-                );
+                ],
+                { session },
+            );
+            createdTermination = doc;
+
+            if (type === TERMINATION_TYPE.MUTUAL) {
+                if (repOccupant?.userId) {
+                    await notify(
+                        {
+                            userIds: repOccupant.userId,
+                            type: NOTIFICATION_TYPE.TERMINATION_REQUEST,
+                            title: `Đơn chấm dứt hợp đồng phòng ${room.roomNumber}`,
+                            message: `Manager đã gửi đơn chấm dứt hợp đồng phòng ${room.roomNumber} (${building.name}) với ngày hiệu lực ${formatDateVn(effectiveDate)}. Vui lòng xem và xác nhận.`,
+                            refId: createdTermination._id,
+                            createdBy: managerId,
+                        },
+                        session,
+                    );
+                }
+            } else {
+                // Đơn phương (UNILATERAL): thông báo cho Admin duyệt
+                const admins = await User.find({
+                    roleId: ROLE.ADMIN,
+                    status: USER_STATUS.ACTIVE,
+                })
+                    .select('_id')
+                    .session(session)
+                    .lean();
+
+                const adminIds = admins.map((a) => a._id);
+                if (adminIds.length > 0) {
+                    await notify(
+                        {
+                            userIds: adminIds,
+                            type: NOTIFICATION_TYPE.TERMINATION_REQUEST,
+                            title: `Đơn chấm dứt đơn phương phòng ${room.roomNumber} chờ duyệt`,
+                            message: `Manager vừa gửi đơn chấm dứt hợp đồng đơn phương cho phòng ${room.roomNumber} (${building.name}). Lý do: ${cleanReason}`,
+                            refId: createdTermination._id,
+                            createdBy: managerId,
+                        },
+                        session,
+                    );
+                }
             }
+        });
+    } catch (error) {
+        if (error?.code === 11000) {
+            throw new AppError('Hợp đồng đã có đơn chấm dứt đang xử lý', 400);
         }
-    });
+        throw error;
+    }
 
     let warning;
     if (type === TERMINATION_TYPE.MUTUAL) {
@@ -776,27 +804,45 @@ export const confirmTermination = async ({ customerId, terminationId, clientIp }
     });
 
     let contractEndedImmediately = false;
+    let updatedTermination = null;
 
     await withTransaction(async (session) => {
-        termination.status = TERMINATION_STATUS.CONFIRMED;
-        termination.autoConfirmed = false;
-        termination.handledBy = customerId;
-        termination.handledAt = now;
-        termination.handledIp = String(clientIp || '127.0.0.1');
-        termination.signatureHash = signatureHash;
-        await termination.save({ session });
+        const freshContract = await Contract.findById(contract._id).select('status').session(session).lean();
+        if (!freshContract || freshContract.status !== CONTRACT_STATUS.ACTIVE) {
+            throw new AppError('Hợp đồng không còn ở trạng thái đang hiệu lực', 409);
+        }
+
+        // Chốt trạng thái PENDING nguyên tử để tránh đè khi Manager hủy hoặc cron vừa xử lý đồng thời
+        updatedTermination = await TerminationRequest.findOneAndUpdate(
+            { _id: termination._id, status: TERMINATION_STATUS.PENDING },
+            {
+                $set: {
+                    status: TERMINATION_STATUS.CONFIRMED,
+                    autoConfirmed: false,
+                    handledBy: customerId,
+                    handledAt: now,
+                    handledIp: String(clientIp || '127.0.0.1'),
+                    signatureHash,
+                },
+            },
+            { session, returnDocument: 'after' },
+        );
+        if (!updatedTermination) {
+            throw new AppError('Đơn chấm dứt đã được xử lý hoặc vừa bị thay đổi bởi thao tác khác', 409);
+        }
 
         if (shouldEndImmediately) {
             contractEndedImmediately = await endContractByTerminationInSession({
                 contractId: contract._id,
-                effectiveDate: termination.effectiveDate,
+                effectiveDate: updatedTermination.effectiveDate,
+                endedAt: now,
                 session,
             });
         }
 
         const recipientIds = [
             customerId,
-            building?.managerId || termination.requestedBy,
+            building?.managerId || updatedTermination.requestedBy,
         ].filter(Boolean);
 
         await notify(
@@ -804,8 +850,8 @@ export const confirmTermination = async ({ customerId, terminationId, clientIp }
                 userIds: recipientIds,
                 type: NOTIFICATION_TYPE.TERMINATION_CONFIRMED,
                 title: `Đã xác nhận chấm dứt hợp đồng phòng ${room?.roomNumber || ''}`,
-                message: `Người đại diện ${repOccupant.name} đã xác nhận điện tử đơn chấm dứt hợp đồng phòng ${room?.roomNumber || ''} (ngày hiệu lực: ${formatDateVn(termination.effectiveDate)}).`,
-                refId: termination._id,
+                message: `Người đại diện ${repOccupant.name} đã xác nhận điện tử đơn chấm dứt hợp đồng phòng ${room?.roomNumber || ''} (ngày hiệu lực: ${formatDateVn(updatedTermination.effectiveDate)}).`,
+                refId: updatedTermination._id,
                 createdBy: customerId,
             },
             session,
@@ -817,14 +863,14 @@ export const confirmTermination = async ({ customerId, terminationId, clientIp }
         recipientEmail,
         room?.roomNumber || '',
         building?.name || '',
-        termination.effectiveDate,
+        updatedTermination.effectiveDate,
         false,
     );
 
-    const confirmationInfo = await buildElectronicConfirmationInfo(termination.toObject());
+    const confirmationInfo = await buildElectronicConfirmationInfo(updatedTermination.toObject());
 
     return {
-        termination,
+        termination: updatedTermination,
         ...confirmationInfo,
         contractEndedImmediately,
         warning: mailSent ? undefined : 'Gửi email xác nhận chấm dứt hợp đồng thất bại',
@@ -863,17 +909,35 @@ export const approveTermination = async ({ adminId, terminationId }) => {
     const now = new Date();
     const shouldEndImmediately = startOfVietnamDay(termination.effectiveDate) <= startOfVietnamDay(now);
     let contractEndedImmediately = false;
+    let updatedTermination = null;
 
     await withTransaction(async (session) => {
-        termination.status = TERMINATION_STATUS.CONFIRMED;
-        termination.handledBy = adminId;
-        termination.handledAt = now;
-        await termination.save({ session });
+        const freshContract = await Contract.findById(contract._id).select('status').session(session).lean();
+        if (!freshContract || freshContract.status !== CONTRACT_STATUS.ACTIVE) {
+            throw new AppError('Hợp đồng không còn ở trạng thái đang hiệu lực', 409);
+        }
+
+        // Chốt trạng thái PENDING nguyên tử để tránh đè khi Manager hủy hoặc Admin khác xử lý đồng thời
+        updatedTermination = await TerminationRequest.findOneAndUpdate(
+            { _id: termination._id, status: TERMINATION_STATUS.PENDING },
+            {
+                $set: {
+                    status: TERMINATION_STATUS.CONFIRMED,
+                    handledBy: adminId,
+                    handledAt: now,
+                },
+            },
+            { session, returnDocument: 'after' },
+        );
+        if (!updatedTermination) {
+            throw new AppError('Đơn chấm dứt đã được xử lý hoặc vừa bị thay đổi bởi thao tác khác', 409);
+        }
 
         if (shouldEndImmediately) {
             contractEndedImmediately = await endContractByTerminationInSession({
                 contractId: contract._id,
-                effectiveDate: termination.effectiveDate,
+                effectiveDate: updatedTermination.effectiveDate,
+                endedAt: now,
                 session,
             });
         }
@@ -885,8 +949,8 @@ export const approveTermination = async ({ adminId, terminationId }) => {
                     userIds: repOccupant.userId,
                     type: NOTIFICATION_TYPE.TERMINATION_CONFIRMED,
                     title: `Thông báo chấm dứt hợp đồng đơn phương phòng ${room?.roomNumber || ''}`,
-                    message: `Hợp đồng phòng ${room?.roomNumber || ''} (${building?.name || ''}) bị chấm dứt đơn phương từ ngày ${formatDateVn(termination.effectiveDate)}. Lý do: ${termination.reason}`,
-                    refId: termination._id,
+                    message: `Hợp đồng phòng ${room?.roomNumber || ''} (${building?.name || ''}) bị chấm dứt đơn phương từ ngày ${formatDateVn(updatedTermination.effectiveDate)}. Lý do: ${updatedTermination.reason}`,
+                    refId: updatedTermination._id,
                     createdBy: adminId,
                 },
                 session,
@@ -894,15 +958,15 @@ export const approveTermination = async ({ adminId, terminationId }) => {
         }
 
         // Thông báo cho Manager
-        const managerRecipientId = building?.managerId || termination.requestedBy;
+        const managerRecipientId = building?.managerId || updatedTermination.requestedBy;
         if (managerRecipientId) {
             await notify(
                 {
                     userIds: managerRecipientId,
                     type: NOTIFICATION_TYPE.TERMINATION_CONFIRMED,
                     title: `Đơn chấm dứt đơn phương phòng ${room?.roomNumber || ''} đã được duyệt`,
-                    message: `Admin đã phê duyệt đơn chấm dứt hợp đồng đơn phương phòng ${room?.roomNumber || ''} (ngày hiệu lực: ${formatDateVn(termination.effectiveDate)}).`,
-                    refId: termination._id,
+                    message: `Admin đã phê duyệt đơn chấm dứt hợp đồng đơn phương phòng ${room?.roomNumber || ''} (ngày hiệu lực: ${formatDateVn(updatedTermination.effectiveDate)}).`,
+                    refId: updatedTermination._id,
                     createdBy: adminId,
                 },
                 session,
@@ -915,12 +979,12 @@ export const approveTermination = async ({ adminId, terminationId }) => {
         recipientEmail,
         room?.roomNumber || '',
         building?.name || '',
-        termination.effectiveDate,
-        termination.reason,
+        updatedTermination.effectiveDate,
+        updatedTermination.reason,
     );
 
     return {
-        termination,
+        termination: updatedTermination,
         contractEndedImmediately,
         warning: mailSent ? undefined : 'Gửi email thông báo chấm dứt đơn phương thất bại',
     };
@@ -950,14 +1014,26 @@ export const rejectTermination = async ({ adminId, terminationId, data }) => {
     const cleanReason = data.reason.trim();
     const now = new Date();
 
-    await withTransaction(async (session) => {
-        termination.status = TERMINATION_STATUS.REJECTED;
-        termination.handledBy = adminId;
-        termination.handledAt = now;
-        termination.rejectReason = cleanReason;
-        await termination.save({ session });
+    let updatedTermination = null;
 
-        const managerRecipientId = building?.managerId || termination.requestedBy;
+    await withTransaction(async (session) => {
+        updatedTermination = await TerminationRequest.findOneAndUpdate(
+            { _id: termination._id, status: TERMINATION_STATUS.PENDING },
+            {
+                $set: {
+                    status: TERMINATION_STATUS.REJECTED,
+                    handledBy: adminId,
+                    handledAt: now,
+                    rejectReason: cleanReason,
+                },
+            },
+            { session, returnDocument: 'after' },
+        );
+        if (!updatedTermination) {
+            throw new AppError('Đơn chấm dứt đã được xử lý hoặc vừa bị thay đổi bởi thao tác khác', 409);
+        }
+
+        const managerRecipientId = building?.managerId || updatedTermination.requestedBy;
         if (managerRecipientId) {
             await notify(
                 {
@@ -965,7 +1041,7 @@ export const rejectTermination = async ({ adminId, terminationId, data }) => {
                     type: NOTIFICATION_TYPE.TERMINATION_REJECTED,
                     title: `Đơn chấm dứt đơn phương phòng ${room?.roomNumber || ''} bị từ chối`,
                     message: `Admin đã từ chối đơn chấm dứt hợp đồng đơn phương phòng ${room?.roomNumber || ''}. Lý do: ${cleanReason}`,
-                    refId: termination._id,
+                    refId: updatedTermination._id,
                     createdBy: adminId,
                 },
                 session,
@@ -973,7 +1049,7 @@ export const rejectTermination = async ({ adminId, terminationId, data }) => {
         }
     });
 
-    return { termination };
+    return { termination: updatedTermination };
 };
 
 /**
@@ -1003,13 +1079,26 @@ export const cancelTermination = async ({ managerId, terminationId, data }) => {
 
     const cleanReason = data.reason.trim();
 
-    await withTransaction(async (session) => {
-        termination.status = TERMINATION_STATUS.CANCELLED;
-        termination.cancelledBy = managerId;
-        termination.cancelReason = cleanReason;
-        await termination.save({ session });
+    let updatedTermination = null;
 
-        if (termination.type === TERMINATION_TYPE.MUTUAL) {
+    await withTransaction(async (session) => {
+        // Chốt trạng thái PENDING nguyên tử để tránh hủy đè lên đơn vừa được xác nhận / duyệt
+        updatedTermination = await TerminationRequest.findOneAndUpdate(
+            { _id: termination._id, status: TERMINATION_STATUS.PENDING },
+            {
+                $set: {
+                    status: TERMINATION_STATUS.CANCELLED,
+                    cancelledBy: managerId,
+                    cancelReason: cleanReason,
+                },
+            },
+            { session, returnDocument: 'after' },
+        );
+        if (!updatedTermination) {
+            throw new AppError('Đơn chấm dứt đã được xử lý hoặc vừa bị thay đổi bởi thao tác khác', 409);
+        }
+
+        if (updatedTermination.type === TERMINATION_TYPE.MUTUAL) {
             if (repOccupant?.userId) {
                 await notify(
                     {
@@ -1017,7 +1106,7 @@ export const cancelTermination = async ({ managerId, terminationId, data }) => {
                         type: NOTIFICATION_TYPE.TERMINATION_CANCELLED,
                         title: `Đã hủy đơn chấm dứt hợp đồng phòng ${room.roomNumber}`,
                         message: `Manager đã hủy đơn chấm dứt hợp đồng phòng ${room.roomNumber} (${building.name}). Lý do: ${cleanReason}`,
-                        refId: termination._id,
+                        refId: updatedTermination._id,
                         createdBy: managerId,
                     },
                     session,
@@ -1041,7 +1130,7 @@ export const cancelTermination = async ({ managerId, terminationId, data }) => {
                         type: NOTIFICATION_TYPE.TERMINATION_CANCELLED,
                         title: `Đơn chấm dứt đơn phương phòng ${room.roomNumber} đã bị hủy`,
                         message: `Manager đã hủy đơn chấm dứt hợp đồng đơn phương phòng ${room.roomNumber} (${building.name}). Lý do: ${cleanReason}`,
-                        refId: termination._id,
+                        refId: updatedTermination._id,
                         createdBy: managerId,
                     },
                     session,
@@ -1050,7 +1139,7 @@ export const cancelTermination = async ({ managerId, terminationId, data }) => {
         }
     });
 
-    return { termination };
+    return { termination: updatedTermination };
 };
 
 /**
@@ -1098,21 +1187,27 @@ export const runTerminationReminderJob = async (now = new Date()) => {
             let didAutoConfirm = false;
 
             await withTransaction(async (session) => {
-                const freshTerm = await TerminationRequest.findById(termination._id).session(session);
-                if (!freshTerm || freshTerm.status !== TERMINATION_STATUS.PENDING) {
+                const freshTerm = await TerminationRequest.findOneAndUpdate(
+                    { _id: termination._id, status: TERMINATION_STATUS.PENDING },
+                    {
+                        $set: {
+                            status: TERMINATION_STATUS.CONFIRMED,
+                            autoConfirmed: true,
+                            handledAt: now,
+                        },
+                        $unset: { signatureHash: '' },
+                    },
+                    { session, returnDocument: 'after' },
+                );
+                if (!freshTerm) {
                     return;
                 }
-
-                freshTerm.status = TERMINATION_STATUS.CONFIRMED;
-                freshTerm.autoConfirmed = true;
-                freshTerm.handledAt = now;
-                freshTerm.signatureHash = undefined;
-                await freshTerm.save({ session });
 
                 if (shouldEndImmediately) {
                     await endContractByTerminationInSession({
                         contractId: contract._id,
                         effectiveDate: freshTerm.effectiveDate,
+                        endedAt: now,
                         session,
                     });
                 }
@@ -1231,6 +1326,7 @@ export const runTerminationEffectiveJob = async (now = new Date()) => {
             didEnd = await endContractByTerminationInSession({
                 contractId: contract._id,
                 effectiveDate: termination.effectiveDate,
+                endedAt: now,
                 session,
             });
         });
