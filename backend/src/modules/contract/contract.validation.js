@@ -1,7 +1,7 @@
 // Validation schema cho module contract (UC-24, UC-25, UC-26, UC-27, UC-46)
 import Joi from 'joi';
 import { CONTRACT_STATUS, CONTRACT_TYPE, values } from '../../constants/enums.js';
-import { CCCD_REGEX, PHONE_REGEX } from '../../helpers/validators.js';
+import { CCCD_REGEX, PERSON_NAME_MESSAGE, PERSON_NAME_REGEX, PHONE_REGEX } from '../../helpers/validators.js';
 import { OBJECT_ID_REGEX, commaSeparatedEnum, commaSeparatedIntegers } from '../../helpers/filter.js';
 
 // Kiểm tra tham số ID hợp đồng trên URL (/contracts/:id, /contracts/:id/resend-invite, /contracts/:id/renew, /contracts/:id/cancel)
@@ -126,7 +126,8 @@ export const createContractSchema = Joi.object({
     coOccupants: Joi.array()
         .items(
             Joi.object({
-                name: Joi.string().trim().max(100).required().messages({
+                name: Joi.string().trim().max(100).pattern(PERSON_NAME_REGEX).required().messages({
+                    'string.pattern.base': PERSON_NAME_MESSAGE,
                     'string.empty': 'Vui lòng nhập họ tên người ở cùng',
                     'any.required': 'Vui lòng nhập họ tên người ở cùng',
                 }),

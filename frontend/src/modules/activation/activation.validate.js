@@ -1,7 +1,13 @@
 // Kiểm tra dữ liệu nhập các form của module activation (UC-08). Trả { field: message }, rỗng là hợp lệ
 // Chỉ để người dùng thấy lỗi ngay; BE vẫn kiểm tra lại. Dùng: const errors = validateActivateManager(form); if (hasErrors(errors)) …
 import { CONTRACT_TYPE } from '../../constants/enums';
-import { CCCD_REGEX, PASSWORD_REGEX, PHONE_REGEX } from '../../constants/regex';
+import {
+  CCCD_REGEX,
+  PASSWORD_REGEX,
+  PERSON_NAME_MESSAGE,
+  PERSON_NAME_REGEX,
+  PHONE_REGEX,
+} from '../../constants/regex';
 
 // hôm nay dạng YYYY-MM-DD để so với giá trị ô ngày (cùng múi giờ máy người dùng)
 const todayInput = () => {
@@ -37,6 +43,7 @@ const validateCoOccupants = (form, contract) => {
 
     if (!name) errors[key('name')] = 'Vui lòng nhập họ tên người ở cùng';
     else if (name.length > 100) errors[key('name')] = 'Họ tên người ở cùng tối đa 100 ký tự';
+    else if (!PERSON_NAME_REGEX.test(name)) errors[key('name')] = PERSON_NAME_MESSAGE;
 
     if (!cccd) errors[key('cccd')] = 'Vui lòng nhập CCCD người ở cùng';
     else if (!CCCD_REGEX.test(cccd)) errors[key('cccd')] = 'CCCD người ở cùng phải đúng 12 chữ số';
@@ -64,6 +71,7 @@ export const validateActivateCustomer = (form, contract) => {
   const name = form.name.trim();
   if (!name) errors.name = 'Vui lòng nhập họ và tên';
   else if (name.length > 100) errors.name = 'Họ và tên tối đa 100 ký tự';
+  else if (!PERSON_NAME_REGEX.test(name)) errors.name = PERSON_NAME_MESSAGE;
 
   if (!form.phone.trim()) errors.phone = 'Vui lòng nhập số điện thoại';
   else if (!PHONE_REGEX.test(form.phone.trim()))

@@ -1,11 +1,12 @@
 // Kiểm tra dữ liệu nhập các form của module manager (UC-08..11). Trả { field: message }, rỗng là hợp lệ
 // Chỉ để người dùng thấy lỗi ngay; BE vẫn kiểm tra lại (trùng email, SĐT…). Dùng: if (hasErrors(validateManagerCreate(form))) …
-import { EMAIL_REGEX, PHONE_REGEX } from '../../constants/regex';
+import { EMAIL_REGEX, PERSON_NAME_MESSAGE, PERSON_NAME_REGEX, PHONE_REGEX } from '../../constants/regex';
 
 // họ tên, email, SĐT: bắt buộc cả ba (UC-08 bước 1), Admin sửa cũng theo quy tắc này (UC-09)
 const validateContact = ({ name, email, phone }) => {
   const errors = {};
   if (!name.trim()) errors.name = 'Vui lòng nhập họ tên';
+  else if (!PERSON_NAME_REGEX.test(name.trim())) errors.name = PERSON_NAME_MESSAGE;
 
   if (!email.trim()) errors.email = 'Vui lòng nhập email';
   else if (!EMAIL_REGEX.test(email.trim())) errors.email = 'Email không hợp lệ';

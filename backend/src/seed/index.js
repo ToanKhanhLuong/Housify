@@ -394,7 +394,7 @@ async function seed() {
     // 3 Manager đang phụ trách 3 tòa (2 email thật + 1 email demo)
     const manager1 = await createManagerAccount({
         email: MANAGER1_EMAIL,
-        name: 'Nguyễn Văn Quản Lý 1 (Hòa Lạc)',
+        name: 'Nguyễn Văn Quản',
         phone: '0971000001',
         status: USER_STATUS.ACTIVE,
         dob: '1994-04-12',
@@ -403,7 +403,7 @@ async function seed() {
 
     const manager2 = await createManagerAccount({
         email: MANAGER2_EMAIL,
-        name: 'Trần Thị Quản Lý 2 (Cầu Giấy)',
+        name: 'Trần Thị Lý',
         phone: '0971000002',
         status: USER_STATUS.ACTIVE,
         dob: '1996-08-22',
@@ -412,7 +412,7 @@ async function seed() {
 
     const manager3 = await createManagerAccount({
         email: MANAGER3_EMAIL,
-        name: 'Lê Minh Quản Lý 3 (Thanh Xuân)',
+        name: 'Lê Minh Quang',
         phone: '0971000003',
         status: USER_STATUS.ACTIVE,
         dob: '1993-12-05',
@@ -421,7 +421,7 @@ async function seed() {
 
     const manager4 = await createManagerAccount({
         email: MANAGER4_EMAIL,
-        name: 'Phan Thị Quản Lý 4 (Đống Đa)',
+        name: 'Phan Thị Quỳnh',
         phone: '0971000013',
         status: USER_STATUS.ACTIVE,
         dob: '1992-03-27',
@@ -431,7 +431,7 @@ async function seed() {
     // 3 Manager ACTIVE chưa phân công tòa (để Admin test gán/đổi Manager cho tòa nhà)
     const managerFree1 = await createManagerAccount({
         email: 'manager.free1@housify.vn',
-        name: 'Phạm Quốc Bảo (Chưa gán tòa)',
+        name: 'Phạm Quốc Bảo',
         phone: '0971000004',
         status: USER_STATUS.ACTIVE,
         dob: '1995-02-14',
@@ -439,7 +439,7 @@ async function seed() {
     });
     const managerFree2 = await createManagerAccount({
         email: 'manager.free2@housify.vn',
-        name: 'Hoàng Thanh Tùng (Chưa gán tòa)',
+        name: 'Hoàng Thanh Tùng',
         phone: '0971000005',
         status: USER_STATUS.ACTIVE,
         dob: '1997-07-09',
@@ -447,7 +447,7 @@ async function seed() {
     });
     const managerFree3 = await createManagerAccount({
         email: 'manager.free3@housify.vn',
-        name: 'Đặng Thu Hà (Chưa gán tòa)',
+        name: 'Đặng Thu Hà',
         phone: '0971000006',
         status: USER_STATUS.ACTIVE,
         dob: '1998-11-19',
@@ -457,7 +457,7 @@ async function seed() {
     // 3 Manager PENDING chờ kích hoạt (2 còn hạn 24h, 1 đã hết hạn để test Gửi lại link / Xóa Manager)
     const managerPending1 = await createManagerAccount({
         email: 'manager.pending1@housify.vn',
-        name: 'Võ Thành Đạt (Chờ kích hoạt - Còn hạn)',
+        name: 'Võ Thành Đạt',
         phone: '0971000007',
         status: USER_STATUS.PENDING,
         withCccdImages: false,
@@ -474,7 +474,7 @@ async function seed() {
 
     const managerPending2 = await createManagerAccount({
         email: 'manager.pending2@housify.vn',
-        name: 'Bùi Ngọc Ánh (Chờ kích hoạt - Còn hạn)',
+        name: 'Bùi Ngọc Ánh',
         phone: '0971000008',
         status: USER_STATUS.PENDING,
         withCccdImages: false,
@@ -491,7 +491,7 @@ async function seed() {
 
     const managerPending3 = await createManagerAccount({
         email: 'manager.pending3@housify.vn',
-        name: 'Ngô Gia Huy (Chờ kích hoạt - Hết hạn link)',
+        name: 'Ngô Gia Huy',
         phone: '0971000009',
         status: USER_STATUS.PENDING,
         withCccdImages: false,
@@ -509,19 +509,19 @@ async function seed() {
     // 3 Manager INACTIVE (Đã ngưng hoạt động để Admin test Mở khóa Manager)
     const managerLocked1 = await createManagerAccount({
         email: 'manager.locked1@housify.vn',
-        name: 'Đinh Văn Khôi (Đã khóa/Ngưng HĐ)',
+        name: 'Đinh Văn Khôi',
         phone: '0971000010',
         status: USER_STATUS.INACTIVE,
     });
     const managerLocked2 = await createManagerAccount({
         email: 'manager.locked2@housify.vn',
-        name: 'Lý Thị Mai (Đã khóa/Ngưng HĐ)',
+        name: 'Lý Thị Mai',
         phone: '0971000011',
         status: USER_STATUS.INACTIVE,
     });
     const managerLocked3 = await createManagerAccount({
         email: 'manager.locked3@housify.vn',
-        name: 'Trịnh Quốc Khánh (Đã khóa/Ngưng HĐ)',
+        name: 'Trịnh Quốc Khánh',
         phone: '0971000012',
         status: USER_STATUS.INACTIVE,
     });
@@ -768,7 +768,7 @@ async function seed() {
         locked1: {
             email: 'customer.locked1@housify.vn',
             cccd: '031204000011',
-            name: 'Phan Văn Vi Phạm 1 (Đã khóa LOCKED)',
+            name: 'Phan Văn Phạm',
             phone: '0981000011',
             dob: '2003-04-11',
             address: 'Thanh Trì, Hà Nội',
@@ -777,7 +777,7 @@ async function seed() {
         locked2: {
             email: 'customer.locked2@housify.vn',
             cccd: '031204000012',
-            name: 'Trần Quốc Vi Phạm 2 (Đã khóa LOCKED)',
+            name: 'Trần Quốc Phong',
             phone: '0981000012',
             dob: '2002-08-15',
             address: 'Hoàng Mai, Hà Nội',
@@ -786,7 +786,7 @@ async function seed() {
         autoConfirm: {
             email: 'customer.autoconfirm@housify.vn',
             cccd: '031204000013',
-            name: 'Lương Thế Vinh (Test Job Tự Xác Nhận 7 Ngày)',
+            name: 'Lương Thế Vinh',
             phone: '0981000013',
             dob: '2004-06-20',
             address: 'Sóc Sơn, Hà Nội',
@@ -795,7 +795,7 @@ async function seed() {
         effectiveToday: {
             email: 'customer.effectivetoday@housify.vn',
             cccd: '031204000014',
-            name: 'Mạc Đăng Dung (Test Job Chấm Dứt Hôm Nay)',
+            name: 'Mạc Đăng Dung',
             phone: '0981000014',
             dob: '2004-12-01',
             address: 'Chương Mỹ, Hà Nội',
@@ -804,7 +804,7 @@ async function seed() {
         endToday: {
             email: 'customer.endtoday@housify.vn',
             cccd: '031204000015',
-            name: 'Đoàn Dự (Test Job Hết Hạn Hợp Đồng)',
+            name: 'Đoàn Dự',
             phone: '0981000015',
             dob: '2003-09-09',
             address: 'Quốc Oai, Hà Nội',
@@ -813,7 +813,7 @@ async function seed() {
         tx1: {
             email: 'customer.thanhxuan1@housify.vn',
             cccd: '031204000017',
-            name: 'Nguyễn Khánh Linh (Đại diện P101 Tòa 3)',
+            name: 'Nguyễn Khánh Linh',
             phone: '0981000017',
             dob: '2004-05-05',
             address: 'Thanh Xuân, Hà Nội',
@@ -822,7 +822,7 @@ async function seed() {
         tx2: {
             email: 'customer.thanhxuan2@housify.vn',
             cccd: '031204000018',
-            name: 'Bùi Tiến Dũng (Đại diện P102 Tòa 3)',
+            name: 'Bùi Tiến Dũng',
             phone: '0981000018',
             dob: '2004-11-11',
             address: 'Hà Đông, Hà Nội',
@@ -831,7 +831,7 @@ async function seed() {
         refundDebtExceed: {
             email: 'customer.noquacoc@housify.vn',
             cccd: '031204000019',
-            name: 'Ngô Văn Nợ Quá Cọc (P501 Tòa 1)',
+            name: 'Ngô Văn Nợ Quá Cọc',
             phone: '0981000019',
             dob: '2003-03-19',
             address: 'Thạch Thất, Hà Nội',
@@ -840,7 +840,7 @@ async function seed() {
         refundOffsetPartial: {
             email: 'customer.cantrucoc@housify.vn',
             cccd: '031204000020',
-            name: 'Đào Minh Cấn Trừ Cọc (P402 Tòa 1)',
+            name: 'Đào Minh Cấn Trừ Cọc',
             phone: '0981000020',
             dob: '2004-04-20',
             address: 'Sơn Tây, Hà Nội',
@@ -850,7 +850,7 @@ async function seed() {
         expirySuccessor: {
             email: 'customer.cholich@housify.vn',
             cccd: '031204000022',
-            name: 'Vương Thị Chờ Lịch (UPCOMING sau HĐ hết hạn hôm qua)',
+            name: 'Vương Thị Chờ Lịch',
             phone: '0981000022',
             dob: '2004-08-08',
             address: 'Gia Lâm, Hà Nội',
@@ -859,7 +859,7 @@ async function seed() {
         cgP402Tenant: {
             email: 'customer.p402cg@housify.vn',
             cccd: '031204000023',
-            name: 'Lý Văn Sắp Trả (P402 Tòa 2)',
+            name: 'Lý Văn Sắp Trả',
             phone: '0981000023',
             dob: '2003-06-06',
             address: 'Long Biên, Hà Nội',
@@ -868,7 +868,7 @@ async function seed() {
         changeMind: {
             email: 'customer.doiy@housify.vn',
             cccd: '031204000024',
-            name: 'Kiều Minh Đổi Ý (UPCOMING có đơn hủy chờ xác nhận)',
+            name: 'Kiều Minh Đổi Ý',
             phone: '0981000024',
             dob: '2004-02-02',
             address: 'Mê Linh, Hà Nội',
@@ -877,7 +877,7 @@ async function seed() {
         cancelledUpcoming: {
             email: 'customer.dahuy@housify.vn',
             cccd: '031204000025',
-            name: 'Tạ Quang Đã Hủy (UPCOMING đã hủy, mất cọc)',
+            name: 'Tạ Quang Đã Hủy',
             phone: '0981000025',
             dob: '2003-12-12',
             address: 'Ba Vì, Hà Nội',
@@ -886,7 +886,7 @@ async function seed() {
         ddTenantA: {
             email: 'customer.dongda.a@housify.vn',
             cccd: '031204000026',
-            name: 'Lâm Thị Sắp Đi (P101 Tòa 4)',
+            name: 'Lâm Thị Sắp Đi',
             phone: '0981000026',
             dob: '2004-01-26',
             address: 'Đống Đa, Hà Nội',
@@ -895,7 +895,7 @@ async function seed() {
         ddMoverW: {
             email: 'customer.chuyenphong@housify.vn',
             cccd: '031204000027',
-            name: 'Mai Văn Chuyển Phòng (P201 -> P101 Tòa 4)',
+            name: 'Mai Văn Chuyển Phòng',
             phone: '0981000027',
             dob: '2003-07-27',
             address: 'Cầu Giấy, Hà Nội',
@@ -1121,7 +1121,7 @@ async function seed() {
     });
     await createRoommate({
         contractId: c1ActiveContract._id,
-        name: 'Trần Quốc Tuấn (Đã chuyển ra)',
+        name: 'Trần Quốc Tuấn',
         phone: '0982100004',
         cccd: '031204900004',
         relationship: 'Bạn cùng lớp',
@@ -1455,7 +1455,7 @@ async function seed() {
     });
     await createRoommate({
         contractId: c9DraftContract._id,
-        name: 'Lê Văn Thành (Bạn ở cùng HĐ nháp P301)',
+        name: 'Lê Văn Thành',
         phone: '0982100009',
         cccd: '031204900009',
         relationship: 'Bạn cùng lớp',
@@ -1659,7 +1659,7 @@ async function seed() {
     });
     await createRoommate({
         contractId: cancelledDraftContract._id,
-        name: 'Trần Văn Bạn Nháp (HĐ đã hủy -> LEFT)',
+        name: 'Trần Văn Bạn Nháp',
         phone: '0982100016',
         cccd: '031204900016',
         relationship: 'Bạn cùng lớp',

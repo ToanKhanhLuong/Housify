@@ -1,6 +1,6 @@
 // Validation schema cho module activation (UC-08 bước 6–8 cho Manager, UC-06 cho Customer)
 import Joi from 'joi';
-import { CCCD_REGEX, PASSWORD_REGEX, PHONE_REGEX } from '../../helpers/validators.js';
+import { CCCD_REGEX, PASSWORD_REGEX, PERSON_NAME_MESSAGE, PERSON_NAME_REGEX, PHONE_REGEX } from '../../helpers/validators.js';
 
 export const activateManagerSchema = Joi.object({
     token: Joi.string().trim().required().messages({
@@ -24,7 +24,8 @@ export const activateCustomerContractSchema = Joi.object({
         'string.empty': 'Vui lòng cung cấp mã kích hoạt',
         'any.required': 'Vui lòng cung cấp mã kích hoạt',
     }),
-    name: Joi.string().trim().max(100).required().messages({
+    name: Joi.string().trim().max(100).pattern(PERSON_NAME_REGEX).required().messages({
+        'string.pattern.base': PERSON_NAME_MESSAGE,
         'string.empty': 'Vui lòng nhập họ và tên',
         'string.max': 'Họ và tên tối đa 100 ký tự',
         'any.required': 'Vui lòng nhập họ và tên',
@@ -77,7 +78,8 @@ export const activateCustomerContractSchema = Joi.object({
     coOccupants: Joi.array()
         .items(
             Joi.object({
-                name: Joi.string().trim().max(100).required().messages({
+                name: Joi.string().trim().max(100).pattern(PERSON_NAME_REGEX).required().messages({
+                    'string.pattern.base': PERSON_NAME_MESSAGE,
                     'string.empty': 'Vui lòng nhập họ tên người ở cùng',
                     'string.max': 'Họ tên người ở cùng tối đa 100 ký tự',
                     'any.required': 'Vui lòng nhập họ tên người ở cùng',

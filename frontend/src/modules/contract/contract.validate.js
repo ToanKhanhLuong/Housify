@@ -1,7 +1,7 @@
 // Kiểm tra form của module contract (UC-24 tạo, UC-26 sửa, UC-27 gia hạn). Trả { field: message }, rỗng là hợp lệ
 // Câu lỗi giống contract.validation.js của BE; lỗi người ở cùng theo khóa coOccupants.0.cccd như BE trả
 import { CONTRACT_TYPE } from '../../constants/enums';
-import { CCCD_REGEX, PHONE_REGEX } from '../../constants/regex';
+import { CCCD_REGEX, PERSON_NAME_MESSAGE, PERSON_NAME_REGEX, PHONE_REGEX } from '../../constants/regex';
 import { endDateOf } from './contractFormat';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -69,6 +69,7 @@ export const validateCreateContract = (form, capacity) => {
     const cccd = person.cccd.trim();
     const phone = person.phone.trim();
     if (!person.name.trim()) errors[key('name')] = 'Vui lòng nhập họ tên người ở cùng';
+    else if (!PERSON_NAME_REGEX.test(person.name.trim())) errors[key('name')] = PERSON_NAME_MESSAGE;
     if (!cccd) errors[key('cccd')] = 'Vui lòng nhập CCCD người ở cùng';
     else if (!CCCD_REGEX.test(cccd)) errors[key('cccd')] = 'CCCD người ở cùng phải đúng 12 chữ số';
     else if (cccdSeen.has(cccd))

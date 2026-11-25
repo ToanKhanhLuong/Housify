@@ -36,7 +36,8 @@ import {
     findBlacklistedCccds,
     findDraftCccdConflict,
     findDraftEmailConflict,
-    hasActiveStayingCccd,
+    describeStayingConflict,
+    findStayingContractOfCccd,
     hasActiveStayingPhone,
 } from '../../helpers/customerRestriction.js';
 import Contract from '../../models/Contract.js';
@@ -128,11 +129,9 @@ const assertContractEndDateAfterToday = (endDate, now = new Date()) => {
  */
 const validateRepresentativeCccdAndEmail = async (cleanRepCccd, cleanRepEmail, excludeContractId = null, startDate = null) => {
     // 1. Chặn nếu CCCD đang ở phòng khác (ACTIVE chồng ngày với hợp đồng mới, hoặc đã có UPCOMING) – không khóa cứng người ở cùng của hợp đồng DRAFT
-    if (await hasActiveStayingCccd(cleanRepCccd, excludeContractId, null, { availableFrom: startDate })) {
-        throw fieldError(
-            'representativeCccd',
-            'Số CCCD này hiện đang thuê phòng khác',
-        );
+    const stayingContract = await findStayingContractOfCccd(cleanRepCccd, excludeContractId, null, { availableFrom: startDate });
+    if (stayingContract) {
+        throw fieldError('representativeCccd', await describeStayingConflict(stayingContract));
     }
 
     // Chặn cùng 1 CCCD đứng tên đại diện ở 2 hợp đồng nháp (DRAFT) cùng lúc dù dùng email khác nhau
@@ -326,8 +325,9 @@ export const createContract = async ({ managerId, data }) => {
             throw new AppError(`Người ở cùng mang CCCD ${coCccd} đang là người đại diện của một hợp đồng nháp khác`, 400);
         }
 
-        if (await hasActiveStayingCccd(coCccd, null, null, { availableFrom: parsedStartDate })) {
-            throw new AppError(`Người ở cùng mang CCCD ${coCccd} hiện đang ở phòng khác`, 400);
+        const coStayingContract = await findStayingContractOfCccd(coCccd, null, null, { availableFrom: parsedStartDate });
+        if (coStayingContract) {
+            throw new AppError(await describeStayingConflict(coStayingContract, `Người ở cùng mang CCCD ${coCccd}`), 400);
         }
 
         const phoneInManager = await Manager.findOne({ phone: coPhone });

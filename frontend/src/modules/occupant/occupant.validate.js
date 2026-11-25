@@ -1,6 +1,6 @@
 // Kiểm tra form của module occupant (UC-31 sửa, UC-32 thêm, UC-33 rời phòng). Trả { field: message }, rỗng là hợp lệ
 // Câu lỗi giống occupant.validation.js của BE
-import { CCCD_REGEX, PHONE_REGEX } from '../../constants/regex';
+import { CCCD_REGEX, PERSON_NAME_MESSAGE, PERSON_NAME_REGEX, PHONE_REGEX } from '../../constants/regex';
 
 const pad = (value) => String(value).padStart(2, '0');
 
@@ -16,6 +16,7 @@ export const validateOccupant = (form) => {
   const name = form.name.trim();
   if (!name) errors.name = 'Vui lòng nhập họ tên';
   else if (name.length > 100) errors.name = 'Họ tên tối đa 100 ký tự';
+  else if (!PERSON_NAME_REGEX.test(name)) errors.name = PERSON_NAME_MESSAGE;
 
   const cccd = form.cccd.trim();
   if (!cccd) errors.cccd = 'Vui lòng nhập số CCCD';

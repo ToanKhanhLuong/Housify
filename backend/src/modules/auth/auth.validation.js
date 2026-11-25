@@ -1,6 +1,6 @@
 // Validation schema cho module auth (UC-01, UC-03, UC-04, UC-05)
 import Joi from 'joi';
-import { PASSWORD_REGEX, PHONE_REGEX } from '../../helpers/validators.js';
+import { PASSWORD_REGEX, PERSON_NAME_MESSAGE, PERSON_NAME_REGEX, PHONE_REGEX } from '../../helpers/validators.js';
 
 export const loginSchema = Joi.object({
     identifier: Joi.string().trim().required().messages({
@@ -77,7 +77,8 @@ export const resetPasswordSchema = Joi.object({
 
 // Chỉ gửi field muốn đổi; không cho gửi chuỗi rỗng để xóa trắng một ô
 export const updateProfileSchema = Joi.object({
-    name: Joi.string().trim().max(100).messages({
+    name: Joi.string().trim().max(100).pattern(PERSON_NAME_REGEX).messages({
+        'string.pattern.base': PERSON_NAME_MESSAGE,
         'string.empty': 'Họ tên không được để trống',
         'string.max': 'Họ tên tối đa 100 ký tự',
     }),

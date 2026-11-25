@@ -12,7 +12,9 @@ import Occupant from '../models/Occupant.js';
 import TerminationRequest from '../models/TerminationRequest.js';
 import User from '../models/User.js';
 import { startOfVietnamDay } from './date.js';
-import { getLeaveDate } from './contractSuccession.js';
+import { formatDateVn, getLeaveDate } from './contractSuccession.js';
+import Room from '../models/Room.js';
+import Building from '../models/Building.js';
 
 const withOptionalSession = (query, session) => (session ? query.session(session) : query);
 
@@ -207,9 +209,9 @@ export const getCustomerContractAccessState = async (userId) => {
  * Kiểm tra số CCCD có đang cư trú (STAYED) trong một hợp đồng ACTIVE hoặc UPCOMING hay không (bỏ qua người ở cùng trên hợp đồng DRAFT).
  * availableFrom: ngày bắt đầu hợp đồng mới – hợp đồng ACTIVE có ngày rời đi trước ngày này thì không tính là chồng (đặt thuê nối tiếp)
  */
-export const hasActiveStayingCccd = async (cccd, excludeContractId = null, session = null, { availableFrom = null } = {}) => {
+export const findStayingContractOfCccd = async (cccd, excludeContractId = null, session = null, { availableFrom = null } = {}) => {
     const cleanCccd = String(cccd || '').trim();
-    if (!cleanCccd) return false;
+    if (!cleanCccd) return null;
 
     const filter = {
         cccd: cleanCccd,
@@ -223,23 +225,47 @@ export const hasActiveStayingCccd = async (cccd, excludeContractId = null, sessi
         Occupant.find(filter).select('contractId'),
         session,
     ).lean();
-    if (stayedOccupants.length === 0) return false;
+    if (stayedOccupants.length === 0) return null;
 
     // Người ở cùng trên hợp đồng DRAFT cũng mang status STAYED, nên phải đối chiếu thêm trạng thái hợp đồng để không khóa oan
     const heldContracts = await withOptionalSession(
         Contract.find({
             _id: { $in: stayedOccupants.map((item) => item.contractId) },
             status: { $in: [CONTRACT_STATUS.ACTIVE, CONTRACT_STATUS.UPCOMING] },
-        }).select('_id status endDate'),
+        }).select('_id status roomId startDate endDate'),
         session,
     ).lean();
 
+    // Ưu tiên báo hợp đồng Sắp hiệu lực: đã có thì không ký thêm được ở bất kỳ ngày nào
+    const upcoming = heldContracts.find((contract) => contract.status === CONTRACT_STATUS.UPCOMING);
+    if (upcoming) return upcoming;
+
     for (const contract of heldContracts) {
-        if (contract.status === CONTRACT_STATUS.UPCOMING || !availableFrom) return true;
         const leaveDate = await getLeaveDate(contract, session);
-        if (startOfVietnamDay(availableFrom) <= startOfVietnamDay(leaveDate)) return true;
+        if (!availableFrom || startOfVietnamDay(availableFrom) <= startOfVietnamDay(leaveDate)) {
+            return { ...contract, leaveDate };
+        }
     }
-    return false;
+    return null;
+};
+
+/**
+ * Như findStayingContractOfCccd nhưng chỉ trả true/false (giữ cho các chỗ gọi cũ)
+ */
+export const hasActiveStayingCccd = async (cccd, excludeContractId = null, session = null, options = {}) =>
+    Boolean(await findStayingContractOfCccd(cccd, excludeContractId, session, options));
+
+/**
+ * Câu báo rõ vì sao CCCD bị chặn: đã có hợp đồng Sắp hiệu lực, hay đang thuê phòng khác đến ngày nào
+ */
+export const describeStayingConflict = async (contract, subject = 'Số CCCD này') => {
+    const room = await Room.findById(contract.roomId).select('roomNumber buildingId').lean();
+    const building = room ? await Building.findById(room.buildingId).select('name').lean() : null;
+    const where = room ? `phòng ${room.roomNumber}${building ? ` (${building.name})` : ''}` : 'phòng khác';
+    if (contract.status === CONTRACT_STATUS.UPCOMING) {
+        return `${subject} đã có hợp đồng sắp hiệu lực ở ${where}, bắt đầu từ ngày ${formatDateVn(contract.startDate)}. Mỗi khách chỉ có một hợp đồng sắp hiệu lực`;
+    }
+    return `${subject} đang thuê ${where} đến ngày ${formatDateVn(contract.leaveDate ?? contract.endDate)}. Ngày bắt đầu hợp đồng mới phải sau ngày này`;
 };
 
 /**

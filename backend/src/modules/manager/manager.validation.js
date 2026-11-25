@@ -1,11 +1,12 @@
 // Validation schema cho module manager (UC-08, UC-09, UC-10, UC-11)
 import Joi from 'joi';
 import { USER_STATUS } from '../../constants/enums.js';
-import { PHONE_REGEX } from '../../helpers/validators.js';
+import { PERSON_NAME_MESSAGE, PERSON_NAME_REGEX, PHONE_REGEX } from '../../helpers/validators.js';
 import { commaSeparatedEnum, booleanString } from '../../helpers/filter.js';
 
 export const createManagerSchema = Joi.object({
-    name: Joi.string().trim().max(100).required().messages({
+    name: Joi.string().trim().max(100).pattern(PERSON_NAME_REGEX).required().messages({
+        'string.pattern.base': PERSON_NAME_MESSAGE,
         'string.empty': 'Vui lòng nhập họ tên',
         'string.max': 'Họ tên tối đa 100 ký tự',
         'any.required': 'Vui lòng nhập họ tên',
@@ -35,7 +36,8 @@ export const listManagersSchema = Joi.object({
 
 // Chỉ gửi field muốn đổi; không cho gửi chuỗi rỗng để xóa trắng một ô
 export const updateManagerSchema = Joi.object({
-    name: Joi.string().trim().max(100).messages({
+    name: Joi.string().trim().max(100).pattern(PERSON_NAME_REGEX).messages({
+        'string.pattern.base': PERSON_NAME_MESSAGE,
         'string.empty': 'Họ tên không được để trống',
         'string.max': 'Họ tên tối đa 100 ký tự',
     }),

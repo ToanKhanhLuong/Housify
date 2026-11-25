@@ -1,7 +1,7 @@
 // Validation schema cho module occupant (UC-30, UC-31, UC-32, UC-33)
 import Joi from 'joi';
 import { OCCUPANT_STATUS, values } from '../../constants/enums.js';
-import { CCCD_REGEX, PHONE_REGEX } from '../../helpers/validators.js';
+import { CCCD_REGEX, PERSON_NAME_MESSAGE, PERSON_NAME_REGEX, PHONE_REGEX } from '../../helpers/validators.js';
 import { OBJECT_ID_REGEX, commaSeparatedEnum } from '../../helpers/filter.js';
 
 // Kiểm tra tham số ID cư dân trên URL (/occupants/:id, /occupants/:id/leave)
@@ -64,7 +64,9 @@ export const updateOccupantSchema = Joi.object({
     name: Joi.string()
         .trim()
         .max(100)
+        .pattern(PERSON_NAME_REGEX)
         .messages({
+            'string.pattern.base': PERSON_NAME_MESSAGE,
             'string.empty': 'Họ tên không được để trống',
             'string.max': 'Họ tên tối đa 100 ký tự',
         }),
@@ -121,8 +123,10 @@ export const addOccupantSchema = Joi.object({
     name: Joi.string()
         .trim()
         .max(100)
+        .pattern(PERSON_NAME_REGEX)
         .required()
         .messages({
+            'string.pattern.base': PERSON_NAME_MESSAGE,
             'string.empty': 'Vui lòng nhập họ tên người ở cùng',
             'string.max': 'Họ tên tối đa 100 ký tự',
             'any.required': 'Vui lòng nhập họ tên người ở cùng',
