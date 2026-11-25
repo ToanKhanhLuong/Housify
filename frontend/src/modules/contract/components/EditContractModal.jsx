@@ -8,7 +8,11 @@ import { CONTRACT_STATUS } from '../../../constants/enums';
 import { formatDate, toDateInput } from '../../../utils/format';
 import { hasErrors, toFieldErrors } from '../../../utils/formErrors';
 import contractApi from '../contract.api';
-import { validateContractFields } from '../contract.validate';
+import {
+  MAX_CONTRACT_MONTHS,
+  MIN_CONTRACT_MONTHS,
+  validateContractFields,
+} from '../contract.validate';
 import { endDateOf, monthsOf } from '../contractFormat';
 
 const EditContractModal = ({ contract, onHide, onSaved }) => {
@@ -146,12 +150,16 @@ const EditContractModal = ({ contract, onHide, onSaved }) => {
                   label="Thời hạn (tháng)"
                   name="durationMonths"
                   type="number"
-                  min={1}
-                  max={120}
+                  min={MIN_CONTRACT_MONTHS}
+                  max={MAX_CONTRACT_MONTHS}
                   value={form.durationMonths}
                   onChange={handleChange}
                   error={errors.durationMonths}
-                  helpText={newEnd ? `Kết thúc ngày ${formatDate(newEnd)}` : undefined}
+                  helpText={
+                    newEnd
+                      ? `Từ ${MIN_CONTRACT_MONTHS} đến ${MAX_CONTRACT_MONTHS} tháng · kết thúc ngày ${formatDate(newEnd)}`
+                      : `Từ ${MIN_CONTRACT_MONTHS} đến ${MAX_CONTRACT_MONTHS} tháng`
+                  }
                   required
                   className="mb-0"
                 />

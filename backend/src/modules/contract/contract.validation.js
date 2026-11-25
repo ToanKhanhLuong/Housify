@@ -2,6 +2,10 @@
 import Joi from 'joi';
 import { CONTRACT_STATUS, CONTRACT_TYPE, values } from '../../constants/enums.js';
 import { CCCD_REGEX, PERSON_NAME_MESSAGE, PERSON_NAME_REGEX, PHONE_REGEX } from '../../helpers/validators.js';
+
+// Thời hạn hợp đồng và số tháng gia hạn: từ 3 đến 24 tháng (nhà trọ sinh viên)
+export const MIN_CONTRACT_MONTHS = 3;
+export const MAX_CONTRACT_MONTHS = 24;
 import { OBJECT_ID_REGEX, commaSeparatedEnum, commaSeparatedIntegers } from '../../helpers/filter.js';
 
 // Kiểm tra tham số ID hợp đồng trên URL (/contracts/:id, /contracts/:id/resend-invite, /contracts/:id/renew, /contracts/:id/cancel)
@@ -80,14 +84,14 @@ export const createContractSchema = Joi.object({
         }),
     durationMonths: Joi.number()
         .integer()
-        .min(1)
-        .max(120)
+        .min(MIN_CONTRACT_MONTHS)
+        .max(MAX_CONTRACT_MONTHS)
         .required()
         .messages({
             'number.base': 'Thời hạn thuê phải là số tháng',
             'number.integer': 'Thời hạn thuê phải là số nguyên',
-            'number.min': 'Thời hạn thuê tối thiểu 1 tháng',
-            'number.max': 'Thời hạn thuê tối đa 120 tháng',
+            'number.min': `Thời hạn thuê tối thiểu ${MIN_CONTRACT_MONTHS} tháng`,
+            'number.max': `Thời hạn thuê tối đa ${MAX_CONTRACT_MONTHS} tháng`,
             'any.required': 'Vui lòng nhập thời hạn thuê',
         }),
     representativeCccd: Joi.string()
@@ -177,13 +181,13 @@ export const updateContractSchema = Joi.object({
         }),
     durationMonths: Joi.number()
         .integer()
-        .min(1)
-        .max(120)
+        .min(MIN_CONTRACT_MONTHS)
+        .max(MAX_CONTRACT_MONTHS)
         .messages({
             'number.base': 'Thời hạn thuê phải là số tháng',
             'number.integer': 'Thời hạn thuê phải là số nguyên',
-            'number.min': 'Thời hạn thuê tối thiểu 1 tháng',
-            'number.max': 'Thời hạn thuê tối đa 120 tháng',
+            'number.min': `Thời hạn thuê tối thiểu ${MIN_CONTRACT_MONTHS} tháng`,
+            'number.max': `Thời hạn thuê tối đa ${MAX_CONTRACT_MONTHS} tháng`,
         }),
     notes: Joi.string()
         .trim()
@@ -203,14 +207,14 @@ export const updateContractSchema = Joi.object({
 export const renewContractSchema = Joi.object({
     months: Joi.number()
         .integer()
-        .min(1)
-        .max(120)
+        .min(MIN_CONTRACT_MONTHS)
+        .max(MAX_CONTRACT_MONTHS)
         .default(12)
         .messages({
-            'number.base': 'Số tháng gia hạn phải là số nguyên lớn hơn 0',
-            'number.integer': 'Số tháng gia hạn phải là số nguyên lớn hơn 0',
-            'number.min': 'Số tháng gia hạn phải là số nguyên lớn hơn 0',
-            'number.max': 'Số tháng gia hạn tối đa 120 tháng',
+            'number.base': 'Số tháng gia hạn phải là số nguyên',
+            'number.integer': 'Số tháng gia hạn phải là số nguyên',
+            'number.min': `Số tháng gia hạn tối thiểu ${MIN_CONTRACT_MONTHS} tháng`,
+            'number.max': `Số tháng gia hạn tối đa ${MAX_CONTRACT_MONTHS} tháng`,
         }),
     notes: Joi.string()
         .trim()

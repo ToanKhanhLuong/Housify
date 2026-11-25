@@ -12,12 +12,16 @@ const todayInput = () => {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 };
 
+// thời hạn hợp đồng và số tháng gia hạn: 3..24 tháng (giống BE contract.validation.js)
+export const MIN_CONTRACT_MONTHS = 3;
+export const MAX_CONTRACT_MONTHS = 24;
+
 const validateMonths = (value) => {
   if (value === '' || value === null || value === undefined) return 'Vui lòng nhập thời hạn thuê';
   const months = Number(value);
   if (!Number.isInteger(months)) return 'Thời hạn thuê phải là số nguyên';
-  if (months < 1) return 'Thời hạn thuê tối thiểu 1 tháng';
-  if (months > 120) return 'Thời hạn thuê tối đa 120 tháng';
+  if (months < MIN_CONTRACT_MONTHS) return `Thời hạn thuê tối thiểu ${MIN_CONTRACT_MONTHS} tháng`;
+  if (months > MAX_CONTRACT_MONTHS) return `Thời hạn thuê tối đa ${MAX_CONTRACT_MONTHS} tháng`;
   return '';
 };
 
@@ -88,13 +92,14 @@ export const validateCreateContract = (form, capacity) => {
   return errors;
 };
 
-// UC-27: số tháng gia hạn nguyên 1..120
+// UC-27: số tháng gia hạn nguyên 3..24
 export const validateRenew = ({ months, notes }) => {
   const errors = {};
   const value = Number(months);
-  if (months === '' || !Number.isInteger(value) || value < 1)
-    errors.months = 'Số tháng gia hạn phải là số nguyên lớn hơn 0';
-  else if (value > 120) errors.months = 'Số tháng gia hạn tối đa 120 tháng';
+  if (months === '' || months === null || months === undefined) errors.months = 'Vui lòng nhập số tháng gia hạn';
+  else if (!Number.isInteger(value)) errors.months = 'Số tháng gia hạn phải là số nguyên';
+  else if (value < MIN_CONTRACT_MONTHS) errors.months = `Số tháng gia hạn tối thiểu ${MIN_CONTRACT_MONTHS} tháng`;
+  else if (value > MAX_CONTRACT_MONTHS) errors.months = `Số tháng gia hạn tối đa ${MAX_CONTRACT_MONTHS} tháng`;
   if ((notes ?? '').length > 1000) errors.notes = 'Ghi chú tối đa 1000 ký tự';
   return errors;
 };

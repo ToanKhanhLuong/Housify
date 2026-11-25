@@ -40,6 +40,7 @@ import {
     findStayingContractOfCccd,
     hasActiveStayingPhone,
 } from '../../helpers/customerRestriction.js';
+import { MAX_CONTRACT_MONTHS, MIN_CONTRACT_MONTHS } from './contract.validation.js';
 import Contract from '../../models/Contract.js';
 import Room from '../../models/Room.js';
 import RoomType from '../../models/RoomType.js';
@@ -1098,8 +1099,9 @@ export const renewContract = async ({ managerId, contractId, data = {} }) => {
     }
 
     const months = data.months !== undefined ? Number(data.months) : 12;
-    if (!Number.isInteger(months) || months <= 0) {
-        throw new AppError('Số tháng gia hạn phải là số nguyên lớn hơn 0', 422);
+    if (!Number.isInteger(months) || months < MIN_CONTRACT_MONTHS || months > MAX_CONTRACT_MONTHS) {
+        const message = `Số tháng gia hạn phải từ ${MIN_CONTRACT_MONTHS} đến ${MAX_CONTRACT_MONTHS} tháng`;
+        throw new AppError(message, 422, [{ field: 'months', message }]);
     }
 
     const oldEndDate = new Date(contract.endDate);

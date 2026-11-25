@@ -7,7 +7,7 @@ import Input from '../../../components/Input';
 import { formatDate } from '../../../utils/format';
 import { hasErrors, toFieldErrors } from '../../../utils/formErrors';
 import contractApi from '../contract.api';
-import { validateRenew } from '../contract.validate';
+import { MAX_CONTRACT_MONTHS, MIN_CONTRACT_MONTHS, validateRenew } from '../contract.validate';
 
 // ngày kết thúc mới = ngày kết thúc hiện tại + số tháng
 const renewedEnd = (endDate, months) => {
@@ -73,8 +73,9 @@ const RenewContractModal = ({ contract, onHide, onSaved }) => {
             label="Số tháng gia hạn"
             name="months"
             type="number"
-            min={1}
-            max={120}
+            min={MIN_CONTRACT_MONTHS}
+            max={MAX_CONTRACT_MONTHS}
+            helpText={`Từ ${MIN_CONTRACT_MONTHS} đến ${MAX_CONTRACT_MONTHS} tháng`}
             value={form.months}
             onChange={handleChange}
             error={errors.months}

@@ -75,7 +75,7 @@
 
 - Manager chọn phòng thuộc tòa nhà mình quản lý, mở biểu mẫu tạo hợp đồng. Phòng phải đang **Trống**, hoặc đang có người thuê nhưng còn không quá 1 tháng tới ngày rời đi (đặt thuê nối tiếp).
 - Biểu mẫu hiển thị sẵn **giá thuê và tiền cọc** lấy từ thông tin phòng ở chế độ chỉ xem.
-- Manager nhập **ngày bắt đầu, thời hạn thuê (số tháng), số CCCD người đại diện, email người đại diện** và **ghi chú** (nếu có). Hệ thống tự tính ngày kết thúc theo chu kỳ tháng, kiểm tra định dạng CCCD và email.
+- Manager nhập **ngày bắt đầu, thời hạn thuê (số tháng, từ **3 đến 24 tháng**), số CCCD người đại diện, email người đại diện** và **ghi chú** (nếu có). Hệ thống tự tính ngày kết thúc theo chu kỳ tháng, kiểm tra định dạng CCCD và email. Thời hạn ngoài khoảng 3–24 tháng thì báo "Thời hạn thuê tối thiểu 3 tháng" / "Thời hạn thuê tối đa 24 tháng" (áp dụng cả khi sửa hợp đồng nháp).
 - Manager chọn loại hợp đồng:
   - **Hợp đồng đơn:** chỉ có một người cư trú là người đại diện.
   - **Hợp đồng nhóm:** nhập thêm danh sách người ở cùng gồm **họ tên, CCCD, số điện thoại, ngày sinh, địa chỉ, mối quan hệ**.
@@ -161,7 +161,7 @@
 **Luồng chính**
 
 - Manager chọn hợp đồng **Đang hiệu lực** thuộc tòa nhà mình quản lý và thực hiện gia hạn.
-- Nhập **số tháng gia hạn** (số nguyên lớn hơn 0, mặc định là 12 tháng) và **ghi chú** (tùy chọn).
+- Nhập **số tháng gia hạn** (số nguyên từ **3 đến 24 tháng**, mặc định là 12 tháng) và **ghi chú** (tùy chọn).
 - Hệ thống thực hiện trong cùng một giao dịch:
   - Chỉ **dời ngày kết thúc** của hợp đồng thêm đúng số tháng gia hạn tính nối tiếp từ ngày kết thúc hiện tại. Giá thuê, tiền cọc, danh sách cư dân và điều khoản trên hợp đồng được giữ nguyên.
   - Tạo thông báo trong ứng dụng gửi tới tài khoản người đại diện.
@@ -174,7 +174,7 @@
 - **Phòng đã có hợp đồng nối tiếp (Nháp hoặc Sắp hiệu lực):** từ chối, báo "Phòng đã có hợp đồng nối tiếp từ ngày [ngày bắt đầu]".
 - **Người đại diện đã có hợp đồng Sắp hiệu lực ở phòng khác và ngày kết thúc mới chồng lên ngày bắt đầu của hợp đồng đó:** từ chối.
 - **Hợp đồng đang có đơn chấm dứt đang xử lý (Chờ xử lý hoặc Đã xác nhận chưa tới ngày hiệu lực):** từ chối, báo "Không thể gia hạn hợp đồng đang có đơn chấm dứt đang xử lý".
-- **Số tháng gia hạn không phải số nguyên lớn hơn 0:** từ chối, báo lỗi dữ liệu không hợp lệ.
+- **Số tháng gia hạn không phải số nguyên hoặc ngoài khoảng 3–24 tháng:** từ chối, báo "Số tháng gia hạn tối thiểu 3 tháng" / "Số tháng gia hạn tối đa 24 tháng" / "Số tháng gia hạn phải là số nguyên".
 - **Hợp đồng không thuộc tòa nhà Manager quản lý:** từ chối, báo "Bạn không có quyền thực hiện thao tác này".
 - **Gửi email thông báo lỗi:** việc gia hạn vẫn được lưu thành công, hệ thống trả kèm cảnh báo gửi email thất bại.
 

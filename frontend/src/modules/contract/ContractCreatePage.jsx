@@ -24,7 +24,11 @@ import { CONTRACT_TYPE_LABEL } from '../../constants/statusLabels';
 import { formatDate, toDateInput } from '../../utils/format';
 import { hasErrors, toFieldErrors } from '../../utils/formErrors';
 import contractApi from './contract.api';
-import { validateCreateContract } from './contract.validate';
+import {
+  MAX_CONTRACT_MONTHS,
+  MIN_CONTRACT_MONTHS,
+  validateCreateContract,
+} from './contract.validate';
 import { endDateOf } from './contractFormat';
 
 const TODAY = toDateInput(new Date()); // tính 1 lần khi nạp trang
@@ -355,12 +359,16 @@ const ContractCreatePage = () => {
               label="Thời hạn (tháng)"
               name="durationMonths"
               type="number"
-              min={1}
-              max={120}
+              min={MIN_CONTRACT_MONTHS}
+              max={MAX_CONTRACT_MONTHS}
               value={form.durationMonths}
               onChange={handleChange}
               error={errors.durationMonths}
-              helpText={endDate ? `Kết thúc ngày ${formatDate(endDate)}` : undefined}
+              helpText={
+                endDate
+                  ? `Từ ${MIN_CONTRACT_MONTHS} đến ${MAX_CONTRACT_MONTHS} tháng · kết thúc ngày ${formatDate(endDate)}`
+                  : `Từ ${MIN_CONTRACT_MONTHS} đến ${MAX_CONTRACT_MONTHS} tháng`
+              }
               required
               disabled={submitting}
               className="mb-0"

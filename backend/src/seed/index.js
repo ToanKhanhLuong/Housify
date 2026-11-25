@@ -2930,6 +2930,90 @@ async function seed() {
     console.log(`✔ [10b/16] Đã tạo dữ liệu hàng loạt Tòa 4: ${BULK_TENANTS.length + 2} hợp đồng ACTIVE x 4 kỳ hóa đơn, giao dịch SePay và 4 sự cố.`);
 
     // =========================================================================
+    // 10c. HỢP ĐỒNG SẮP HẾT HẠN (≤ 1 tháng, chưa có hợp đồng nối tiếp, khách chưa ký phòng khác) + PHÒNG TRỐNG THÊM
+    // Dùng để test: (1) Manager tạo hợp đồng nối tiếp cho khách mới ngay trên phòng sắp trống,
+    //               (2) chính khách sắp hết hạn ký trước phòng trống khác (chuyển phòng) -> UPCOMING
+    // =========================================================================
+    const extraEmptyRooms = await Room.insertMany([
+        createRoomDoc(building1._id, 5, 'P505', rtStudio._id, 28, 3450000, 3450000, ROOM_STATUS.AVAILABLE, 3),
+        createRoomDoc(building1._id, 5, 'P506', rtTwin._id, 33, 3850000, 3850000, ROOM_STATUS.AVAILABLE, 0),
+        createRoomDoc(building1._id, 3, 'P304', rtSingle._id, 22, 2950000, 2950000, ROOM_STATUS.AVAILABLE, 1),
+        createRoomDoc(building2._id, 5, 'P503', rtStudio._id, 28, 4050000, 4050000, ROOM_STATUS.AVAILABLE, 2),
+        createRoomDoc(building2._id, 3, 'P303', rtTwin._id, 34, 4600000, 4600000, ROOM_STATUS.AVAILABLE, 3),
+        createRoomDoc(building3._id, 2, 'P203', rtStudio._id, 27, 3750000, 3750000, ROOM_STATUS.AVAILABLE, 0),
+        createRoomDoc(building3._id, 3, 'P303', rtTwin._id, 32, 4150000, 4150000, ROOM_STATUS.AVAILABLE, 1),
+        createRoomDoc(building4._id, 1, 'P104', rtSingle._id, 22, 3300000, 3300000, ROOM_STATUS.AVAILABLE, 2),
+        createRoomDoc(building4._id, 3, 'P303', rtStudio._id, 26, 3900000, 3900000, ROOM_STATUS.AVAILABLE, 3),
+        createRoomDoc(building4._id, 4, 'P404', rtTwin._id, 32, 4400000, 4400000, ROOM_STATUS.AVAILABLE, 0),
+        createRoomDoc(building5._id, 1, 'P103', rtStudio._id, 26, 3600000, 3600000, ROOM_STATUS.AVAILABLE, 1),
+        createRoomDoc(building5._id, 2, 'P202', rtSingle._id, 20, 2900000, 2900000, ROOM_STATUS.AVAILABLE, 2),
+    ]);
+
+    const EXPIRING_TENANTS = [
+        { building: building1, manager: manager1, room: ['P404', 4, rtStudio, 28, 3400000], daysLeft: 6, months: 6, name: 'Vũ Thị Hồng Nhung' },
+        { building: building2, manager: manager2, room: ['P502', 5, rtSingle, 24, 3800000], daysLeft: 11, months: 12, name: 'Kim Văn Hoàng' },
+        { building: building3, manager: manager3, room: ['P302', 3, rtStudio, 28, 3800000], daysLeft: 17, months: 6, name: 'Mạc Thị Lan Anh' },
+        { building: building4, manager: manager4, room: ['P403', 4, rtSingle, 22, 3300000], daysLeft: 22, months: 12, name: 'La Quốc Thịnh' },
+        { building: building1, manager: manager1, room: ['P504', 5, rtTwin, 33, 3800000], daysLeft: 28, months: 12, name: 'Ninh Văn Tài', roommate: 'Ninh Thị Thu' },
+    ];
+    const expiringSummary = [];
+    for (let i = 0; i < EXPIRING_TENANTS.length; i++) {
+        const seq = i + 1;
+        const tenant = EXPIRING_TENANTS[i];
+        const [roomNumber, floorNumber, roomType, area, price] = tenant.room;
+        const room = await Room.create(
+            createRoomDoc(tenant.building._id, floorNumber, roomNumber, roomType._id, area, price, price, ROOM_STATUS.OCCUPIED, seq % 4),
+        );
+        const info = {
+            email: `customer.saphethan${seq}@housify.vn`,
+            cccd: `03120500004${seq}`,
+            name: tenant.name,
+            phone: `098500004${seq}`,
+            dob: `2005-0${seq}-1${seq}`,
+            address: 'Hà Nội',
+        };
+        customerUsers[info.cccd] = await User.create({
+            email: info.email,
+            password: customerHash,
+            roleId: ROLE.CUSTOMER,
+            status: USER_STATUS.ACTIVE,
+        });
+        // ngày kết thúc = hôm nay + daysLeft, thời hạn đúng 6 hoặc 12 tháng (trong khoảng 3..24)
+        const startDate = daysFromNow(tenant.daysLeft + 1);
+        startDate.setMonth(startDate.getMonth() - tenant.months);
+        const contract = await Contract.create({
+            roomId: room._id,
+            contractType: tenant.roommate ? CONTRACT_TYPE.GROUP : CONTRACT_TYPE.SINGLE,
+            representativeCccd: info.cccd,
+            representativeEmail: info.email,
+            startDate,
+            endDate: endAfterMonths(startDate, tenant.months),
+            rentPrice: room.rentPrice,
+            deposit: room.deposit,
+            status: CONTRACT_STATUS.ACTIVE,
+            activatedAt: startDate,
+            notes: `Hợp đồng sắp hết hạn (còn ${tenant.daysLeft} ngày), chưa có hợp đồng nối tiếp – dùng test đặt thuê nối tiếp / chuyển phòng.`,
+            createdBy: tenant.manager.user._id,
+            depositReceiverId: tenant.manager.user._id,
+        });
+        await createRepOccupant({ contractId: contract._id, customerInfo: info, status: OCCUPANT_STATUS.STAYED, joinDate: startDate });
+        if (tenant.roommate) {
+            await createRoommate({
+                contractId: contract._id,
+                name: tenant.roommate,
+                phone: `098500005${seq}`,
+                cccd: `03120500005${seq}`,
+                dob: '2005-08-08',
+                relationship: 'Người thân',
+                joinDate: startDate,
+            });
+        }
+        expiringSummary.push({ ...info, roomNumber, buildingName: tenant.building.name, daysLeft: tenant.daysLeft });
+    }
+
+    console.log(`✔ [10c/16] Đã tạo ${EXPIRING_TENANTS.length} hợp đồng sắp hết hạn (chưa có nối tiếp) và ${extraEmptyRooms.length} phòng trống thêm ở 5 tòa.`);
+
+    // =========================================================================
     // 11. NOTIFICATIONS (Thông báo chuông & Thông báo chung ANNOUNCEMENT)
     // =========================================================================
     const notificationsToInsert = [
@@ -3357,6 +3441,11 @@ async function seed() {
     console.log(`   - ${demoCustomers.ddMoverW.cccd} (${demoCustomers.ddMoverW.email}): ACTIVE P201 Tòa 4 (12 ngày) + UPCOMING P101 Tòa 4 chờ cả 2 HĐ kết thúc`);
     console.log(`   - ${REAL_CUSTOMERS[5].cccd} (${REAL_CUSTOMERS[5].email}): Đơn đơn phương PENDING + UPCOMING P501 -> Admin duyệt là UPCOMING tự hủy (hoàn cọc)`);
     console.log(`   - Phòng nhận đặt nối tiếp ngay (còn <= 1 tháng, chưa có HĐ chờ): P201 Tòa 1 (Manager 1)`);
+
+    console.log(`\n📅 [HỢP ĐỒNG SẮP HẾT HẠN – CHƯA CÓ NỐI TIẾP] (Mật khẩu ${CUSTOMER_PASS}) – test đặt thuê nối tiếp / khách ký trước phòng khác`);
+    for (const t of expiringSummary) {
+        console.log(`   - CCCD ${t.cccd} (${t.email}) ${t.name}: ${t.roomNumber} ${t.buildingName} còn ${t.daysLeft} ngày`);
+    }
 
     console.log(`\n📦 [DỮ LIỆU HÀNG LOẠT TÒA 4] customer.dongda1..6@housify.vn (CCCD 031206000001..06) – 4 kỳ hóa đơn mỗi HĐ`);
     console.log(`🔒 [KHÁCH BỊ KHÓA] CCCD ${demoCustomers.locked1.cccd}, ${demoCustomers.locked2.cccd} -> tạo HĐ mới bằng CCCD này sẽ bị chặn`);
