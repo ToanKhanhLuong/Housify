@@ -372,6 +372,12 @@ const ManagerDetailPage = () => {
                         và <strong>{building.draftContractCount}</strong> hợp đồng nháp
                       </>
                     )}
+                    {building.upcomingContractCount > 0 && (
+                      <>
+                        {' '}
+                        và <strong>{building.upcomingContractCount}</strong> hợp đồng sắp hiệu lực
+                      </>
+                    )}
                     .
                   </div>
                   <div className="mt-1">

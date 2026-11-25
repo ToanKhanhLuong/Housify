@@ -147,6 +147,8 @@ Admin đồng ý thì **gỡ người cũ và gán người mới cùng lúc** �
 
 Admin gỡ Manager mà không gán ai mới. Tòa về trạng thái **chưa có người phụ trách**, hệ thống cảnh báo điều này. Manager bị gỡ nhận thông báo và email.
 
+**Chỉ gỡ được khi tòa không còn** cư dân đang ở, hợp đồng đang hiệu lực, hợp đồng nháp hoặc hợp đồng sắp hiệu lực. Còn thì phải phân công một Manager khác thay thế (không để tòa trống người phụ trách). Vì vậy muốn ngưng hoạt động Manager đang phụ trách tòa thì phải thay người trước.
+
 **Các trường hợp**
 
 - **Manager được chọn không Đang hoạt động:** từ chối.

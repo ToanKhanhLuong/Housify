@@ -4,6 +4,7 @@ import {
     CONTRACT_STATUS,
     OCCUPANT_STATUS,
     AUDIT_ACTION,
+    TERMINATION_STATUS,
 } from '../../constants/enums.js';
 import { AppError } from '../../utils/AppError.js';
 import { paginate } from '../../utils/pagination.js';
@@ -26,6 +27,7 @@ import RoomType from '../../models/RoomType.js';
 import Building from '../../models/Building.js';
 import User from '../../models/User.js';
 import Manager from '../../models/Manager.js';
+import TerminationRequest from '../../models/TerminationRequest.js';
 
 /**
  * Kiểm tra quyền Manager trên hợp đồng/phòng (phải thuộc tòa Manager đang quản lý)
@@ -568,6 +570,15 @@ export const addOccupant = async ({ managerId, contractId, data }) => {
 
     if (contract.status !== CONTRACT_STATUS.ACTIVE) {
         throw new AppError('Chỉ thêm được người ở cùng khi hợp đồng đang hiệu lực', 400);
+    }
+
+    // Hợp đồng sắp chấm dứt (đơn chờ xử lý hoặc đã xác nhận chưa tới ngày hiệu lực) thì không nhận thêm người
+    const openTermination = await TerminationRequest.exists({
+        contractId: contract._id,
+        status: { $in: [TERMINATION_STATUS.PENDING, TERMINATION_STATUS.CONFIRMED] },
+    });
+    if (openTermination) {
+        throw new AppError('Không thể thêm người ở cùng khi hợp đồng đang có đơn chấm dứt đang xử lý', 400);
     }
 
     const roomType = await RoomType.findOne({ _id: room.roomTypeId, isDeleted: false }).lean();

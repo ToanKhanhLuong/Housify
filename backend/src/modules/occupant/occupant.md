@@ -116,6 +116,7 @@
 **Các trường hợp bị chặn**
 
 - **Hợp đồng không ở trạng thái `ACTIVE` (đang là `DRAFT`, `ENDED` hoặc `CANCELLED`):** chặn và báo *"Chỉ thêm được người ở cùng khi hợp đồng đang hiệu lực"*.
+- **Hợp đồng đang có đơn chấm dứt đang xử lý (chờ xử lý, hoặc đã xác nhận nhưng chưa tới ngày hiệu lực):** phòng sắp trả nên không nhận thêm người, chặn và báo *"Không thể thêm người ở cùng khi hợp đồng đang có đơn chấm dứt đang xử lý"*.
 - **Số người đang ở đã bằng hoặc vượt sức chứa loại phòng:** chặn và báo *"Phòng đã đạt sức chứa tối đa (X người)"* (với X là sức chứa của loại phòng).
 - **Số CCCD không đủ 12 chữ số:** chặn và báo *"Số CCCD phải gồm đúng 12 chữ số"*.
 - **Số CCCD đã có trong danh sách cư dân của hợp đồng:** chặn và báo *"CCCD đã tồn tại trong danh sách cư dân của phòng"*.

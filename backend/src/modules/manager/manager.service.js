@@ -159,14 +159,17 @@ const getBuildingOccupancyStats = async (buildingId) => {
         return {
             activeContractCount: 0,
             draftContractCount: 0,
+            upcomingContractCount: 0,
             stayedOccupantCount: 0,
             canUnassign: true,
         };
     }
 
-    const [activeContracts, draftContractCount] = await Promise.all([
+    // hợp đồng Sắp hiệu lực cũng cần Manager (khách đổi ý thì Manager lập đơn hủy theo thỏa thuận)
+    const [activeContracts, draftContractCount, upcomingContractCount] = await Promise.all([
         Contract.find({ roomId: { $in: roomIds }, status: CONTRACT_STATUS.ACTIVE }).select('_id').lean(),
         Contract.countDocuments({ roomId: { $in: roomIds }, status: CONTRACT_STATUS.DRAFT }),
+        Contract.countDocuments({ roomId: { $in: roomIds }, status: CONTRACT_STATUS.UPCOMING }),
     ]);
 
     const activeContractIds = activeContracts.map((contract) => contract._id);
@@ -178,11 +181,15 @@ const getBuildingOccupancyStats = async (buildingId) => {
         : 0;
 
     const activeContractCount = activeContracts.length;
-    const canUnassign = activeContractCount === 0 && draftContractCount === 0 && stayedOccupantCount === 0;
+    const canUnassign = activeContractCount === 0
+        && draftContractCount === 0
+        && upcomingContractCount === 0
+        && stayedOccupantCount === 0;
 
     return {
         activeContractCount,
         draftContractCount,
+        upcomingContractCount,
         stayedOccupantCount,
         canUnassign,
     };
@@ -602,7 +609,7 @@ const unassignManager = async (adminId, building) => {
     const stats = await getBuildingOccupancyStats(building._id);
     if (!stats.canUnassign) {
         throw new AppError(
-            `${building.name} đang có cư dân hoặc hợp đồng hoạt động nên không được để trống Manager. Vui lòng phân công một Manager khác đang rảnh vào thay thế`,
+            `${building.name} đang có cư dân hoặc hợp đồng hoạt động (đang hiệu lực, nháp hoặc sắp hiệu lực) nên không được để trống Manager. Vui lòng phân công một Manager khác đang rảnh vào thay thế`,
             400,
         );
     }
