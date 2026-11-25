@@ -34,6 +34,9 @@ const contractApi = {
   // UC-28, 29: các đơn chấm dứt của hợp đồng (GET /terminations?contractId=) – hiện ở chi tiết hợp đồng
   terminations: (contractId) => api.get('/terminations', { params: { contractId, limit: 10 } }),
 
+  // UC-24: đơn chấm dứt của tòa (GET /terminations?status=) – lấy ngày hiệu lực đơn đã xác nhận làm ngày trả phòng khi đặt thuê nối tiếp
+  terminationList: (params) => api.get('/terminations', { params }),
+
   // UC-45 (Manager): xem trước hoàn cọc – chỉ HĐ Đã kết thúc do hết hạn, chưa hoàn. Không đủ điều kiện → 400 kèm lý do
   // → { deposit, deductedAmount, netRefundAmount, extraCollectAmount, requiresExtraCollection, canRefund, hasPendingInvoices, pendingInvoiceCount, pendingInvoiceTotal, pendingInvoices[], warning }
   refundPreview: (id) => api.get(`/contracts/${id}/refund-preview`),

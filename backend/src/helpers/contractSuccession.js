@@ -213,7 +213,7 @@ export const promoteReadyUpcomingContracts = async ({ roomIds = [], cccds = [] }
         const room = await Room.findOneAndUpdate(
             { _id: contract.roomId, status: ROOM_STATUS.AVAILABLE },
             { status: ROOM_STATUS.OCCUPIED },
-            { session, new: true },
+            { session, returnDocument: 'after' },
         );
         if (!room) continue;
 

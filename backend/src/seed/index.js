@@ -44,17 +44,20 @@ import Notification from '../models/Notification.js';
 import AuditLog from '../models/AuditLog.js';
 
 // ===== CẤU HÌNH TÀI KHOẢN & MẬT KHẨU CHUẨN =====
-const ADMIN_EMAIL = 'khiconst4@gmail.com';
+const ADMIN_EMAIL = 'admin@housify.com';
 const ADMIN_PASS = 'Admin123';
 
-const MANAGER1_EMAIL = 'khiconst20092004@gmail.com';
-const MANAGER2_EMAIL = 'nguyenan182167@gmail.com';
+// 2 Manager email thật (test gửi mail) + các Manager email seed
+const MANAGER1_EMAIL = 'khiconst4@gmail.com';
+const MANAGER2_EMAIL = 'khiconst20092004@gmail.com';
 const MANAGER3_EMAIL = 'manager.thanhxuan@housify.vn';
+const MANAGER4_EMAIL = 'manager.dongda@housify.vn';
 const MANAGER_PASS = 'Manager123';
 
 const CUSTOMER_PASS = 'Customer123';
 
-// Danh sách 10 email thật của nhóm dùng làm Người đại diện (Customer)
+// Người đại diện (Customer) của các case chính. Chỉ 4 email thật (index 0, 3, 4, 10), còn lại email seed @housify.vn
+// để nhóm giữ email thật khác cho demo tạo hợp đồng mới
 const REAL_CUSTOMERS = [
     {
         email: 'annbhe182167@fpt.edu.vn',
@@ -63,88 +66,97 @@ const REAL_CUSTOMERS = [
         phone: '0981000001',
         dob: '2004-09-20',
         address: 'Hải An, Hải Phòng',
-        note: 'Đại diện P101 Tòa 1 (ACTIVE GROUP) + có 2 hợp đồng cũ ENDED + đủ bộ hóa đơn/sự cố',
+        note: '[EMAIL THẬT 1] Khách lâu năm: ACTIVE GROUP P101 Tòa 1 + 2 HĐ cũ ENDED + đủ bộ hóa đơn (PAID, trễ hạn, PENDING) + sự cố đủ trạng thái',
     },
     {
-        email: 'wdp301fall26@gmail.com',
+        email: 'customer.thieutien@housify.vn',
         cccd: '031204000002',
         name: 'Trần Minh Quân',
         phone: '0981000002',
         dob: '2004-03-15',
         address: 'TP. Hạ Long, Quảng Ninh',
-        note: 'Đại diện P102 Tòa 1 (ACTIVE GROUP) – Case Hóa đơn PENDING chuyển thiếu (PAYMENT_UNDERPAID) + 1 HĐ cũ ENDED',
+        note: 'ACTIVE GROUP P102 Tòa 1 – Hóa đơn PENDING chuyển thiếu (PAYMENT_UNDERPAID) + 1 HĐ cũ ENDED',
     },
     {
-        email: 'kenhgametructiep@gmail.com',
+        email: 'customer.thuatien@housify.vn',
         cccd: '031204000003',
         name: 'Lê Hoàng Nam',
         phone: '0981000003',
         dob: '2003-11-08',
         address: 'Đông Anh, Hà Nội',
-        note: 'Đại diện P103 Tòa 1 (ACTIVE SINGLE) – Case Hóa đơn PENDING chuyển thừa (PAYMENT_OVERPAID) + Hóa đơn đã hủy',
+        note: 'ACTIVE SINGLE P103 Tòa 1 – Hóa đơn chuyển thừa (PAYMENT_OVERPAID) + Hóa đơn đã hủy',
     },
     {
-        email: 'quanghieuhg1@gmail.com',
+        email: 'nguyenan182167@gmail.com',
         cccd: '031204000004',
-        name: 'Phạm Quang Hiếu',
+        name: 'Nguyễn Hoàng An',
         phone: '0981000004',
         dob: '2004-05-12',
         address: 'TP. Hà Giang, Hà Giang',
-        note: 'Đại diện P201 Tòa 1 (ACTIVE GROUP) – Case Hóa đơn QUÁ HẠN (isOverdue) + Hóa đơn đến hạn hôm nay + HĐ sắp hết hạn (test Gia hạn)',
+        note: '[EMAIL THẬT 2] Đang chuyển phòng: ACTIVE P201 Tòa 1 còn 15 ngày (hóa đơn QUÁ HẠN + đến hạn hôm nay) + đã ký UPCOMING P401 Tòa 1 (gia hạn P201 bị chặn)',
     },
     {
-        email: 'quanghieuhg2005@gmail.com',
+        email: 'cocainit123788@gmail.com',
         cccd: '031204000005',
-        name: 'Vũ Quang Hiếu',
+        name: 'Hoàng Đức Toàn',
         phone: '0981000005',
-        dob: '2005-01-25',
-        address: 'Vị Xuyên, Hà Giang',
-        note: 'Đại diện P202 Tòa 1 (ACTIVE GROUP) – Case đang có Đơn chấm dứt 2 bên (MUTUAL - PENDING) chờ khách Xác nhận điện tử (chặn Gia hạn)',
+        dob: '2004-02-28',
+        address: 'TP. Vinh, Nghệ An',
+        note: '[EMAIL THẬT 4] Đang trả phòng: ACTIVE GROUP P202 Tòa 1 có Đơn chấm dứt 2 bên (MUTUAL PENDING) chờ khách Xác nhận điện tử + hóa đơn còn 1 ngày đến hạn',
     },
     {
-        email: 'hung091305@gmail.com',
+        email: 'customer.donphuong@housify.vn',
         cccd: '031204000006',
         name: 'Đỗ Việt Hưng',
         phone: '0981000006',
         dob: '2004-09-13',
         address: 'TP. Nam Định, Nam Định',
-        note: 'Đại diện P203 Tòa 1 (ACTIVE SINGLE) – Case đang có Đơn chấm dứt đơn phương (UNILATERAL - PENDING) chờ Admin duyệt + 1 đơn từng bị REJECTED',
+        note: 'ACTIVE P203 Tòa 1 còn 25 ngày + Đơn đơn phương PENDING chờ Admin duyệt + UPCOMING P501 Tòa 1 (Admin duyệt -> UPCOMING tự hủy, được hoàn cọc)',
     },
     {
-        email: 'hung123789nk@gmail.com',
+        email: 'customer.dachot@housify.vn',
         cccd: '031204000007',
         name: 'Nguyễn Tuấn Hưng',
         phone: '0981000007',
         dob: '2004-07-19',
         address: 'Ninh Kiều, Cần Thơ',
-        note: 'Đại diện P101 Tòa 2 (ACTIVE GROUP) – Case đã Xác nhận điện tử đơn MUTUAL (CONFIRMED, chờ đến ngày hiệu lực) + có 1 HĐ cũ ENDED ở Tòa 1',
+        note: 'ACTIVE GROUP P101 Tòa 2 – Đơn MUTUAL đã CONFIRMED (chờ 3 ngày tới ngày hiệu lực) + 1 HĐ cũ ENDED ở Tòa 1',
     },
     {
-        email: 'cocainit123788@gmail.com',
+        email: 'customer.vuaketthuc@housify.vn',
         cccd: '031204000008',
-        name: 'Hoàng Đức Toàn',
+        name: 'Đinh Quốc Bảo',
         phone: '0981000008',
-        dob: '2004-02-28',
-        address: 'TP. Vinh, Nghệ An',
-        note: 'Đại diện P102 Tòa 2 – Case ngoại lệ 0h–23h59: Hợp đồng vừa ENDED < 24h nhưng User còn ACTIVE (Hồ sơ cá nhân Read-only, chờ Manager hoàn cọc sạch)',
+        dob: '2004-02-18',
+        address: 'TP. Thanh Hóa, Thanh Hóa',
+        note: 'HĐ P102 Tòa 2 vừa ENDED < 24h, User còn ACTIVE (hồ sơ chỉ xem, chờ Manager 2 hoàn cọc sạch)',
     },
     {
-        email: 'themanhvxhg123@gmail.com',
+        email: 'customer.draftmoi@housify.vn',
         cccd: '031204000009',
         name: 'Nguyễn Thế Mạnh',
         phone: '0981000009',
         dob: '2004-10-10',
         address: 'Vị Xuyên, Hà Giang',
-        note: 'Đại diện P301 Tòa 1 – Case Hợp đồng DRAFT đang chờ kích hoạt (có sẵn link token 24h hoặc gửi lại mail thật)',
+        note: 'HĐ DRAFT P301 Tòa 1 chờ kích hoạt lần đầu (chưa có tài khoản – dùng link in bên dưới)',
     },
     {
-        email: 'nguyenthemanh010124@gmail.com',
+        email: 'customer.thuelai@housify.vn',
         cccd: '031204000010',
         name: 'Trương Thế Mạnh',
         phone: '0981000010',
         dob: '2004-01-01',
         address: 'Bắc Quang, Hà Giang',
-        note: 'Khách cũ đã trả phòng > 24h (User INACTIVE, HĐ cũ ENDED còn nợ hóa đơn chờ cấn trừ cọc) + đang có HĐ mới DRAFT ở P202 Tòa 2 để test Thuê lại!',
+        note: 'Khách cũ INACTIVE (HĐ cũ ENDED còn nợ hóa đơn) + HĐ DRAFT thuê lại P202 Tòa 2 (kích hoạt -> mở lại tài khoản)',
+    },
+    {
+        email: 'nguyenkhanhhung2005nk@gmail.com',
+        cccd: '031205000021',
+        name: 'Nguyễn Khánh Hưng',
+        phone: '0981000021',
+        dob: '2005-03-11',
+        address: 'Hoàng Mai, Hà Nội',
+        note: '[EMAIL THẬT 3] Khách mới chờ vào ở: chỉ có HĐ UPCOMING P303 Tòa 1 (sau HĐ có đơn chấm dứt hiệu lực hôm nay – chạy job terminationEffective là thành ACTIVE)',
     },
 ];
 
@@ -156,6 +168,13 @@ const daysFromNow = (days, hour = 9, minute = 0) => {
     return d;
 };
 const hoursFromNow = (hours) => new Date(now.getTime() + hours * 60 * 60 * 1000);
+// Ngày kết thúc theo chu kỳ tháng: bắt đầu + số tháng - 1 ngày (giống calculateEndDate của module contract)
+const endAfterMonths = (startDate, months) => {
+    const end = new Date(startDate);
+    end.setMonth(end.getMonth() + months);
+    end.setDate(end.getDate() - 1);
+    return end;
+};
 
 const formatMonth = (date) => {
     const y = date.getFullYear();
@@ -400,6 +419,15 @@ async function seed() {
         address: 'Thượng Đình, Thanh Xuân, Hà Nội',
     });
 
+    const manager4 = await createManagerAccount({
+        email: MANAGER4_EMAIL,
+        name: 'Phan Thị Quản Lý 4 (Đống Đa)',
+        phone: '0971000013',
+        status: USER_STATUS.ACTIVE,
+        dob: '1992-03-27',
+        address: 'Láng Thượng, Đống Đa, Hà Nội',
+    });
+
     // 3 Manager ACTIVE chưa phân công tòa (để Admin test gán/đổi Manager cho tòa nhà)
     const managerFree1 = await createManagerAccount({
         email: 'manager.free1@housify.vn',
@@ -498,7 +526,7 @@ async function seed() {
         status: USER_STATUS.INACTIVE,
     });
 
-    console.log('✔ [2/16] Đã tạo Admin (khiconst4@gmail.com) và 12 tài khoản Manager đủ trạng thái.');
+    console.log(`✔ [2/16] Đã tạo Admin (${ADMIN_EMAIL}) và 13 tài khoản Manager đủ trạng thái.`);
 
     // =========================================================================
     // 3. BUILDINGS (4 tòa nhà với nội quy, mô tả, hình ảnh đầy đủ)
@@ -540,14 +568,25 @@ async function seed() {
         name: 'Housify Đống Đa Boutique',
         address: 'Số 45 Chùa Láng, Phường Láng Thượng, Quận Đống Đa, Hà Nội',
         description:
-            'Tòa nhà mới hoàn thiện đang trống hợp đồng và chưa phân công Manager – dùng để Admin test Gán Manager mới hoặc Xóa mềm tòa nhà (UC-11, UC-14).',
+            'Tòa nhà 4 tầng gần ĐH Ngoại Thương và Học viện Ngoại giao, nhiều phòng đang cho thuê với hóa đơn nhiều kỳ – dùng để xem báo cáo, dashboard và case đặt thuê nối tiếp chờ 2 hợp đồng kết thúc.',
         images: BUILDING_IMAGES.b4,
         floorCount: 4,
+        rules: BUILDING_RULES_2,
+        managerId: manager4.user._id,
+    });
+
+    const building5 = await Building.create({
+        name: 'Housify Hà Đông Garden',
+        address: 'Số 18 Tô Hiệu, Phường Nguyễn Trãi, Quận Hà Đông, Hà Nội',
+        description:
+            'Tòa nhà mới hoàn thiện, chưa có hợp đồng và chưa phân công Manager – dùng để Admin test Gán Manager, sửa tòa hoặc Xóa mềm tòa nhà (UC-11, UC-14).',
+        images: BUILDING_IMAGES.b3,
+        floorCount: 3,
         rules: BUILDING_RULES_3,
         managerId: null,
     });
 
-    console.log('✔ [3/16] Đã tạo 4 Tòa nhà (kèm mô tả, nhiều ảnh và Nội quy chi tiết).');
+    console.log('✔ [3/16] Đã tạo 5 Tòa nhà (kèm mô tả, nhiều ảnh và Nội quy chi tiết).');
 
     // =========================================================================
     // 4. ROOM TYPES (5 loại phòng)
@@ -604,8 +643,22 @@ async function seed() {
         { serviceId: svcWifi._id, buildingId: building3._id, unitPrice: 100000, effectiveFrom: priceDateCurrent, createdBy: adminUser._id },
         { serviceId: svcTrash._id, buildingId: building3._id, unitPrice: 40000, effectiveFrom: priceDateCurrent, createdBy: adminUser._id },
         { serviceId: svcParking._id, buildingId: building3._id, unitPrice: 100000, effectiveFrom: priceDateCurrent, createdBy: adminUser._id },
+
+        // Tòa 4 (Đống Đa Boutique): đủ giá + 1 giá điện tương lai để thấy lịch sử
+        { serviceId: svcElec._id, buildingId: building4._id, unitPrice: 4000, effectiveFrom: priceDateOld, createdBy: adminUser._id },
+        { serviceId: svcElec._id, buildingId: building4._id, unitPrice: 4200, effectiveFrom: priceDateCurrent, createdBy: adminUser._id },
+        { serviceId: svcElec._id, buildingId: building4._id, unitPrice: 4400, effectiveFrom: priceDateFuture, createdBy: adminUser._id },
+        { serviceId: svcWater._id, buildingId: building4._id, unitPrice: 30000, effectiveFrom: priceDateCurrent, createdBy: adminUser._id },
+        { serviceId: svcWifi._id, buildingId: building4._id, unitPrice: 120000, effectiveFrom: priceDateCurrent, createdBy: adminUser._id },
+        { serviceId: svcTrash._id, buildingId: building4._id, unitPrice: 50000, effectiveFrom: priceDateCurrent, createdBy: adminUser._id },
+        { serviceId: svcParking._id, buildingId: building4._id, unitPrice: 150000, effectiveFrom: priceDateCurrent, createdBy: adminUser._id },
+        { serviceId: svcSecurity._id, buildingId: building4._id, unitPrice: 70000, effectiveFrom: priceDateCurrent, createdBy: adminUser._id },
+
+        // Tòa 5 (Hà Đông Garden): mới có giá điện, nước – thiếu giá dịch vụ cố định để test cảnh báo thiếu đơn giá
+        { serviceId: svcElec._id, buildingId: building5._id, unitPrice: 3700, effectiveFrom: priceDateCurrent, createdBy: adminUser._id },
+        { serviceId: svcWater._id, buildingId: building5._id, unitPrice: 24000, effectiveFrom: priceDateCurrent, createdBy: adminUser._id },
     ]);
-    console.log('✔ [5/16] Đã tạo 7 Dịch vụ & Bảng lịch sử đơn giá (ServicePrice) cho các tòa.');
+    console.log('✔ [5/16] Đã tạo 7 Dịch vụ & Bảng lịch sử đơn giá (ServicePrice) cho 5 tòa.');
 
     // =========================================================================
     // 6. ROOMS (34 phòng trải đều 4 tòa: OCCUPIED, AVAILABLE, MAINTENANCE)
@@ -625,18 +678,18 @@ async function seed() {
     // --- TÒA 1: Hòa Lạc Plaza (15 phòng từ tầng 1 -> 5) ---
     const b1RoomsList = await Room.insertMany([
         createRoomDoc(building1._id, 1, 'P101', rtDuplex._id, 38, 4200000, 4200000, ROOM_STATUS.OCCUPIED, 0), // Customer 1 (annbhe182167)
-        createRoomDoc(building1._id, 1, 'P102', rtTwin._id, 32, 3600000, 3600000, ROOM_STATUS.OCCUPIED, 1),   // Customer 2 (wdp301fall26)
-        createRoomDoc(building1._id, 1, 'P103', rtSingle._id, 24, 3000000, 3000000, ROOM_STATUS.OCCUPIED, 2), // Customer 3 (kenhgametructiep)
-        createRoomDoc(building1._id, 2, 'P201', rtTwin._id, 32, 3700000, 3700000, ROOM_STATUS.OCCUPIED, 3),   // Customer 4 (quanghieuhg1)
-        createRoomDoc(building1._id, 2, 'P202', rtStudio._id, 28, 3400000, 3400000, ROOM_STATUS.OCCUPIED, 0), // Customer 5 (quanghieuhg2005)
-        createRoomDoc(building1._id, 2, 'P203', rtSingle._id, 25, 3100000, 3100000, ROOM_STATUS.OCCUPIED, 1), // Customer 6 (hung091305)
-        createRoomDoc(building1._id, 3, 'P301', rtStudio._id, 28, 3500000, 3500000, ROOM_STATUS.AVAILABLE, 2), // Customer 9 (themanhvxhg123) đang DRAFT nên phòng vẫn AVAILABLE!
+        createRoomDoc(building1._id, 1, 'P102', rtTwin._id, 32, 3600000, 3600000, ROOM_STATUS.OCCUPIED, 1),   // Customer 2 (customer.thieutien)
+        createRoomDoc(building1._id, 1, 'P103', rtSingle._id, 24, 3000000, 3000000, ROOM_STATUS.OCCUPIED, 2), // Customer 3 (customer.thuatien)
+        createRoomDoc(building1._id, 2, 'P201', rtTwin._id, 32, 3700000, 3700000, ROOM_STATUS.OCCUPIED, 3),   // Customer 4 (nguyenan182167)
+        createRoomDoc(building1._id, 2, 'P202', rtStudio._id, 28, 3400000, 3400000, ROOM_STATUS.OCCUPIED, 0), // Customer 5 (cocainit123788)
+        createRoomDoc(building1._id, 2, 'P203', rtSingle._id, 25, 3100000, 3100000, ROOM_STATUS.OCCUPIED, 1), // Customer 6 (customer.donphuong)
+        createRoomDoc(building1._id, 3, 'P301', rtStudio._id, 28, 3500000, 3500000, ROOM_STATUS.AVAILABLE, 2), // Customer 9 (customer.draftmoi) đang DRAFT nên phòng vẫn AVAILABLE!
         createRoomDoc(building1._id, 3, 'P302', rtStudio._id, 28, 3500000, 3500000, ROOM_STATUS.OCCUPIED, 3), // Demo 13 (autoConfirm >= 7 ngày)
         createRoomDoc(building1._id, 3, 'P303', rtSingle._id, 24, 3100000, 3100000, ROOM_STATUS.OCCUPIED, 0), // Demo 14 (effectiveDate <= hôm nay)
-        createRoomDoc(building1._id, 4, 'P401', rtDuplex._id, 40, 4500000, 4500000, ROOM_STATUS.AVAILABLE, 1), // Trống để Manager 1 tạo HĐ mới
+        createRoomDoc(building1._id, 4, 'P401', rtDuplex._id, 40, 4500000, 4500000, ROOM_STATUS.AVAILABLE, 1), // Trống nhưng đã giữ chỗ cho UPCOMING của Customer 4 (chuyển từ P201)
         createRoomDoc(building1._id, 4, 'P402', rtTwin._id, 34, 3800000, 3800000, ROOM_STATUS.AVAILABLE, 2),   // Trống (từng có HĐ ENDED/CANCELLED)
         createRoomDoc(building1._id, 4, 'P403', rtStudio._id, 28, 3400000, 3400000, ROOM_STATUS.MAINTENANCE, 3), // Đang bảo trì
-        createRoomDoc(building1._id, 5, 'P501', rtDuplex._id, 42, 4600000, 4600000, ROOM_STATUS.AVAILABLE, 0), // Trống
+        createRoomDoc(building1._id, 5, 'P501', rtDuplex._id, 42, 4600000, 4600000, ROOM_STATUS.AVAILABLE, 0), // Trống, giữ chỗ cho UPCOMING của Customer 6 (đang có đơn đơn phương)
         createRoomDoc(building1._id, 5, 'P502', rtStudio._id, 28, 3400000, 3400000, ROOM_STATUS.AVAILABLE, 1), // Trống
         createRoomDoc(building1._id, 5, 'P503', rtSingle._id, 22, 2900000, 2900000, ROOM_STATUS.MAINTENANCE, 2), // Đang bảo trì
     ]);
@@ -644,15 +697,15 @@ async function seed() {
 
     // --- TÒA 2: Cầu Giấy Center (10 phòng) ---
     const b2RoomsList = await Room.insertMany([
-        createRoomDoc(building2._id, 1, 'P101', rtTwin._id, 32, 4500000, 4500000, ROOM_STATUS.OCCUPIED, 0),   // Customer 7 (hung123789nk)
-        createRoomDoc(building2._id, 1, 'P102', rtStudio._id, 28, 4000000, 4000000, ROOM_STATUS.AVAILABLE, 1), // Customer 8 (cocainit123788) vừa ENDED < 24h nên phòng đã về AVAILABLE
-        createRoomDoc(building2._id, 2, 'P201', rtStudio._id, 28, 4100000, 4100000, ROOM_STATUS.AVAILABLE, 2), // Customer 10 (nguyenthemanh010124) HĐ cũ đã ENDED
+        createRoomDoc(building2._id, 1, 'P101', rtTwin._id, 32, 4500000, 4500000, ROOM_STATUS.OCCUPIED, 0),   // Customer 7 (customer.dachot)
+        createRoomDoc(building2._id, 1, 'P102', rtStudio._id, 28, 4000000, 4000000, ROOM_STATUS.AVAILABLE, 1), // Customer 8 (customer.vuaketthuc) vừa ENDED < 24h nên phòng đã về AVAILABLE
+        createRoomDoc(building2._id, 2, 'P201', rtStudio._id, 28, 4100000, 4100000, ROOM_STATUS.AVAILABLE, 2), // Customer 10 (customer.thuelai) HĐ cũ đã ENDED
         createRoomDoc(building2._id, 2, 'P202', rtTwin._id, 34, 4600000, 4600000, ROOM_STATUS.AVAILABLE, 3),   // Customer 10 đang có HĐ mới DRAFT (Thuê lại)
         createRoomDoc(building2._id, 2, 'P203', rtSingle._id, 24, 3700000, 3700000, ROOM_STATUS.OCCUPIED, 0), // Demo 15 (endDate = hôm qua, test job contractEnd)
         createRoomDoc(building2._id, 3, 'P301', rtDuplex._id, 42, 5200000, 5200000, ROOM_STATUS.AVAILABLE, 1), // Trống
         createRoomDoc(building2._id, 3, 'P302', rtStudio._id, 28, 4100000, 4100000, ROOM_STATUS.AVAILABLE, 2), // Trống
         createRoomDoc(building2._id, 4, 'P401', rtTwin._id, 35, 4700000, 4700000, ROOM_STATUS.MAINTENANCE, 3), // Đang bảo trì
-        createRoomDoc(building2._id, 4, 'P402', rtSingle._id, 24, 3800000, 3800000, ROOM_STATUS.AVAILABLE, 0), // Trống
+        createRoomDoc(building2._id, 4, 'P402', rtSingle._id, 24, 3800000, 3800000, ROOM_STATUS.OCCUPIED, 0), // ACTIVE còn 20 ngày + UPCOMING đang có đơn hủy chờ xác nhận
         createRoomDoc(building2._id, 5, 'P501', rtDuplex._id, 45, 5500000, 5500000, ROOM_STATUS.AVAILABLE, 1), // Trống
     ]);
     const b2Rooms = Object.fromEntries(b2RoomsList.map((r) => [r.roomNumber, r]));
@@ -668,14 +721,30 @@ async function seed() {
     ]);
     const b3Rooms = Object.fromEntries(b3RoomsList.map((r) => [r.roomNumber, r]));
 
-    // --- TÒA 4: Đống Đa Boutique (3 phòng trống để Admin test tòa nhà) ---
-    await Room.insertMany([
-        createRoomDoc(building4._id, 1, 'P101', rtStudio._id, 26, 3900000, 3900000, ROOM_STATUS.AVAILABLE, 0),
-        createRoomDoc(building4._id, 2, 'P201', rtTwin._id, 32, 4400000, 4400000, ROOM_STATUS.AVAILABLE, 1),
+    // --- TÒA 4: Đống Đa Boutique (10 phòng, đa số đang cho thuê để có dữ liệu báo cáo) ---
+    const b4RoomsList = await Room.insertMany([
+        createRoomDoc(building4._id, 1, 'P101', rtStudio._id, 26, 3900000, 3900000, ROOM_STATUS.OCCUPIED, 0), // ACTIVE còn 10 ngày + UPCOMING chờ 2 HĐ kết thúc
+        createRoomDoc(building4._id, 1, 'P102', rtSingle._id, 22, 3300000, 3300000, ROOM_STATUS.OCCUPIED, 1),
+        createRoomDoc(building4._id, 1, 'P103', rtStudio._id, 27, 3950000, 3950000, ROOM_STATUS.OCCUPIED, 2),
+        createRoomDoc(building4._id, 2, 'P201', rtTwin._id, 32, 4400000, 4400000, ROOM_STATUS.OCCUPIED, 3), // Khách W còn 12 ngày (đã ký UPCOMING P101)
+        createRoomDoc(building4._id, 2, 'P202', rtTwin._id, 33, 4450000, 4450000, ROOM_STATUS.OCCUPIED, 0),
+        createRoomDoc(building4._id, 2, 'P203', rtDuplex._id, 40, 5200000, 5200000, ROOM_STATUS.OCCUPIED, 1),
         createRoomDoc(building4._id, 3, 'P301', rtSingle._id, 22, 3400000, 3400000, ROOM_STATUS.MAINTENANCE, 2),
+        createRoomDoc(building4._id, 3, 'P302', rtStudio._id, 26, 3900000, 3900000, ROOM_STATUS.OCCUPIED, 3),
+        createRoomDoc(building4._id, 4, 'P401', rtDuplex._id, 42, 5400000, 5400000, ROOM_STATUS.OCCUPIED, 0),
+        createRoomDoc(building4._id, 4, 'P402', rtStudio._id, 26, 3900000, 3900000, ROOM_STATUS.AVAILABLE, 1),
+    ]);
+    const b4Rooms = Object.fromEntries(b4RoomsList.map((r) => [r.roomNumber, r]));
+
+    // --- TÒA 5: Hà Đông Garden (4 phòng, chưa có hợp đồng, chưa có Manager) ---
+    await Room.insertMany([
+        createRoomDoc(building5._id, 1, 'P101', rtStudio._id, 26, 3600000, 3600000, ROOM_STATUS.AVAILABLE, 2),
+        createRoomDoc(building5._id, 1, 'P102', rtSingle._id, 20, 2900000, 2900000, ROOM_STATUS.AVAILABLE, 3),
+        createRoomDoc(building5._id, 2, 'P201', rtTwin._id, 31, 4000000, 4000000, ROOM_STATUS.AVAILABLE, 0),
+        createRoomDoc(building5._id, 3, 'P301', rtDuplex._id, 40, 4900000, 4900000, ROOM_STATUS.MAINTENANCE, 1),
     ]);
 
-    console.log('✔ [6/16] Đã tạo 34 Phòng ở 4 tòa nhà (OCCUPIED, AVAILABLE, MAINTENANCE).');
+    console.log('✔ [6/16] Đã tạo 45 Phòng ở 5 tòa nhà (OCCUPIED, AVAILABLE, MAINTENANCE).');
 
     // =========================================================================
     // 7. CUSTOMER ACCOUNTS & CONTRACTS & OCCUPANTS
@@ -684,7 +753,7 @@ async function seed() {
     const customerUsers = {};
     for (let i = 0; i < REAL_CUSTOMERS.length; i++) {
         const c = REAL_CUSTOMERS[i];
-        if (i === 8) continue; // Customer 9 (themanhvxhg123@gmail.com) để dành cho case kích hoạt HĐ DRAFT mới tinh!
+        if (i === 8) continue; // Customer 9 (customer.draftmoi@housify.vn) để dành cho case kích hoạt HĐ DRAFT mới tinh!
         const status = i === 9 ? USER_STATUS.INACTIVE : USER_STATUS.ACTIVE; // Customer 10 đang INACTIVE chờ kích hoạt HĐ thuê lại
         customerUsers[c.cccd] = await User.create({
             email: c.email,
@@ -777,6 +846,68 @@ async function seed() {
             address: 'Sơn Tây, Hà Nội',
             status: USER_STATUS.INACTIVE,
         },
+        // ===== Các case đặt thuê nối tiếp (UPCOMING) =====
+        expirySuccessor: {
+            email: 'customer.cholich@housify.vn',
+            cccd: '031204000022',
+            name: 'Vương Thị Chờ Lịch (UPCOMING sau HĐ hết hạn hôm qua)',
+            phone: '0981000022',
+            dob: '2004-08-08',
+            address: 'Gia Lâm, Hà Nội',
+            status: USER_STATUS.ACTIVE,
+        },
+        cgP402Tenant: {
+            email: 'customer.p402cg@housify.vn',
+            cccd: '031204000023',
+            name: 'Lý Văn Sắp Trả (P402 Tòa 2)',
+            phone: '0981000023',
+            dob: '2003-06-06',
+            address: 'Long Biên, Hà Nội',
+            status: USER_STATUS.ACTIVE,
+        },
+        changeMind: {
+            email: 'customer.doiy@housify.vn',
+            cccd: '031204000024',
+            name: 'Kiều Minh Đổi Ý (UPCOMING có đơn hủy chờ xác nhận)',
+            phone: '0981000024',
+            dob: '2004-02-02',
+            address: 'Mê Linh, Hà Nội',
+            status: USER_STATUS.ACTIVE,
+        },
+        cancelledUpcoming: {
+            email: 'customer.dahuy@housify.vn',
+            cccd: '031204000025',
+            name: 'Tạ Quang Đã Hủy (UPCOMING đã hủy, mất cọc)',
+            phone: '0981000025',
+            dob: '2003-12-12',
+            address: 'Ba Vì, Hà Nội',
+            status: USER_STATUS.INACTIVE,
+        },
+        ddTenantA: {
+            email: 'customer.dongda.a@housify.vn',
+            cccd: '031204000026',
+            name: 'Lâm Thị Sắp Đi (P101 Tòa 4)',
+            phone: '0981000026',
+            dob: '2004-01-26',
+            address: 'Đống Đa, Hà Nội',
+            status: USER_STATUS.ACTIVE,
+        },
+        ddMoverW: {
+            email: 'customer.chuyenphong@housify.vn',
+            cccd: '031204000027',
+            name: 'Mai Văn Chuyển Phòng (P201 -> P101 Tòa 4)',
+            phone: '0981000027',
+            dob: '2003-07-27',
+            address: 'Cầu Giấy, Hà Nội',
+            status: USER_STATUS.ACTIVE,
+        },
+    };
+
+    // Khách đặt thuê nối tiếp bản nháp (chưa có tài khoản): kích hoạt xong sẽ thành UPCOMING
+    const draftSuccessorCustomer = {
+        email: 'customer.noitiep.draft@housify.vn',
+        cccd: '031204000028',
+        name: 'Phùng Thị Nối Tiếp',
     };
 
     for (const key of Object.keys(demoCustomers)) {
@@ -844,6 +975,42 @@ async function seed() {
             joinDate,
             exitDate,
         });
+
+    // Helper tạo hợp đồng Sắp hiệu lực (khách đã kích hoạt, đã cọc, đang chờ hợp đồng trước kết thúc).
+    // Cư dân lưu sẵn mang STAYED nhưng chỉ tính là đang ở khi hợp đồng chuyển ACTIVE
+    const createUpcomingContract = async ({
+        room,
+        customerInfo,
+        startDate,
+        months = 12,
+        manager,
+        notes,
+        contractType = CONTRACT_TYPE.SINGLE,
+        activatedDaysAgo = 2,
+    }) => {
+        const contract = await Contract.create({
+            roomId: room._id,
+            contractType,
+            representativeCccd: customerInfo.cccd,
+            representativeEmail: customerInfo.email,
+            startDate,
+            endDate: endAfterMonths(startDate, months),
+            rentPrice: room.rentPrice,
+            deposit: room.deposit,
+            status: CONTRACT_STATUS.UPCOMING,
+            activatedAt: daysFromNow(-activatedDaysAgo, 20, 15),
+            notes,
+            createdBy: manager.user._id,
+            depositReceiverId: manager.user._id,
+        });
+        await createRepOccupant({
+            contractId: contract._id,
+            customerInfo,
+            status: OCCUPANT_STATUS.STAYED,
+            joinDate: startDate,
+        });
+        return contract;
+    };
 
     // -------------------------------------------------------------------------
     // CASE KHÁCH 1: annbhe182167@fpt.edu.vn (CCCD: 031204005476)
@@ -964,7 +1131,7 @@ async function seed() {
     });
 
     // -------------------------------------------------------------------------
-    // CASE KHÁCH 2: wdp301fall26@gmail.com (CCCD: 031204000002)
+    // CASE KHÁCH 2: customer.thieutien@housify.vn (CCCD: 031204000002)
     // - 1 HĐ cũ ENDED (đã hoàn cọc)
     // - 1 HĐ hiện tại ACTIVE tại P102 – Tòa 1 (Case hóa đơn chuyển thiếu PAYMENT_UNDERPAID)
     // -------------------------------------------------------------------------
@@ -1026,7 +1193,7 @@ async function seed() {
     });
 
     // -------------------------------------------------------------------------
-    // CASE KHÁCH 3: kenhgametructiep@gmail.com (CCCD: 031204000003)
+    // CASE KHÁCH 3: customer.thuatien@housify.vn (CCCD: 031204000003)
     // - HĐ ACTIVE (SINGLE) tại P103 – Tòa 1 (Case hóa đơn chuyển thừa PAYMENT_OVERPAID)
     // -------------------------------------------------------------------------
     const c3 = REAL_CUSTOMERS[2];
@@ -1053,7 +1220,7 @@ async function seed() {
     });
 
     // -------------------------------------------------------------------------
-    // CASE KHÁCH 4: quanghieuhg1@gmail.com (CCCD: 031204000004)
+    // CASE KHÁCH 4: nguyenan182167@gmail.com (CCCD: 031204000004)
     // - HĐ ACTIVE (GROUP) tại P201 – Tòa 1: Sắp hết hạn trong 15 ngày (test Gia hạn UC-27) + Hóa đơn QUÁ HẠN & Đến hạn hôm nay
     // -------------------------------------------------------------------------
     const c4 = REAL_CUSTOMERS[3];
@@ -1068,7 +1235,7 @@ async function seed() {
         deposit: 3700000,
         status: CONTRACT_STATUS.ACTIVE,
         activatedAt: daysFromNow(-165),
-        notes: 'Hợp đồng sắp đến kỳ gia hạn (còn 15 ngày).',
+        notes: 'Hợp đồng còn 15 ngày. Khách đã ký trước P401 (UPCOMING) nên Gia hạn P201 bị chặn; phòng P201 nhận đặt thuê nối tiếp cho khách mới.',
         createdBy: manager1.user._id,
         depositReceiverId: manager1.user._id,
     });
@@ -1088,8 +1255,17 @@ async function seed() {
         joinDate: daysFromNow(-165),
     });
 
+    // Khách đang chuyển phòng: đã ký P401 (đang trống, được giữ chỗ) bắt đầu ngay sau ngày trả P201
+    const c4UpcomingContract = await createUpcomingContract({
+        room: b1Rooms.P401,
+        customerInfo: c4,
+        startDate: daysFromNow(16),
+        manager: manager1,
+        notes: 'Khách chuyển từ P201 sang P401 – tự chuyển Đang hiệu lực khi HĐ P201 kết thúc. P401 đang Trống nhưng đã giữ chỗ (không tạo HĐ khác, không chuyển Bảo trì).',
+    });
+
     // -------------------------------------------------------------------------
-    // CASE KHÁCH 5: quanghieuhg2005@gmail.com (CCCD: 031204000005)
+    // CASE KHÁCH 5: cocainit123788@gmail.com (CCCD: 031204000005)
     // - HĐ ACTIVE (GROUP) tại P202 – Tòa 1: Đang có Đơn chấm dứt 2 bên (MUTUAL - PENDING) chờ khách bấm "Xác nhận điện tử"
     // -------------------------------------------------------------------------
     const c5 = REAL_CUSTOMERS[4];
@@ -1125,7 +1301,7 @@ async function seed() {
     });
 
     // -------------------------------------------------------------------------
-    // CASE KHÁCH 6: hung091305@gmail.com (CCCD: 031204000006)
+    // CASE KHÁCH 6: customer.donphuong@housify.vn (CCCD: 031204000006)
     // - HĐ ACTIVE (SINGLE) tại P203 – Tòa 1: Đang có Đơn chấm dứt đơn phương (UNILATERAL - PENDING) chờ Admin duyệt
     // -------------------------------------------------------------------------
     const c6 = REAL_CUSTOMERS[5];
@@ -1134,13 +1310,13 @@ async function seed() {
         contractType: CONTRACT_TYPE.SINGLE,
         representativeCccd: c6.cccd,
         representativeEmail: c6.email,
-        startDate: daysFromNow(-100),
-        endDate: daysFromNow(170),
+        startDate: daysFromNow(-340),
+        endDate: daysFromNow(25),
         rentPrice: 3100000,
         deposit: 3100000,
         status: CONTRACT_STATUS.ACTIVE,
-        activatedAt: daysFromNow(-100),
-        notes: 'Phòng có biên bản nhắc nhở vi phạm nội quy & đang chờ Admin duyệt đơn chấm dứt đơn phương.',
+        activatedAt: daysFromNow(-340),
+        notes: 'Phòng có biên bản nhắc nhở vi phạm nội quy & đang chờ Admin duyệt đơn chấm dứt đơn phương. Khách đã ký trước P501 (UPCOMING).',
         createdBy: manager1.user._id,
         depositReceiverId: manager1.user._id,
     });
@@ -1148,11 +1324,21 @@ async function seed() {
         contractId: c6ActiveContract._id,
         customerInfo: c6,
         status: OCCUPANT_STATUS.STAYED,
-        joinDate: daysFromNow(-100),
+        joinDate: daysFromNow(-340),
+    });
+
+    // Admin duyệt đơn đơn phương ở P203 -> hợp đồng P501 này tự hủy, khách được hoàn cọc tiền mặt
+    const c6UpcomingContract = await createUpcomingContract({
+        room: b1Rooms.P501,
+        customerInfo: c6,
+        startDate: daysFromNow(26),
+        manager: manager1,
+        notes: 'Khách đang có đơn chấm dứt đơn phương PENDING ở P203. Admin duyệt đơn đó thì hợp đồng này tự hủy và được hoàn cọc.',
+        activatedDaysAgo: 3,
     });
 
     // -------------------------------------------------------------------------
-    // CASE KHÁCH 7: hung123789nk@gmail.com (CCCD: 031204000007)
+    // CASE KHÁCH 7: customer.dachot@housify.vn (CCCD: 031204000007)
     // - 1 HĐ cũ ENDED ở Tòa 1
     // - 1 HĐ ACTIVE tại P101 – Tòa 2 (đã có đơn MUTUAL CONFIRMED kèm signatureHash, chờ 3 ngày nữa tới ngày hiệu lực)
     // -------------------------------------------------------------------------
@@ -1214,7 +1400,7 @@ async function seed() {
     });
 
     // -------------------------------------------------------------------------
-    // CASE KHÁCH 8: cocainit123788@gmail.com (CCCD: 031204000008)
+    // CASE KHÁCH 8: customer.vuaketthuc@housify.vn (CCCD: 031204000008)
     // - Case ngoại lệ 0h–23h59: Hợp đồng vừa ENDED < 24h (hết hạn tự nhiên hôm qua), User.status vẫn ACTIVE!
     //   + Đăng nhập vào xem được hợp đồng cũ, nhưng Hồ sơ cá nhân ở chế độ Read-only (canEdit = false)
     //   + Đồng thời hợp đồng ENDED này CHƯA HOÀN CỌC (canRefund = true, không nợ hóa đơn) để Manager 2 bấm Hoàn cọc sạch!
@@ -1250,7 +1436,7 @@ async function seed() {
     });
 
     // -------------------------------------------------------------------------
-    // CASE KHÁCH 9: themanhvxhg123@gmail.com (CCCD: 031204000009)
+    // CASE KHÁCH 9: customer.draftmoi@housify.vn (CCCD: 031204000009)
     // - Hợp đồng DRAFT tại P301 – Tòa 1 (chờ khách mở link kích hoạt để tự đặt mật khẩu & điền hồ sơ UC-06)
     // -------------------------------------------------------------------------
     const c9 = REAL_CUSTOMERS[8];
@@ -1287,7 +1473,7 @@ async function seed() {
     });
 
     // -------------------------------------------------------------------------
-    // CASE KHÁCH 10: nguyenthemanh010124@gmail.com (CCCD: 031204000010)
+    // CASE KHÁCH 10: customer.thuelai@housify.vn (CCCD: 031204000010)
     // - 1 HĐ cũ ENDED tại P201 – Tòa 2 (đã kết thúc > 24h nên User.status = INACTIVE, chưa hoàn cọc VÀ CÒN NỢ 1 HÓA ĐƠN PENDING để test cảnh báo cấn trừ nợ khi hoàn cọc!)
     // - 1 HĐ mới DRAFT tại P202 – Tòa 2 (đang chờ khách kích hoạt Thuê lại -> tự động mở lại User INACTIVE -> ACTIVE!)
     // -------------------------------------------------------------------------
@@ -1498,13 +1684,13 @@ async function seed() {
         contractType: CONTRACT_TYPE.SINGLE,
         representativeCccd: demoCustomers.tx1.cccd,
         representativeEmail: demoCustomers.tx1.email,
-        startDate: daysFromNow(-75),
-        endDate: daysFromNow(195),
+        startDate: daysFromNow(-345),
+        endDate: daysFromNow(18),
         rentPrice: 3800000,
         deposit: 3800000,
         status: CONTRACT_STATUS.ACTIVE,
-        activatedAt: daysFromNow(-75),
-        notes: 'Hợp đồng mẫu tại Tòa 3 Thanh Xuân Residence.',
+        activatedAt: daysFromNow(-345),
+        notes: 'Hợp đồng còn 18 ngày – phòng đã có hợp đồng nối tiếp dạng Nháp chờ khách mới kích hoạt.',
         createdBy: manager3.user._id,
         depositReceiverId: manager3.user._id,
     });
@@ -1512,7 +1698,7 @@ async function seed() {
         contractId: tx1Contract._id,
         customerInfo: demoCustomers.tx1,
         status: OCCUPANT_STATUS.STAYED,
-        joinDate: daysFromNow(-75),
+        joinDate: daysFromNow(-345),
     });
 
     const tx2Contract = await Contract.create({
@@ -1585,12 +1771,181 @@ async function seed() {
         exitDate: daysFromNow(-4),
     });
 
-    console.log('✔ [7/16] Đã tạo toàn bộ Tài khoản Customer, Hợp đồng (ACTIVE, DRAFT, ENDED, CANCELLED) và Cư dân (Occupant).');
+    // -------------------------------------------------------------------------
+    // CÁC CASE ĐẶT THUÊ NỐI TIẾP (UPCOMING)
+    // -------------------------------------------------------------------------
+    // U1 (email thật 3): khách mới chỉ có UPCOMING P303 Tòa 1, chờ HĐ effectiveToday (đơn chấm dứt hiệu lực hôm nay)
+    //     -> chạy job terminationEffective: HĐ cũ ENDED, HĐ này tự ACTIVE, phòng vẫn OCCUPIED
+    const r3 = REAL_CUSTOMERS[10];
+    const r3UpcomingContract = await createUpcomingContract({
+        room: b1Rooms.P303,
+        customerInfo: r3,
+        startDate: daysFromNow(1),
+        manager: manager1,
+        notes: 'Khách mới đặt thuê nối tiếp P303 – hồ sơ chỉ xem, cư dân hiện "Chờ vào ở". Chạy job terminationEffective để thấy tự chuyển Đang hiệu lực.',
+    });
+
+    // U2: UPCOMING P203 Tòa 2 sau HĐ endToday (hết hạn hôm qua) -> chạy job contractExpiry để thấy tự chuyển ACTIVE
+    const expirySuccessorContract = await createUpcomingContract({
+        room: b2Rooms.P203,
+        customerInfo: demoCustomers.expirySuccessor,
+        startDate: daysFromNow(0),
+        manager: manager2,
+        notes: 'Đặt nối tiếp ngay sau HĐ hết hạn hôm qua – chạy job contractExpiry để HĐ cũ ENDED và HĐ này ACTIVE trong cùng giao dịch.',
+    });
+
+    // U3: P402 Tòa 2 – người đang ở còn 20 ngày + khách UPCOMING đổi ý (có đơn hủy MUTUAL PENDING chờ khách xác nhận)
+    const cgP402TenantContract = await Contract.create({
+        roomId: b2Rooms.P402._id,
+        contractType: CONTRACT_TYPE.SINGLE,
+        representativeCccd: demoCustomers.cgP402Tenant.cccd,
+        representativeEmail: demoCustomers.cgP402Tenant.email,
+        startDate: daysFromNow(-345),
+        endDate: daysFromNow(20),
+        rentPrice: 3800000,
+        deposit: 3800000,
+        status: CONTRACT_STATUS.ACTIVE,
+        activatedAt: daysFromNow(-345),
+        notes: 'Hợp đồng còn 20 ngày, phòng đã có khách đặt thuê nối tiếp. Gia hạn sẽ bị chặn.',
+        createdBy: manager2.user._id,
+        depositReceiverId: manager2.user._id,
+    });
+    await createRepOccupant({
+        contractId: cgP402TenantContract._id,
+        customerInfo: demoCustomers.cgP402Tenant,
+        status: OCCUPANT_STATUS.STAYED,
+        joinDate: daysFromNow(-345),
+    });
+    const changeMindUpcomingContract = await createUpcomingContract({
+        room: b2Rooms.P402,
+        customerInfo: demoCustomers.changeMind,
+        startDate: daysFromNow(21),
+        manager: manager2,
+        notes: 'Khách đã ký nối tiếp nhưng đổi ý – Manager đã lập đơn hủy theo thỏa thuận, khách xác nhận thì hợp đồng Đã hủy và mất cọc.',
+        activatedDaysAgo: 5,
+    });
+
+    // U4: UPCOMING đã bị hủy theo thỏa thuận (CANCELLED, mất cọc) – khách không còn hợp đồng nào nên tài khoản đã INACTIVE
+    const cancelledUpcomingContract = await Contract.create({
+        roomId: b2Rooms.P301._id,
+        contractType: CONTRACT_TYPE.SINGLE,
+        representativeCccd: demoCustomers.cancelledUpcoming.cccd,
+        representativeEmail: demoCustomers.cancelledUpcoming.email,
+        startDate: daysFromNow(10),
+        endDate: endAfterMonths(daysFromNow(10), 12),
+        rentPrice: 5200000,
+        deposit: 5200000,
+        status: CONTRACT_STATUS.CANCELLED,
+        activatedAt: daysFromNow(-12, 19, 40),
+        notes: 'Khách đã ký nối tiếp rồi hủy theo thỏa thuận (mất cọc). Tài khoản ngưng hoạt động sau 24 giờ.',
+        createdBy: manager2.user._id,
+        depositReceiverId: manager2.user._id,
+    });
+    await Contract.updateOne(
+        { _id: cancelledUpcomingContract._id },
+        { $set: { updatedAt: daysFromNow(-4, 10, 0) } },
+        { timestamps: false },
+    );
+    await createRepOccupant({
+        contractId: cancelledUpcomingContract._id,
+        customerInfo: demoCustomers.cancelledUpcoming,
+        status: OCCUPANT_STATUS.LEFT,
+        joinDate: daysFromNow(10),
+        exitDate: daysFromNow(-4, 10, 0),
+    });
+
+    // U5: P101 Tòa 3 còn 18 ngày + hợp đồng nối tiếp dạng NHÁP chờ khách mới kích hoạt (kích hoạt xong -> UPCOMING)
+    const draftSuccessorContract = await Contract.create({
+        roomId: b3Rooms.P101._id,
+        contractType: CONTRACT_TYPE.SINGLE,
+        representativeCccd: draftSuccessorCustomer.cccd,
+        representativeEmail: draftSuccessorCustomer.email,
+        startDate: daysFromNow(19),
+        endDate: endAfterMonths(daysFromNow(19), 12),
+        rentPrice: 3800000,
+        deposit: 3800000,
+        status: CONTRACT_STATUS.DRAFT,
+        notes: 'Hợp đồng nối tiếp dạng nháp – khách kích hoạt link sẽ thành Sắp hiệu lực (phòng còn người ở đến hết 18 ngày nữa).',
+        createdBy: manager3.user._id,
+    });
+    const draftSuccessorToken = generateActivationToken();
+    await ActivationToken.create({
+        type: ACTIVATION_TYPE.CUSTOMER_INVITE,
+        contractId: draftSuccessorContract._id,
+        token: draftSuccessorToken.tokenHash,
+        sentTo: draftSuccessorCustomer.email,
+        expiresAt: new Date(Date.now() + ACTIVATION_TOKEN_TTL_MS),
+        createdBy: manager3.user._id,
+    });
+
+    // U6: Tòa 4 – khách W đang ở P201 (còn 12 ngày) đã ký P101 (người đang ở còn 10 ngày).
+    //     P101 kết thúc trước thì W vẫn UPCOMING; W trả P201 xong mới ACTIVE (không bao giờ 2 HĐ ACTIVE cùng lúc)
+    const ddTenantAContract = await Contract.create({
+        roomId: b4Rooms.P101._id,
+        contractType: CONTRACT_TYPE.SINGLE,
+        representativeCccd: demoCustomers.ddTenantA.cccd,
+        representativeEmail: demoCustomers.ddTenantA.email,
+        startDate: daysFromNow(-355),
+        endDate: daysFromNow(10),
+        rentPrice: 3900000,
+        deposit: 3900000,
+        status: CONTRACT_STATUS.ACTIVE,
+        activatedAt: daysFromNow(-355),
+        notes: 'Hợp đồng còn 10 ngày, phòng đã có khách đặt nối tiếp (khách đó còn đang ở P201).',
+        createdBy: manager4.user._id,
+        depositReceiverId: manager4.user._id,
+    });
+    await createRepOccupant({
+        contractId: ddTenantAContract._id,
+        customerInfo: demoCustomers.ddTenantA,
+        status: OCCUPANT_STATUS.STAYED,
+        joinDate: daysFromNow(-355),
+    });
+    const ddMoverOldContract = await Contract.create({
+        roomId: b4Rooms.P201._id,
+        contractType: CONTRACT_TYPE.GROUP,
+        representativeCccd: demoCustomers.ddMoverW.cccd,
+        representativeEmail: demoCustomers.ddMoverW.email,
+        startDate: daysFromNow(-353),
+        endDate: daysFromNow(12),
+        rentPrice: 4400000,
+        deposit: 4400000,
+        status: CONTRACT_STATUS.ACTIVE,
+        activatedAt: daysFromNow(-353),
+        notes: 'Khách sắp chuyển sang P101 cùng tòa (đã ký Sắp hiệu lực).',
+        createdBy: manager4.user._id,
+        depositReceiverId: manager4.user._id,
+    });
+    await createRepOccupant({
+        contractId: ddMoverOldContract._id,
+        customerInfo: demoCustomers.ddMoverW,
+        status: OCCUPANT_STATUS.STAYED,
+        joinDate: daysFromNow(-353),
+    });
+    await createRoommate({
+        contractId: ddMoverOldContract._id,
+        name: 'Mai Thị Em Gái',
+        phone: '0982100027',
+        cccd: '031204900027',
+        relationship: 'Em gái',
+        status: OCCUPANT_STATUS.STAYED,
+        joinDate: daysFromNow(-353),
+    });
+    const ddMoverUpcomingContract = await createUpcomingContract({
+        room: b4Rooms.P101,
+        customerInfo: demoCustomers.ddMoverW,
+        startDate: daysFromNow(13),
+        manager: manager4,
+        notes: 'Chờ 2 điều kiện: người đang ở P101 trả phòng (10 ngày) VÀ chính khách trả P201 (12 ngày).',
+        activatedDaysAgo: 4,
+    });
+
+    console.log('✔ [7/16] Đã tạo toàn bộ Tài khoản Customer, Hợp đồng (DRAFT, UPCOMING, ACTIVE, ENDED, CANCELLED) và Cư dân (Occupant).');
 
     // =========================================================================
     // 8. TERMINATION REQUESTS (Đủ mọi loại MUTUAL & UNILATERAL, đủ trạng thái)
     // =========================================================================
-    // 8.1. Đơn MUTUAL PENDING trên HĐ của Customer 5 (quanghieuhg2005@gmail.com - P202 Tòa 1) -> chờ khách bấm Xác nhận điện tử
+    // 8.1. Đơn MUTUAL PENDING trên HĐ của Customer 5 (cocainit123788@gmail.com - P202 Tòa 1) -> chờ khách bấm Xác nhận điện tử
     const termMutualPendingC5 = await TerminationRequest.create({
         contractId: c5ActiveContract._id,
         type: TERMINATION_TYPE.MUTUAL,
@@ -1614,7 +1969,7 @@ async function seed() {
         cancelReason: 'Khách xin lùi ngày bàn giao phòng thêm 5 ngày để kịp thi xong môn cuối kỳ.',
     });
 
-    // 8.3. Đơn UNILATERAL PENDING trên HĐ của Customer 6 (hung091305@gmail.com - P203 Tòa 1) -> chờ Admin duyệt (UC-29)
+    // 8.3. Đơn UNILATERAL PENDING trên HĐ của Customer 6 (customer.donphuong@housify.vn - P203 Tòa 1) -> chờ Admin duyệt (UC-29)
     const termUnilateralPendingC6 = await TerminationRequest.create({
         contractId: c6ActiveContract._id,
         type: TERMINATION_TYPE.UNILATERAL,
@@ -1639,7 +1994,7 @@ async function seed() {
         rejectReason: 'Vi phạm lần đầu mức độ nhẹ, yêu cầu Quản lý lập biên bản nhắc nhở trước khi đề xuất chấm dứt đơn phương.',
     });
 
-    // 8.5. Đơn MUTUAL CONFIRMED (đã Xác nhận điện tử có signatureHash chuẩn) trên HĐ của Customer 7 (hung123789nk@gmail.com - P101 Tòa 2), chờ 3 ngày nữa tới ngày hiệu lực
+    // 8.5. Đơn MUTUAL CONFIRMED (đã Xác nhận điện tử có signatureHash chuẩn) trên HĐ của Customer 7 (customer.dachot@housify.vn - P101 Tòa 2), chờ 3 ngày nữa tới ngày hiệu lực
     const c7ConfirmDate = daysFromNow(-2, 14, 20);
     const c7EffDate = daysFromNow(3);
     const c7Reason = 'Hoàn thành khóa học và chuyển công tác, hai bên thỏa thuận thanh lý hợp đồng.';
@@ -1730,10 +2085,10 @@ async function seed() {
         status: TERMINATION_STATUS.PENDING,
         requestedBy: manager1.user._id,
     });
-    await TerminationRequest.updateOne(
+    // Ghi thẳng qua driver: Mongoose 9 coi createdAt là bất biến nên tự bỏ $set createdAt
+    await TerminationRequest.collection.updateOne(
         { _id: termAutoConfirm._id },
         { $set: { createdAt: daysFromNow(-8), updatedAt: daysFromNow(-8) } },
-        { timestamps: false },
     );
 
     // 8.9. Đơn MUTUAL CONFIRMED có effectiveDate = hôm nay trên effectiveTodayContract (để test job terminationEffective)
@@ -1759,13 +2114,55 @@ async function seed() {
         status: TERMINATION_STATUS.PENDING,
         requestedBy: manager3.user._id,
     });
-    await TerminationRequest.updateOne(
+    // Ghi thẳng qua driver: Mongoose 9 coi createdAt là bất biến nên tự bỏ $set createdAt
+    await TerminationRequest.collection.updateOne(
         { _id: termDay3._id },
         { $set: { createdAt: daysFromNow(-3, 8, 0) } },
-        { timestamps: false },
     );
 
-    console.log('✔ [8/16] Đã tạo 10 Đơn chấm dứt hợp đồng (MUTUAL & UNILATERAL: PENDING, CONFIRMED, REJECTED, CANCELLED).');
+    // 8.11. Đơn hủy hợp đồng UPCOMING theo thỏa thuận đang chờ khách xác nhận (không có ngày hiệu lực thật: = ngày tạo đơn)
+    const termChangeMind = await TerminationRequest.create({
+        contractId: changeMindUpcomingContract._id,
+        type: TERMINATION_TYPE.MUTUAL,
+        reason: 'Khách được nhận học bổng ký túc xá nên xin hủy hợp đồng đã ký trước, chấp nhận mất tiền cọc.',
+        effectiveDate: daysFromNow(-1, 0, 0),
+        note: 'Hợp đồng chưa bắt đầu – không cần bàn giao phòng.',
+        status: TERMINATION_STATUS.PENDING,
+        requestedBy: manager2.user._id,
+    });
+    // Ghi thẳng qua driver: Mongoose 9 coi createdAt là bất biến nên tự bỏ $set createdAt
+    await TerminationRequest.collection.updateOne(
+        { _id: termChangeMind._id },
+        { $set: { createdAt: daysFromNow(-1, 15, 0) } },
+    );
+
+    // 8.12. Đơn hủy UPCOMING đã được khách xác nhận điện tử (hợp đồng đã CANCELLED, mất cọc)
+    const cancelUpcomingConfirmAt = daysFromNow(-4, 9, 30);
+    const cancelUpcomingEffDate = daysFromNow(-5, 0, 0);
+    const cancelUpcomingReason = 'Khách đổi kế hoạch học tập, hai bên thống nhất hủy hợp đồng đã ký trước (không hoàn cọc).';
+    await TerminationRequest.create({
+        contractId: cancelledUpcomingContract._id,
+        type: TERMINATION_TYPE.MUTUAL,
+        reason: cancelUpcomingReason,
+        effectiveDate: cancelUpcomingEffDate,
+        status: TERMINATION_STATUS.CONFIRMED,
+        autoConfirmed: false,
+        requestedBy: manager2.user._id,
+        handledBy: customerUsers[demoCustomers.cancelledUpcoming.cccd]._id,
+        handledAt: cancelUpcomingConfirmAt,
+        handledIp: '27.72.98.110',
+        signatureHash: computeTerminationHash({
+            contractId: cancelledUpcomingContract._id,
+            type: TERMINATION_TYPE.MUTUAL,
+            reason: cancelUpcomingReason,
+            effectiveDate: cancelUpcomingEffDate,
+            note: undefined,
+            handledBy: customerUsers[demoCustomers.cancelledUpcoming.cccd]._id,
+            handledAt: cancelUpcomingConfirmAt,
+        }),
+    });
+
+    console.log('✔ [8/16] Đã tạo 12 Đơn chấm dứt hợp đồng (MUTUAL & UNILATERAL: PENDING, CONFIRMED, REJECTED, CANCELLED, kể cả đơn hủy hợp đồng Sắp hiệu lực).');
 
     // =========================================================================
     // 9. INVOICES & PAYMENTS (Đủ mọi kịch bản thanh toán SePay & nhắc hạn)
@@ -1950,7 +2347,7 @@ async function seed() {
         createdBy: manager1.user._id,
     });
 
-    // --- 9.2. Bộ hóa đơn của Customer 2 (wdp301fall26@gmail.com - P102 Tòa 1): CASE CHUYỂN THIẾU (PAYMENT_UNDERPAID) ---
+    // --- 9.2. Bộ hóa đơn của Customer 2 (customer.thieutien@housify.vn - P102 Tòa 1): CASE CHUYỂN THIẾU (PAYMENT_UNDERPAID) ---
     const invC2UnderpaidData = makeStandardItems({
         rentPrice: 3600000,
         elecOld: 50,
@@ -1982,7 +2379,7 @@ async function seed() {
         paidAt: daysFromNow(-2),
     });
 
-    // --- 9.3. Bộ hóa đơn của Customer 3 (kenhgametructiep@gmail.com - P103 Tòa 1): CASE CHUYỂN THỪA (PAYMENT_OVERPAID) + HÓA ĐƠN ĐÃ HỦY ---
+    // --- 9.3. Bộ hóa đơn của Customer 3 (customer.thuatien@housify.vn - P103 Tòa 1): CASE CHUYỂN THỪA (PAYMENT_OVERPAID) + HÓA ĐƠN ĐÃ HỦY ---
     // (a) Hóa đơn đã hủy do ghi nhầm chỉ số điện (CANCELLED)
     const invC3CancelledData = makeStandardItems({ rentPrice: 3000000, elecOld: 40, elecNew: 400, waterOld: 5, waterNew: 8, parkingQty: 1 });
     await Invoice.create({
@@ -2024,7 +2421,7 @@ async function seed() {
         paidAt: daysFromNow(-1),
     });
 
-    // --- 9.4. Bộ hóa đơn của Customer 4 (quanghieuhg1@gmail.com - P201 Tòa 1): CASE QUÁ HẠN (isOverdue) & ĐẾN HẠN HÔM NAY ---
+    // --- 9.4. Bộ hóa đơn của Customer 4 (nguyenan182167@gmail.com - P201 Tòa 1): CASE QUÁ HẠN (isOverdue) & ĐẾN HẠN HÔM NAY ---
     // (a) Hóa đơn tháng trước QUÁ HẠN 5 ngày chưa đóng (isOverdue = true)
     const invC4OverdueData = makeStandardItems({ rentPrice: 3700000, elecOld: 210, elecNew: 310, waterOld: 18, waterNew: 25, parkingQty: 2 });
     const invC4Overdue = await Invoice.create({
@@ -2055,7 +2452,7 @@ async function seed() {
         createdBy: manager1.user._id,
     });
 
-    // --- 9.5. Hóa đơn của Customer 5 (quanghieuhg2005@gmail.com - P202 Tòa 1): SẮP ĐẾN HẠN CÒN 1 NGÀY ---
+    // --- 9.5. Hóa đơn của Customer 5 (cocainit123788@gmail.com - P202 Tòa 1): SẮP ĐẾN HẠN CÒN 1 NGÀY ---
     const invC5Due1DayData = makeStandardItems({ rentPrice: 3400000, elecOld: 90, elecNew: 165, waterOld: 12, waterNew: 17, parkingQty: 2 });
     const invC5Due1Day = await Invoice.create({
         invoiceCode: 'HD2611DUE1',
@@ -2070,7 +2467,7 @@ async function seed() {
         createdBy: manager1.user._id,
     });
 
-    // --- 9.6. Hóa đơn NHÁP (DRAFT) của Customer 6 (hung091305@gmail.com - P203 Tòa 1) để Manager 1 vào sửa chỉ số & bấm Gửi ---
+    // --- 9.6. Hóa đơn NHÁP (DRAFT) của Customer 6 (customer.donphuong@housify.vn - P203 Tòa 1) để Manager 1 vào sửa chỉ số & bấm Gửi ---
     const invC6DraftData = makeStandardItems({ rentPrice: 3100000, elecOld: 140, elecNew: 205, waterOld: 10, waterNew: 14, parkingQty: 1 });
     await Invoice.create({
         invoiceCode: 'HD2611DRFT',
@@ -2082,7 +2479,7 @@ async function seed() {
         createdBy: manager1.user._id,
     });
 
-    // --- 9.7. Hóa đơn của Customer 7 (hung123789nk@gmail.com - P101 Tòa 2): PAID ---
+    // --- 9.7. Hóa đơn của Customer 7 (customer.dachot@housify.vn - P101 Tòa 2): PAID ---
     const invC7PaidData = makeStandardItems({
         rentPrice: 4500000,
         elecOld: 80,
@@ -2117,7 +2514,7 @@ async function seed() {
         paidAt: daysFromNow(-4),
     });
 
-    // --- 9.8. Hóa đơn chưa thanh toán trên HĐ ENDED của Customer 10 (nguyenthemanh010124@gmail.com) để test Cảnh báo cấn trừ nợ khi Hoàn cọc ---
+    // --- 9.8. Hóa đơn chưa thanh toán trên HĐ ENDED của Customer 10 (customer.thuelai@housify.vn) để test Cảnh báo cấn trừ nợ khi Hoàn cọc ---
     const invC10UnpaidEndedData = makeStandardItems({
         rentPrice: 4100000,
         elecOld: 310,
@@ -2342,6 +2739,197 @@ async function seed() {
     console.log('✔ [10/16] Đã tạo 6 Báo cáo sự cố (PENDING, IN_PROGRESS, RESOLVED, REJECTED).');
 
     // =========================================================================
+    // 10b. DỮ LIỆU HÀNG LOẠT TÒA 4 (nhiều hợp đồng + 4 kỳ hóa đơn mỗi hợp đồng cho báo cáo, dashboard)
+    // =========================================================================
+    const B4_PRICES = { elecPrice: 4200, waterPrice: 30000, wifiPrice: 120000, trashPrice: 50000, parkingPrice: 150000 };
+    const toYymm = (month) => `${month.slice(2, 4)}${month.slice(5, 7)}`;
+    const historyMonths = [prevMonth3, prevMonth2, prevMonth1];
+    const bulkBanks = ['MBBank', 'Vietcombank', 'Techcombank', 'TPBank', 'ACB', 'VPBank'];
+
+    // 3 kỳ trước đã thanh toán (có kỳ trả trễ) + kỳ hiện tại theo kiểu: DRAFT | PENDING | QUÁ HẠN | PAID
+    const addInvoiceHistory = async ({ contract, room, manager, seq, currentKind, repName }) => {
+        let elecReading = 300 + seq * 40;
+        let waterReading = 20 + seq * 3;
+        const invoices = [];
+        const months = [...historyMonths, currentMonth];
+        for (let k = 0; k < months.length; k++) {
+            const month = months[k];
+            const elecOld = elecReading;
+            const waterOld = waterReading;
+            elecReading += 70 + ((seq + k) % 4) * 15;
+            waterReading += 4 + ((seq + k) % 3);
+            const data = makeStandardItems({
+                rentPrice: contract.rentPrice,
+                elecOld,
+                elecNew: elecReading,
+                waterOld,
+                waterNew: waterReading,
+                parkingQty: 1 + (seq % 2),
+                ...B4_PRICES,
+            });
+            const invoiceCode = `${room.roomNumber}HD${toYymm(month)}D4${seq}${k}`;
+            const isCurrent = k === months.length - 1;
+            const kind = isCurrent ? currentKind : 'PAID';
+            const monthsAgo = months.length - 1 - k;
+            const sentAt = daysFromNow(-monthsAgo * 30 - 6, 9, 0);
+            const dueDate = kind === 'OVERDUE' ? daysFromNow(-3, 23, 0) : new Date(sentAt.getTime() + 7 * 24 * 60 * 60 * 1000);
+            const paidLate = !isCurrent && k === 2 && seq % 3 === 0;
+            const paidAt = new Date(sentAt.getTime() + (paidLate ? 9 : 2 + (seq % 3)) * 24 * 60 * 60 * 1000);
+
+            const invoice = await Invoice.create({
+                invoiceCode,
+                contractId: contract._id,
+                month,
+                items: data.items,
+                totalAmount: data.totalAmount,
+                status:
+                    kind === 'DRAFT'
+                        ? INVOICE_STATUS.DRAFT
+                        : kind === 'PAID'
+                          ? INVOICE_STATUS.PAID
+                          : INVOICE_STATUS.PENDING,
+                sentAt: kind === 'DRAFT' ? undefined : sentAt,
+                dueDate: kind === 'DRAFT' ? undefined : dueDate,
+                paidAt: kind === 'PAID' ? paidAt : undefined,
+                qrContent: kind === 'DRAFT' ? undefined : buildVietQrUrl(data.totalAmount, invoiceCode),
+                createdBy: manager.user._id,
+            });
+            if (kind === 'PAID') {
+                await Payment.create({
+                    sepayTxnId: `SEPAY_TXN_${invoiceCode}`,
+                    invoiceId: invoice._id,
+                    amount: data.totalAmount,
+                    transferContent: `${repName} thanh toan ${invoiceCode}`,
+                    bankName: bulkBanks[(seq + k) % bulkBanks.length],
+                    paidAt,
+                });
+            }
+            invoices.push(invoice);
+        }
+        return invoices;
+    };
+
+    const BULK_TENANTS = [
+        { room: 'P102', name: 'Hà Thị Thu Trang', current: 'PENDING' },
+        { room: 'P103', name: 'Cao Văn Đức Anh', current: 'OVERDUE' },
+        { room: 'P202', name: 'Lục Minh Châu', current: 'PAID', roommate: 'Lục Minh Ngọc' },
+        { room: 'P203', name: 'Tôn Nữ Bảo Ngọc', current: 'DRAFT', roommate: 'Tôn Thất Huy' },
+        { room: 'P302', name: 'Quách Thành Danh', current: 'PENDING' },
+        { room: 'P401', name: 'Thái Văn Khoa', current: 'OVERDUE', roommate: 'Thái Thị Mai' },
+    ];
+    const bulkContracts = [];
+    for (let i = 0; i < BULK_TENANTS.length; i++) {
+        const seq = i + 1;
+        const tenant = BULK_TENANTS[i];
+        const room = b4Rooms[tenant.room];
+        const info = {
+            email: `customer.dongda${seq}@housify.vn`,
+            cccd: `03120600000${seq}`,
+            name: tenant.name,
+            phone: `098300000${seq}`,
+            dob: `2003-0${(seq % 9) + 1}-1${seq}`,
+            address: 'Đống Đa, Hà Nội',
+        };
+        customerUsers[info.cccd] = await User.create({
+            email: info.email,
+            password: customerHash,
+            roleId: ROLE.CUSTOMER,
+            status: USER_STATUS.ACTIVE,
+        });
+        const startDate = daysFromNow(-(130 + seq * 15));
+        const contract = await Contract.create({
+            roomId: room._id,
+            contractType: tenant.roommate ? CONTRACT_TYPE.GROUP : CONTRACT_TYPE.SINGLE,
+            representativeCccd: info.cccd,
+            representativeEmail: info.email,
+            startDate,
+            endDate: endAfterMonths(startDate, 12),
+            rentPrice: room.rentPrice,
+            deposit: room.deposit,
+            status: CONTRACT_STATUS.ACTIVE,
+            activatedAt: startDate,
+            notes: `Hợp đồng mẫu Tòa Đống Đa – hóa đơn kỳ hiện tại: ${tenant.current}.`,
+            createdBy: manager4.user._id,
+            depositReceiverId: manager4.user._id,
+        });
+        await createRepOccupant({ contractId: contract._id, customerInfo: info, status: OCCUPANT_STATUS.STAYED, joinDate: startDate });
+        if (tenant.roommate) {
+            await createRoommate({
+                contractId: contract._id,
+                name: tenant.roommate,
+                phone: `098400000${seq}`,
+                cccd: `03120690000${seq}`,
+                relationship: 'Người thân',
+                status: OCCUPANT_STATUS.STAYED,
+                joinDate: startDate,
+            });
+        }
+        await addInvoiceHistory({ contract, room, manager: manager4, seq, currentKind: tenant.current, repName: info.name });
+        bulkContracts.push({ contract, room, info });
+    }
+
+    // Người sắp trả phòng ở Tòa 4 cũng có hóa đơn: A còn nợ kỳ hiện tại, W đã thanh toán đủ
+    await addInvoiceHistory({ contract: ddTenantAContract, room: b4Rooms.P101, manager: manager4, seq: 7, currentKind: 'PENDING', repName: demoCustomers.ddTenantA.name });
+    await addInvoiceHistory({ contract: ddMoverOldContract, room: b4Rooms.P201, manager: manager4, seq: 8, currentKind: 'PAID', repName: demoCustomers.ddMoverW.name });
+
+    const incidentYymm = toYymm(currentMonth);
+    await Incident.insertMany([
+        {
+            incidentCode: `SC${incidentYymm}D401`,
+            contractId: bulkContracts[0].contract._id,
+            roomId: bulkContracts[0].room._id,
+            reportedBy: customerUsers[bulkContracts[0].info.cccd]._id,
+            type: INCIDENT_TYPE.EQUIPMENT,
+            title: 'Cửa sổ nhôm kính bị kẹt, không đóng kín được',
+            description: 'Ray trượt cửa sổ bị cong khiến cửa không đóng khít, trời mưa nước hắt vào phòng.',
+            images: [INCIDENT_IMAGES[0]],
+            status: INCIDENT_STATUS.PENDING,
+        },
+        {
+            incidentCode: `SC${incidentYymm}D402`,
+            contractId: bulkContracts[2].contract._id,
+            roomId: bulkContracts[2].room._id,
+            reportedBy: customerUsers[bulkContracts[2].info.cccd]._id,
+            type: INCIDENT_TYPE.SERVICE,
+            title: 'Máy giặt chung tầng thượng báo lỗi E21 không xả nước',
+            description: 'Máy giặt số 2 trên sân thượng báo lỗi E21, quần áo ngâm nước cả buổi tối.',
+            images: [],
+            status: INCIDENT_STATUS.IN_PROGRESS,
+            handledBy: manager4.user._id,
+            resultNote: 'Đã gọi bảo hành Electrolux, hẹn sáng mai kiểm tra bơm xả.',
+        },
+        {
+            incidentCode: `SC${incidentYymm}D403`,
+            contractId: bulkContracts[4].contract._id,
+            roomId: bulkContracts[4].room._id,
+            reportedBy: customerUsers[bulkContracts[4].info.cccd]._id,
+            type: INCIDENT_TYPE.VIOLATION,
+            title: 'Phòng tầng trên hát karaoke sau 23h',
+            description: 'Liên tục 3 tối gần đây phòng phía trên mở loa hát karaoke đến 0h30.',
+            images: [],
+            status: INCIDENT_STATUS.RESOLVED,
+            handledBy: manager4.user._id,
+            resultNote: 'Đã lập biên bản nhắc nhở lần 1 với phòng liên quan, cư dân cam kết không tái phạm.',
+            resolvedAt: daysFromNow(-2),
+        },
+        {
+            incidentCode: `SC${incidentYymm}D404`,
+            contractId: bulkContracts[5].contract._id,
+            roomId: bulkContracts[5].room._id,
+            reportedBy: customerUsers[bulkContracts[5].info.cccd]._id,
+            type: INCIDENT_TYPE.OTHER,
+            title: 'Xin lắp thêm bình nóng lạnh thứ hai cho phòng tắm phụ',
+            description: 'Phòng Duplex có 2 phòng tắm nhưng chỉ phòng chính có bình nóng lạnh.',
+            images: [],
+            status: INCIDENT_STATUS.REJECTED,
+            handledBy: manager4.user._id,
+            resultNote: 'Từ chối: đường điện phòng tắm phụ không đủ tải cho bình nóng lạnh thứ hai.',
+        },
+    ]);
+
+    console.log(`✔ [10b/16] Đã tạo dữ liệu hàng loạt Tòa 4: ${BULK_TENANTS.length + 2} hợp đồng ACTIVE x 4 kỳ hóa đơn, giao dịch SePay và 4 sự cố.`);
+
+    // =========================================================================
     // 11. NOTIFICATIONS (Thông báo chuông & Thông báo chung ANNOUNCEMENT)
     // =========================================================================
     const notificationsToInsert = [
@@ -2380,7 +2968,7 @@ async function seed() {
             isRead: false,
         },
 
-        // Thông báo cho Manager 1 (khiconst20092004@gmail.com)
+        // Thông báo cho Manager 1 (khiconst4@gmail.com)
         {
             userId: manager1.user._id,
             type: NOTIFICATION_TYPE.MANAGER_ASSIGNED,
@@ -2416,7 +3004,7 @@ async function seed() {
             isRead: false,
         },
 
-        // Thông báo cho Manager 2 (nguyenan182167@gmail.com)
+        // Thông báo cho Manager 2 (khiconst20092004@gmail.com)
         {
             userId: manager2.user._id,
             type: NOTIFICATION_TYPE.MANAGER_ASSIGNED,
@@ -2439,7 +3027,7 @@ async function seed() {
             userId: manager2.user._id,
             type: NOTIFICATION_TYPE.CONTRACT_ENDED,
             title: 'Hợp đồng phòng P102 đã hết hạn – chờ hoàn cọc',
-            message: 'Hợp đồng phòng P102 (Đại diện: Hoàng Đức Toàn) đã kết thúc tự nhiên. Vui lòng kiểm tra công nợ và ghi nhận hoàn cọc.',
+            message: 'Hợp đồng phòng P102 (Đại diện: Đinh Quốc Bảo) đã kết thúc tự nhiên. Vui lòng kiểm tra công nợ và ghi nhận hoàn cọc.',
             refId: c8EndedRecentContract._id,
             isRead: false,
         },
@@ -2481,7 +3069,7 @@ async function seed() {
             createdBy: manager1.user._id,
         },
 
-        // Thông báo cho Customer 2 (wdp301fall26@gmail.com - chuyển thiếu)
+        // Thông báo cho Customer 2 (customer.thieutien@housify.vn - chuyển thiếu)
         {
             userId: customerUsers[c2.cccd]._id,
             type: NOTIFICATION_TYPE.PAYMENT_REMINDER,
@@ -2491,7 +3079,7 @@ async function seed() {
             isRead: false,
         },
 
-        // Thông báo cho Customer 3 (kenhgametructiep@gmail.com - chuyển thừa & hủy hóa đơn)
+        // Thông báo cho Customer 3 (customer.thuatien@housify.vn - chuyển thừa & hủy hóa đơn)
         {
             userId: customerUsers[c3.cccd]._id,
             type: NOTIFICATION_TYPE.INVOICE_CANCELLED,
@@ -2510,7 +3098,7 @@ async function seed() {
             isRead: false,
         },
 
-        // Thông báo cho Customer 4 (quanghieuhg1@gmail.com - quá hạn & đến hạn hôm nay)
+        // Thông báo cho Customer 4 (nguyenan182167@gmail.com - quá hạn & đến hạn hôm nay)
         {
             userId: customerUsers[c4.cccd]._id,
             type: NOTIFICATION_TYPE.PAYMENT_REMINDER,
@@ -2528,7 +3116,7 @@ async function seed() {
             isRead: false,
         },
 
-        // Thông báo cho Customer 5 (quanghieuhg2005@gmail.com - đơn chấm dứt MUTUAL PENDING)
+        // Thông báo cho Customer 5 (cocainit123788@gmail.com - đơn chấm dứt MUTUAL PENDING)
         {
             userId: customerUsers[c5.cccd]._id,
             type: NOTIFICATION_TYPE.TERMINATION_REQUEST,
@@ -2545,6 +3133,26 @@ async function seed() {
             message: `Hóa đơn HD2611DUE1 (${invC5Due1Day.totalAmount.toLocaleString('vi-VN')} VNĐ) sẽ đến hạn vào ngày mai.`,
             refId: invC5Due1Day._id,
             isRead: false,
+        },
+
+        // Khách UPCOMING đổi ý: Manager 2 đã lập đơn hủy theo thỏa thuận, chờ khách xác nhận
+        {
+            userId: customerUsers[demoCustomers.changeMind.cccd]._id,
+            type: NOTIFICATION_TYPE.TERMINATION_REQUEST,
+            title: 'Yêu cầu xác nhận hủy hợp đồng sắp hiệu lực (P402)',
+            message: 'Quản lý tòa nhà đã lập đơn hủy hợp đồng sắp hiệu lực phòng P402 theo thỏa thuận. Xác nhận đơn thì hợp đồng chuyển Đã hủy và bạn không được hoàn cọc.',
+            refId: termChangeMind._id,
+            isRead: false,
+            createdBy: manager2.user._id,
+        },
+        {
+            userId: customerUsers[r3.cccd]._id,
+            type: NOTIFICATION_TYPE.ANNOUNCEMENT,
+            title: 'Hợp đồng phòng P303 đang Sắp hiệu lực',
+            message: 'Bạn đã ký hợp đồng thuê phòng P303 – Housify Hòa Lạc Plaza. Hợp đồng tự chuyển Đang hiệu lực khi phòng được bàn giao.',
+            refId: r3UpcomingContract._id,
+            isRead: false,
+            createdBy: manager1.user._id,
         },
     ];
 
@@ -2693,8 +3301,27 @@ async function seed() {
                 after: { status: USER_STATUS.INACTIVE },
             },
         },
+        {
+            actorId: customerUsers[demoCustomers.cancelledUpcoming.cccd]._id,
+            action: AUDIT_ACTION.UPDATE_CONTRACT,
+            targetType: 'contracts',
+            targetId: cancelledUpcomingContract._id,
+            reason: 'Khách xác nhận đơn hủy hợp đồng sắp hiệu lực theo thỏa thuận (mất cọc)',
+            metadata: { before: { status: CONTRACT_STATUS.UPCOMING }, after: { status: CONTRACT_STATUS.CANCELLED } },
+        },
+        {
+            action: AUDIT_ACTION.DEACTIVATE_USER,
+            targetType: 'users',
+            targetId: customerUsers[demoCustomers.cancelledUpcoming.cccd]._id,
+            reason: 'Tự động ngưng hoạt động tài khoản sau 24h kể từ khi hủy hợp đồng sắp hiệu lực',
+            metadata: {
+                contractId: cancelledUpcomingContract._id,
+                before: { status: USER_STATUS.ACTIVE },
+                after: { status: USER_STATUS.INACTIVE },
+            },
+        },
     ]);
-    console.log('✔ [12/16] Đã tạo 12 bản ghi Nhật ký hệ thống (AuditLog) đầy đủ các action.');
+    console.log('✔ [12/16] Đã tạo 14 bản ghi Nhật ký hệ thống (AuditLog) đầy đủ các action.');
 
     // =========================================================================
     // IN BẢNG TỔNG HỢP TÀI KHOẢN & LINK KÍCH HOẠT RA CONSOLE
@@ -2708,23 +3335,39 @@ async function seed() {
     console.log(`   - Mật khẩu : ${ADMIN_PASS}`);
 
     console.log(`\n🏢 [MANAGER] (Đăng nhập bằng Email + Mật khẩu chung: ${MANAGER_PASS})`);
-    console.log(`   1. Manager 1 (Tòa Hòa Lạc Plaza)     : ${MANAGER1_EMAIL}`);
-    console.log(`   2. Manager 2 (Tòa Cầu Giấy Center)   : ${MANAGER2_EMAIL}`);
-    console.log(`   3. Manager 3 (Tòa Thanh Xuân)        : ${MANAGER3_EMAIL}`);
-    console.log(`   4. Manager rảnh (Chưa gán tòa)       : manager.free1@housify.vn .. manager.free3@housify.vn`);
-    console.log(`   5. Manager chờ kích hoạt (PENDING)   : manager.pending1@housify.vn .. manager.pending3@housify.vn`);
-    console.log(`   6. Manager đã khóa (INACTIVE)        : manager.locked1@housify.vn .. manager.locked3@housify.vn`);
+    console.log(`   1. Manager 1 – Tòa Hòa Lạc Plaza   [EMAIL THẬT] : ${MANAGER1_EMAIL}`);
+    console.log(`   2. Manager 2 – Tòa Cầu Giấy Center [EMAIL THẬT] : ${MANAGER2_EMAIL}`);
+    console.log(`   3. Manager 3 – Tòa Thanh Xuân                    : ${MANAGER3_EMAIL}`);
+    console.log(`   4. Manager 4 – Tòa Đống Đa Boutique              : ${MANAGER4_EMAIL}`);
+    console.log(`   5. Tòa Hà Đông Garden CHƯA có Manager (test gán Manager)`);
+    console.log(`   6. Manager rảnh (Chưa gán tòa)       : manager.free1@housify.vn .. manager.free3@housify.vn`);
+    console.log(`   7. Manager chờ kích hoạt (PENDING)   : manager.pending1@housify.vn .. manager.pending3@housify.vn`);
+    console.log(`   8. Manager đã khóa (INACTIVE)        : manager.locked1@housify.vn .. manager.locked3@housify.vn`);
 
-    console.log(`\n🧑‍🎓 [10 TÀI KHOẢN CUSTOMER EMAIL THẬT] (Đăng nhập bằng Số CCCD + Mật khẩu chung: ${CUSTOMER_PASS})`);
+    console.log(`\n🧑‍🎓 [CUSTOMER CHÍNH] (Đăng nhập bằng Số CCCD + Mật khẩu chung: ${CUSTOMER_PASS})`);
     for (const c of REAL_CUSTOMERS) {
-        console.log(`   • CCCD: ${c.cccd} | Email: ${c.email.padEnd(30)} | ${c.name} -> ${c.note}`);
+        console.log(`   • CCCD: ${c.cccd} | ${c.email.padEnd(34)} | ${c.name} -> ${c.note}`);
     }
 
+    console.log(`\n⏳ [CASE ĐẶT THUÊ NỐI TIẾP – UPCOMING] (Mật khẩu ${CUSTOMER_PASS})`);
+    console.log(`   - ${demoCustomers.expirySuccessor.cccd} (${demoCustomers.expirySuccessor.email}): UPCOMING P203 Tòa 2 sau HĐ hết hạn hôm qua -> POST /api/dev/jobs/contractExpiry/run`);
+    console.log(`   - ${demoCustomers.changeMind.cccd} (${demoCustomers.changeMind.email}): UPCOMING P402 Tòa 2 có đơn hủy MUTUAL PENDING -> khách xác nhận là Đã hủy, mất cọc`);
+    console.log(`   - ${demoCustomers.cgP402Tenant.cccd} (${demoCustomers.cgP402Tenant.email}): ACTIVE P402 Tòa 2 còn 20 ngày, đã có HĐ nối tiếp -> Gia hạn bị chặn`);
+    console.log(`   - ${demoCustomers.cancelledUpcoming.cccd} (${demoCustomers.cancelledUpcoming.email}): UPCOMING đã hủy (CANCELLED) -> tài khoản INACTIVE, không đăng nhập được`);
+    console.log(`   - ${demoCustomers.ddMoverW.cccd} (${demoCustomers.ddMoverW.email}): ACTIVE P201 Tòa 4 (12 ngày) + UPCOMING P101 Tòa 4 chờ cả 2 HĐ kết thúc`);
+    console.log(`   - ${REAL_CUSTOMERS[5].cccd} (${REAL_CUSTOMERS[5].email}): Đơn đơn phương PENDING + UPCOMING P501 -> Admin duyệt là UPCOMING tự hủy (hoàn cọc)`);
+    console.log(`   - Phòng nhận đặt nối tiếp ngay (còn <= 1 tháng, chưa có HĐ chờ): P201 Tòa 1 (Manager 1)`);
+
+    console.log(`\n📦 [DỮ LIỆU HÀNG LOẠT TÒA 4] customer.dongda1..6@housify.vn (CCCD 031206000001..06) – 4 kỳ hóa đơn mỗi HĐ`);
+    console.log(`🔒 [KHÁCH BỊ KHÓA] CCCD ${demoCustomers.locked1.cccd}, ${demoCustomers.locked2.cccd} -> tạo HĐ mới bằng CCCD này sẽ bị chặn`);
+
     console.log(`\n🔗 [LINK KÍCH HOẠT NHANH ĐỂ TEST TRỰC TIẾP TRÊN TRÌNH DUYỆT]:`);
-    console.log(`   - Kích hoạt HĐ Nháp mới (themanhvxhg123@gmail.com - CCCD 031204000009):`);
+    console.log(`   - HĐ Nháp mới P301 Tòa 1 (${REAL_CUSTOMERS[8].email} - CCCD ${REAL_CUSTOMERS[8].cccd}):`);
     console.log(`     ${clientUrl}/activate/contract/${c9InviteToken.token}`);
-    console.log(`   - Kích hoạt HĐ Thuê lại (nguyenthemanh010124@gmail.com - CCCD 031204000010):`);
+    console.log(`   - HĐ Thuê lại P202 Tòa 2 (${REAL_CUSTOMERS[9].email} - CCCD ${REAL_CUSTOMERS[9].cccd}):`);
     console.log(`     ${clientUrl}/activate/contract/${c10InviteToken.token}`);
+    console.log(`   - HĐ NỐI TIẾP P101 Tòa 3 (${draftSuccessorCustomer.email} - CCCD ${draftSuccessorCustomer.cccd}) -> kích hoạt xong thành UPCOMING:`);
+    console.log(`     ${clientUrl}/activate/contract/${draftSuccessorToken.token}`);
     console.log(`   - Kích hoạt Manager PENDING (manager.pending1@housify.vn):`);
     console.log(`     ${clientUrl}/activate/manager/${mgrToken1.token}`);
     console.log(`\n💰 [DEMO QUYẾT TOÁN & HOÀN CỌC UC-45 (Đăng nhập Manager 1: ${MANAGER1_EMAIL})]:`);

@@ -14,7 +14,12 @@ import MoneyText from '../../components/MoneyText';
 import PageHeader from '../../components/PageHeader';
 import SkeletonRows from '../../components/SkeletonRows';
 import { useAuth } from '../../context/AuthContext';
-import { CONTRACT_STATUS, CONTRACT_TYPE, ROOM_STATUS } from '../../constants/enums';
+import {
+  CONTRACT_STATUS,
+  CONTRACT_TYPE,
+  ROOM_STATUS,
+  TERMINATION_STATUS,
+} from '../../constants/enums';
 import { CONTRACT_TYPE_LABEL } from '../../constants/statusLabels';
 import { formatDate, toDateInput } from '../../utils/format';
 import { hasErrors, toFieldErrors } from '../../utils/formErrors';
@@ -24,7 +29,8 @@ import { endDateOf } from './contractFormat';
 
 const TODAY = toDateInput(new Date()); // tính 1 lần khi nạp trang
 
-// phòng đang thuê chỉ nhận đặt nối tiếp khi hợp đồng hiện tại còn ≤ 1 tháng (BE kiểm lại theo ngày rời đi thực tế)
+// phòng đang thuê chỉ nhận đặt nối tiếp khi hợp đồng hiện tại còn ≤ 1 tháng tới ngày trả phòng
+// (ngày trả phòng = ngày hiệu lực đơn chấm dứt đã xác nhận, nếu có; không thì là ngày kết thúc – BE kiểm lại)
 const ONE_MONTH_LATER = (() => {
   const date = new Date();
   date.setMonth(date.getMonth() + 1);
@@ -61,7 +67,7 @@ const ContractCreatePage = () => {
 
   const [rooms, setRooms] = useState(null); // phòng Trống + đang thuê của tòa, null = đang tải
   const [draftRoomIds, setDraftRoomIds] = useState([]); // phòng đã có hợp đồng chờ (nháp / sắp hiệu lực)
-  const [activeEndByRoomId, setActiveEndByRoomId] = useState({}); // phòng đang thuê → ngày kết thúc hợp đồng hiện tại
+  const [leaveDateByRoomId, setLeaveDateByRoomId] = useState({}); // phòng đang thuê → ngày trả phòng của hợp đồng hiện tại
   const [loadError, setLoadError] = useState('');
   const [form, setForm] = useState({
     roomId: searchParams.get('roomId') ?? '',
@@ -84,16 +90,29 @@ const ContractCreatePage = () => {
       contractApi.rooms(buildingId, { status: `${ROOM_STATUS.AVAILABLE},${ROOM_STATUS.OCCUPIED}` }),
       contractApi.list({ status: `${CONTRACT_STATUS.DRAFT},${CONTRACT_STATUS.UPCOMING}`, limit: 50 }),
       contractApi.list({ status: CONTRACT_STATUS.ACTIVE, limit: 50 }),
+      // lỗi tải đơn chấm dứt thì vẫn mở form, tạm tính theo ngày kết thúc (BE vẫn kiểm theo ngày trả phòng thật)
+      contractApi
+        .terminationList({ status: TERMINATION_STATUS.CONFIRMED, limit: 50 })
+        .catch(() => ({ data: { items: [] } })),
     ])
-      .then(([roomsResponse, waitingResponse, activeResponse]) => {
+      .then(([roomsResponse, waitingResponse, activeResponse, terminationResponse]) => {
         const list = Array.isArray(roomsResponse.data) ? roomsResponse.data : [];
         setRooms(list);
         setDraftRoomIds(
           (waitingResponse.data?.items ?? []).map((contract) => String(contract.roomId)),
         );
-        setActiveEndByRoomId(
+        const effectiveDateByContractId = Object.fromEntries(
+          (terminationResponse.data?.items ?? []).map((termination) => [
+            String(termination.contractId),
+            termination.effectiveDate,
+          ]),
+        );
+        setLeaveDateByRoomId(
           Object.fromEntries(
-            (activeResponse.data?.items ?? []).map((contract) => [String(contract.roomId), contract.endDate]),
+            (activeResponse.data?.items ?? []).map((contract) => [
+              String(contract.roomId),
+              effectiveDateByContractId[String(contract._id)] ?? contract.endDate,
+            ]),
           ),
         );
       })
@@ -104,15 +123,16 @@ const ContractCreatePage = () => {
   }, [buildingId]);
 
   const room = rooms?.find((item) => item._id === form.roomId) ?? null;
-  const currentEndDate = room ? activeEndByRoomId[String(room._id)] : null; // có = đặt thuê nối tiếp
+  const currentLeaveDate = room ? leaveDateByRoomId[String(room._id)] : null; // có = đặt thuê nối tiếp
   // mốc vào ở sớm nhất của phòng: hôm nay, hoặc ngày sau ngày người trước trả phòng
-  const moveInFrom = currentEndDate && dayAfter(currentEndDate) > TODAY ? dayAfter(currentEndDate) : TODAY;
+  const moveInFrom =
+    currentLeaveDate && dayAfter(currentLeaveDate) > TODAY ? dayAfter(currentLeaveDate) : TODAY;
   const latestStart = oneMonthAfter(moveInFrom);
   // phòng trống: hiện tất cả; phòng đang thuê: chỉ hiện phòng còn ≤ 1 tháng
   const emptyRooms = (rooms ?? []).filter((item) => item.status === ROOM_STATUS.AVAILABLE);
   const successorRooms = (rooms ?? []).filter((item) => {
-    const endOfCurrent = activeEndByRoomId[String(item._id)];
-    return endOfCurrent && toDateInput(endOfCurrent) <= ONE_MONTH_LATER;
+    const leaveOfCurrent = leaveDateByRoomId[String(item._id)];
+    return leaveOfCurrent && toDateInput(leaveOfCurrent) <= ONE_MONTH_LATER;
   });
   const capacity = room?.roomType?.capacity ?? null;
   const isGroup = form.contractType === CONTRACT_TYPE.GROUP;
@@ -131,9 +151,10 @@ const ContractCreatePage = () => {
   const handleRoomChange = (event) => {
     const roomId = event.target.value;
     setField('roomId', roomId);
-    const endOfCurrent = activeEndByRoomId[String(roomId)];
-    const roomMoveInFrom = endOfCurrent && dayAfter(endOfCurrent) > TODAY ? dayAfter(endOfCurrent) : TODAY;
-    const startTooEarly = endOfCurrent && form.startDate <= toDateInput(endOfCurrent);
+    const leaveOfCurrent = leaveDateByRoomId[String(roomId)];
+    const roomMoveInFrom =
+      leaveOfCurrent && dayAfter(leaveOfCurrent) > TODAY ? dayAfter(leaveOfCurrent) : TODAY;
+    const startTooEarly = leaveOfCurrent && form.startDate <= toDateInput(leaveOfCurrent);
     if (startTooEarly || form.startDate > oneMonthAfter(roomMoveInFrom)) {
       setField('startDate', roomMoveInFrom);
     }
@@ -274,10 +295,10 @@ const ContractCreatePage = () => {
                   <optgroup label="Đặt thuê nối tiếp (hợp đồng hiện tại còn ≤ 1 tháng)">
                     {successorRooms.map((item) => {
                       const hasWaiting = draftRoomIds.includes(String(item._id));
-                      const endOfCurrent = activeEndByRoomId[String(item._id)];
+                      const leaveOfCurrent = leaveDateByRoomId[String(item._id)];
                       return (
                         <option key={item._id} value={item._id} disabled={hasWaiting}>
-                          {roomLabel(item)} · trống từ {formatDate(dayAfter(endOfCurrent))}
+                          {roomLabel(item)} · trống từ {formatDate(dayAfter(leaveOfCurrent))}
                           {hasWaiting ? ' (đã có hợp đồng nối tiếp)' : ''}
                         </option>
                       );
@@ -321,7 +342,7 @@ const ContractCreatePage = () => {
               value={form.startDate}
               onChange={handleChange}
               error={errors.startDate}
-              min={currentEndDate ? moveInFrom : undefined}
+              min={currentLeaveDate ? moveInFrom : undefined}
               max={latestStart}
               helpText={`Chọn đến ngày ${formatDate(latestStart)} (tối đa 1 tháng sau ngày ${formatDate(moveInFrom)})`}
               required
@@ -366,9 +387,9 @@ const ContractCreatePage = () => {
             </div>
           </Col>
         </Row>
-        {currentEndDate && (
+        {currentLeaveDate && (
           <Alert variant="info" className="mb-0 small">
-            Đặt thuê nối tiếp: phòng đang có hợp đồng đến ngày {formatDate(currentEndDate)}. Ngày bắt đầu phải sau
+            Đặt thuê nối tiếp: người đang thuê trả phòng ngày {formatDate(currentLeaveDate)}. Ngày bắt đầu phải sau
             ngày trả phòng. Khách kích hoạt xong, hợp đồng ở trạng thái Sắp hiệu lực và tự chuyển Đang hiệu lực khi
             hợp đồng hiện tại kết thúc.
           </Alert>
