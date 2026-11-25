@@ -2950,11 +2950,11 @@ async function seed() {
     ]);
 
     const EXPIRING_TENANTS = [
-        { building: building1, manager: manager1, room: ['P404', 4, rtStudio, 28, 3400000], daysLeft: 6, months: 6, name: 'Vũ Thị Hồng Nhung' },
-        { building: building2, manager: manager2, room: ['P502', 5, rtSingle, 24, 3800000], daysLeft: 11, months: 12, name: 'Kim Văn Hoàng' },
+        { building: building1, manager: manager1, room: ['P404', 4, rtStudio, 28, 3400000], daysLeft: 6, months: 6, name: 'Vũ Thị Hồng Nhung', email: 'quanghieuhg1@gmail.com' },
+        { building: building2, manager: manager2, room: ['P502', 5, rtSingle, 24, 3800000], daysLeft: 11, months: 12, name: 'Kim Văn Hoàng', email: 'hung091305@gmail.com' },
         { building: building3, manager: manager3, room: ['P302', 3, rtStudio, 28, 3800000], daysLeft: 17, months: 6, name: 'Mạc Thị Lan Anh' },
         { building: building4, manager: manager4, room: ['P403', 4, rtSingle, 22, 3300000], daysLeft: 22, months: 12, name: 'La Quốc Thịnh' },
-        { building: building1, manager: manager1, room: ['P504', 5, rtTwin, 33, 3800000], daysLeft: 28, months: 12, name: 'Ninh Văn Tài', roommate: 'Ninh Thị Thu' },
+        { building: building1, manager: manager1, room: ['P504', 5, rtTwin, 33, 3800000], daysLeft: 28, months: 12, name: 'Ninh Văn Tài', roommate: 'Ninh Thị Thu', email: 'wdp301fall26@gmail.com' },
     ];
     const expiringSummary = [];
     for (let i = 0; i < EXPIRING_TENANTS.length; i++) {
@@ -2965,7 +2965,7 @@ async function seed() {
             createRoomDoc(tenant.building._id, floorNumber, roomNumber, roomType._id, area, price, price, ROOM_STATUS.OCCUPIED, seq % 4),
         );
         const info = {
-            email: `customer.saphethan${seq}@housify.vn`,
+            email: tenant.email ?? `customer.saphethan${seq}@housify.vn`, // 3 khách dùng email thật để test mail
             cccd: `03120500004${seq}`,
             name: tenant.name,
             phone: `098500004${seq}`,
