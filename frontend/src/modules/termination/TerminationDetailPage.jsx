@@ -19,7 +19,7 @@ import SkeletonRows from '../../components/SkeletonRows';
 import StatusBadge from '../../components/StatusBadge';
 import StatusSteps from '../../components/StatusSteps';
 import { useAuth } from '../../context/AuthContext';
-import { ROLE, TERMINATION_STATUS, TERMINATION_TYPE } from '../../constants/enums';
+import { CONTRACT_STATUS, ROLE, TERMINATION_STATUS, TERMINATION_TYPE } from '../../constants/enums';
 import { TERMINATION_STATUS_LABEL, TERMINATION_TYPE_LABEL } from '../../constants/statusLabels';
 import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import { formatDate, formatDateTime } from '../../utils/format';
@@ -133,6 +133,10 @@ const TerminationDetailPage = () => {
   const { contract, room, representative } = termination;
   const isPending = termination.status === TERMINATION_STATUS.PENDING;
   const isMutual = termination.type === TERMINATION_TYPE.MUTUAL;
+  // đơn hủy hợp đồng Sắp hiệu lực: hợp đồng còn Sắp hiệu lực (đơn chờ) hoặc đã chuyển Đã hủy (đơn đã xác nhận)
+  const isUpcomingCancel = [CONTRACT_STATUS.UPCOMING, CONTRACT_STATUS.CANCELLED].includes(
+    contract?.status,
+  );
   const canCancel = role === ROLE.MANAGER && isPending;
   const canDecide = role === ROLE.ADMIN && isPending && !isMutual;
   const canConfirm = role === ROLE.CUSTOMER && isPending && isMutual;
@@ -245,12 +249,20 @@ const TerminationDetailPage = () => {
             </div>
           </section>
 
-          <Alert variant="warning" className="mb-0 small">
-            Hợp đồng chấm dứt trước hạn <b>không được hoàn tiền đặt cọc</b>
-            {isMutual
-              ? '. Sau ngày hiệu lực, tài khoản người đại diện chuyển sang ngưng hoạt động (vẫn thuê lại được về sau).'
-              : '. Sau ngày hiệu lực, tài khoản người đại diện bị khóa và không tạo được hợp đồng mới.'}
-          </Alert>
+          {isUpcomingCancel ? (
+            <Alert variant="warning" className="mb-0 small">
+              Hợp đồng Sắp hiệu lực: khách đã ký và đã cọc nhưng chưa vào ở. Khi đơn được xác nhận,
+              hợp đồng chuyển <b>Đã hủy</b> và khách <b>mất tiền đặt cọc</b>. Phòng và hợp đồng của
+              người đang ở không thay đổi.
+            </Alert>
+          ) : (
+            <Alert variant="warning" className="mb-0 small">
+              Hợp đồng chấm dứt trước hạn <b>không được hoàn tiền đặt cọc</b>
+              {isMutual
+                ? '. Sau ngày hiệu lực, tài khoản người đại diện chuyển sang ngưng hoạt động (vẫn thuê lại được về sau).'
+                : '. Sau ngày hiệu lực, tài khoản người đại diện bị khóa và không tạo được hợp đồng mới.'}
+            </Alert>
+          )}
         </Card>
 
         {/* cột phải: kết quả xử lý + ô xác nhận của khách */}

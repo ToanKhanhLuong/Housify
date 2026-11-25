@@ -49,7 +49,8 @@ export const termOf = (contract, now) => {
   const { status } = contract;
   if (status === CONTRACT_STATUS.DRAFT) return { percent: 0, text: 'Chờ khách kích hoạt', variant: 'secondary' };
   if (status === CONTRACT_STATUS.CANCELLED) return { percent: 0, text: 'Đã hủy', variant: 'secondary' };
-  if (status === CONTRACT_STATUS.UPCOMING) return { percent: 0, text: 'Chờ hợp đồng trước của phòng kết thúc', variant: 'info' };
+  // chờ hợp đồng trước: của người đang ở phòng này, hoặc phòng cũ của chính khách (chuyển phòng)
+  if (status === CONTRACT_STATUS.UPCOMING) return { percent: 0, text: 'Chờ hợp đồng trước kết thúc', variant: 'info' };
   const start = new Date(contract.startDate).getTime();
   const end = new Date(contract.endDate).getTime();
   const percent = end > start ? Math.min(Math.max(((now - start) / (end - start)) * 100, 0), 100) : 100;
