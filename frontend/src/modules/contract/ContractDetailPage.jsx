@@ -3,7 +3,7 @@
 // Đang hiệu lực → Gia hạn (UC-27), Sửa ghi chú (UC-26), Chấm dứt (UC-28)
 // Bấm một cư dân trong bảng → chi tiết cư dân (/occupants/:id)
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Card, Placeholder, Spinner, Tab, Tabs } from 'react-bootstrap';
+import { Alert, Button, Card, Placeholder, Spinner, Tab, Tabs } from 'react-bootstrap';
 import { BiCalendarPlus, BiEditAlt, BiSend, BiXCircle } from 'react-icons/bi';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -33,8 +33,9 @@ import RefundDepositSection from './components/RefundDepositSection';
 // đơn còn đang xử lý (chờ / đã xác nhận chưa tới ngày hiệu lực) thì không tạo đơn mới
 const OPEN_TERMINATION = [TERMINATION_STATUS.PENDING, TERMINATION_STATUS.CONFIRMED];
 
-// Đã hủy nằm ngoài luồng chính, StatusSteps tự hiện ở cuối
+// Đã hủy nằm ngoài luồng chính, StatusSteps tự hiện ở cuối. Sắp hiệu lực chỉ hiện với hợp đồng đặt thuê nối tiếp
 const STEPS = [CONTRACT_STATUS.DRAFT, CONTRACT_STATUS.ACTIVE, CONTRACT_STATUS.ENDED];
+const UPCOMING_STEPS = [CONTRACT_STATUS.DRAFT, CONTRACT_STATUS.UPCOMING, CONTRACT_STATUS.ACTIVE, CONTRACT_STATUS.ENDED];
 
 const ContractDetailPage = () => {
   const { id } = useParams();
@@ -154,6 +155,8 @@ const ContractDetailPage = () => {
 
   const isDraft = contract.status === CONTRACT_STATUS.DRAFT;
   const isActive = contract.status === CONTRACT_STATUS.ACTIVE;
+  // Sắp hiệu lực: không sửa, không gia hạn; khách đổi ý thì chỉ hủy qua đơn chấm dứt thỏa thuận (mất cọc)
+  const isUpcoming = contract.status === CONTRACT_STATUS.UPCOMING;
 
   const roomPath = `/rooms/${contract.room?._id ?? ''}`;
 
@@ -200,7 +203,7 @@ const ContractDetailPage = () => {
           Hủy hợp đồng
         </Button>
       )}
-      {isActive && !hasOpenTermination && (
+      {(isActive || isUpcoming) && !hasOpenTermination && (
         <Button
           as={Link}
           to={`/terminations/new?contractId=${contract._id}`}
@@ -208,7 +211,7 @@ const ContractDetailPage = () => {
           className="flex items-center gap-2 no-underline"
         >
           <BiBlock />
-          Chấm dứt
+          {isUpcoming ? 'Hủy theo thỏa thuận' : 'Chấm dứt'}
         </Button>
       )}
     </>
@@ -227,9 +230,21 @@ const ContractDetailPage = () => {
           }
           actions={actions}
         >
-          <StatusSteps map={CONTRACT_STATUS_LABEL} steps={STEPS} current={contract.status} />
+          <StatusSteps
+            map={CONTRACT_STATUS_LABEL}
+            steps={isUpcoming ? UPCOMING_STEPS : STEPS}
+            current={contract.status}
+          />
         </PageHeader>
       </div>
+
+      {isUpcoming && (
+        <Alert variant="info" className="mb-3 small print:hidden">
+          Hợp đồng Sắp hiệu lực: khách đã ký và đã cọc, đang chờ hợp đồng trước của phòng (hoặc phòng cũ của khách)
+          kết thúc thì tự chuyển Đang hiệu lực. Hợp đồng không chỉnh sửa được; khách đổi ý thì hủy qua đơn chấm dứt
+          thỏa thuận và khách mất cọc.
+        </Alert>
+      )}
 
       {invite && isDraft && (
         <div className="mb-3 print:hidden">

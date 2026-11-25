@@ -76,6 +76,9 @@ const RoomTenancySection = ({ room, readOnly = false }) => {
 
   const active = state.contracts.find((contract) => contract.status === CONTRACT_STATUS.ACTIVE);
   const draft = state.contracts.find((contract) => contract.status === CONTRACT_STATUS.DRAFT);
+  // hợp đồng nối tiếp: khách đã ký, chờ hợp đồng hiện tại kết thúc (hoặc chờ khách trả phòng cũ)
+  const upcoming = state.contracts.find((contract) => contract.status === CONTRACT_STATUS.UPCOMING);
+  const waiting = upcoming ?? draft;
   const capacity = room.roomType?.capacity;
   const count = state.occupants.length;
 
@@ -113,7 +116,7 @@ const RoomTenancySection = ({ room, readOnly = false }) => {
               </span>
             </span>
           </Link>
-        ) : draft ? (
+        ) : upcoming ? null : draft ? (
           <Link to={`/contracts/${draft._id}`} className="hf-tcard no-underline gap-1">
             <span className="flex items-center justify-between gap-2">
               <span className="fw-semibold">Hợp đồng nháp chờ khách kích hoạt</span>
@@ -126,6 +129,23 @@ const RoomTenancySection = ({ room, readOnly = false }) => {
           </Link>
         ) : (
           <div className="hf-ph h-24">Phòng chưa có hợp đồng</div>
+        )}
+
+        {waiting && (active || upcoming) && (
+          <Link to={`/contracts/${waiting._id}`} className="hf-tcard no-underline gap-1">
+            <span className="flex items-center justify-between gap-2">
+              <span className="fw-semibold">
+                {waiting.status === CONTRACT_STATUS.UPCOMING
+                  ? 'Hợp đồng nối tiếp đã ký'
+                  : 'Hợp đồng nối tiếp chờ khách kích hoạt'}
+              </span>
+              <StatusBadge map={CONTRACT_STATUS_LABEL} value={waiting.status} />
+            </span>
+            <span className="small text-secondary">
+              {waiting.representative?.name || waiting.representative?.email || '—'} · bắt đầu{' '}
+              {formatDate(waiting.startDate)} – {formatDate(waiting.endDate)}
+            </span>
+          </Link>
         )}
       </section>
 

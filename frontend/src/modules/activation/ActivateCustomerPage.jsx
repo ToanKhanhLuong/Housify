@@ -36,6 +36,7 @@ const EMPTY_FORM = {
   cccdBackImage: '',
   password: '',
   confirmPassword: '',
+  keepCurrentPassword: false, // chỉ dùng khi khách đang có tài khoản hoạt động (đặt trước để chuyển phòng)
   coOccupants: [], // [{ id, name, cccd, phone, dateOfBirth, address }]
 };
 
@@ -61,7 +62,14 @@ const ActivateCustomerPage = () => {
     let ignore = false; // rời trang trước khi API trả về thì bỏ kết quả
     activationApi
       .checkContractToken(token)
-      .then((response) => !ignore && setContract(response.data))
+      .then((response) => {
+        if (ignore) return;
+        setContract(response.data);
+        // tài khoản đang hoạt động: mặc định giữ mật khẩu hiện tại
+        if (response.data?.hasActiveAccount) {
+          setForm((current) => ({ ...current, keepCurrentPassword: true }));
+        }
+      })
       .catch((error) => !ignore && setLinkError(error.message))
       .finally(() => !ignore && setChecking(false));
     return () => {
@@ -94,10 +102,14 @@ const ActivateCustomerPage = () => {
   };
   const handleChange = (event) => setField(event.target.name, event.target.value);
 
+  // khách đang có tài khoản hoạt động: mặc định giữ mật khẩu hiện tại, tích "Đặt mật khẩu mới" thì hiện 2 ô
+  const hasActiveAccount = Boolean(contract?.hasActiveAccount);
+  const keepPassword = hasActiveAccount && form.keepCurrentPassword;
+
   // bước 2 → 3: kiểm tra form trước khi cho xem lại hợp đồng đã điền
   const handleFormSubmit = (event) => {
     event.preventDefault();
-    const clientErrors = validateActivateCustomer(form, contract);
+    const clientErrors = validateActivateCustomer({ ...form, keepCurrentPassword: keepPassword }, contract);
     setErrors(clientErrors);
     if (hasErrors(clientErrors)) return;
     setSubmitError('');
@@ -119,8 +131,9 @@ const ActivateCustomerPage = () => {
         phone: form.phone.trim(),
         dateOfBirth: form.dateOfBirth,
         address: form.address.trim(),
-        password: form.password,
-        confirmPassword: form.confirmPassword,
+        ...(keepPassword
+          ? { keepCurrentPassword: true }
+          : { password: form.password, confirmPassword: form.confirmPassword }),
         agreed: true,
         cccdFrontImage: form.cccdFrontImage,
         cccdBackImage: form.cccdBackImage,
@@ -332,6 +345,30 @@ const ActivateCustomerPage = () => {
             )}
 
             <h2 className="h5 fw-bold mt-4 mb-3">Mật khẩu đăng nhập</h2>
+            {hasActiveAccount && (
+              <div className="flex flex-col gap-1 mb-3">
+                <span className="small text-secondary">
+                  Bạn đang có tài khoản Housify (đang thuê phòng khác). Chọn cách đăng nhập sau khi kích hoạt:
+                </span>
+                <Form.Check
+                  type="radio"
+                  id="password-keep"
+                  name="passwordMode"
+                  label="Dùng mật khẩu hiện tại"
+                  checked={form.keepCurrentPassword}
+                  onChange={() => setField('keepCurrentPassword', true)}
+                />
+                <Form.Check
+                  type="radio"
+                  id="password-new"
+                  name="passwordMode"
+                  label="Đặt mật khẩu mới"
+                  checked={!form.keepCurrentPassword}
+                  onChange={() => setField('keepCurrentPassword', false)}
+                />
+              </div>
+            )}
+            {!keepPassword && (
             <Row className="g-3">
               <Col md={6}>
                 <PasswordInput
@@ -359,6 +396,7 @@ const ActivateCustomerPage = () => {
                 />
               </Col>
             </Row>
+            )}
 
             {/* nút căn phải theo yêu cầu: Quay lại (phụ) rồi Tiếp tục (chính) */}
             <div className="flex flex-wrap justify-end gap-2 mt-4">

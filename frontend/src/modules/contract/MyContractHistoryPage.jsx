@@ -22,7 +22,7 @@ import { ContractCard, Representative, Term } from './components/ContractListPar
 
 const LIMIT = 12;
 const EMPTY_FILTERS = { status: [], contractType: [], from: '', to: '' };
-const CUSTOMER_STATUSES = [CONTRACT_STATUS.ACTIVE, CONTRACT_STATUS.ENDED];
+const CUSTOMER_STATUSES = [CONTRACT_STATUS.UPCOMING, CONTRACT_STATUS.ACTIVE, CONTRACT_STATUS.ENDED];
 
 const VIEW_OPTIONS = [
   { id: 'cards', icon: BiLayer, title: 'Dạng thẻ' },

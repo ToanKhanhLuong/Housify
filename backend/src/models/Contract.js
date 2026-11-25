@@ -47,7 +47,7 @@ const contractSchema = new Schema(
         }, // snapshot từ phòng lúc tạo
         status: {
             type: String,
-            enum: values(CONTRACT_STATUS),  // [DRAFT, ACTIVE, ENDED, CANCELLED]
+            enum: values(CONTRACT_STATUS),  // [DRAFT, UPCOMING, ACTIVE, ENDED, CANCELLED]
             default: CONTRACT_STATUS.DRAFT
         }, // có đơn chấm dứt vẫn ACTIVE
         activatedAt: {

@@ -75,7 +75,7 @@ const TerminationCreatePage = () => {
 
   const handleSubmit = (event) => {
     event.preventDefault();
-    const clientErrors = validateCreateTermination(form, contract);
+    const clientErrors = validateCreateTermination(form, contract, contract.status === CONTRACT_STATUS.UPCOMING);
     setErrors(clientErrors);
     if (hasErrors(clientErrors)) return;
     setConfirming(true);
@@ -85,10 +85,11 @@ const TerminationCreatePage = () => {
     const note = form.note.trim();
     setSubmitting(true);
     try {
+      const isUpcomingContract = contract.status === CONTRACT_STATUS.UPCOMING;
       const response = await terminationApi.create(contractId, {
-        type: form.type,
+        type: isUpcomingContract ? TERMINATION_TYPE.MUTUAL : form.type,
         reason: form.reason.trim(),
-        effectiveDate: form.effectiveDate,
+        ...(!isUpcomingContract && { effectiveDate: form.effectiveDate }),
         ...(note && { note }),
       });
       setConfirming(false);
@@ -137,8 +138,13 @@ const TerminationCreatePage = () => {
   }
 
   const roomNumber = contract.room?.roomNumber ?? '';
-  const isActive = contract.status === CONTRACT_STATUS.ACTIVE;
-  const isMutual = form.type === TERMINATION_TYPE.MUTUAL;
+  const isUpcoming = contract.status === CONTRACT_STATUS.UPCOMING;
+  // hợp đồng sắp hiệu lực chỉ hủy được bằng đơn thỏa thuận
+  const isActive = contract.status === CONTRACT_STATUS.ACTIVE || isUpcoming;
+  const isMutual = isUpcoming || form.type === TERMINATION_TYPE.MUTUAL;
+  const typeOptions = isUpcoming
+    ? TYPE_OPTIONS.filter((option) => option.value === TERMINATION_TYPE.MUTUAL)
+    : TYPE_OPTIONS;
 
   return (
     <>
@@ -163,7 +169,14 @@ const TerminationCreatePage = () => {
 
           {!isActive && (
             <Alert variant="danger" className="mb-0">
-              Chỉ có thể tạo đơn chấm dứt cho hợp đồng đang hiệu lực.
+              Chỉ có thể tạo đơn chấm dứt cho hợp đồng đang hiệu lực hoặc sắp hiệu lực.
+            </Alert>
+          )}
+
+          {isUpcoming && (
+            <Alert variant="warning" className="mb-0 small">
+              Hợp đồng Sắp hiệu lực: khách đã ký và đã cọc nhưng chưa vào ở. Khi người đại diện xác nhận đơn, hợp đồng
+              chuyển Đã hủy và khách mất cọc. Phòng và hợp đồng hiện tại của phòng không thay đổi.
             </Alert>
           )}
 
@@ -192,7 +205,7 @@ const TerminationCreatePage = () => {
               Loại đơn <span className="text-danger">*</span>
             </h2>
             <div className="grid md:grid-cols-2 gap-3" role="radiogroup" aria-label="Loại đơn chấm dứt">
-              {TYPE_OPTIONS.map(({ value, icon: Icon, title, lines }) => {
+              {typeOptions.map(({ value, icon: Icon, title, lines }) => {
                 const selected = form.type === value;
                 return (
                   <Button
@@ -237,6 +250,7 @@ const TerminationCreatePage = () => {
               required
             />
             <div>
+              {!isUpcoming && (
               <Input
                 label="Ngày hiệu lực"
                 name="effectiveDate"
@@ -254,6 +268,7 @@ const TerminationCreatePage = () => {
                 disabled={submitting}
                 required
               />
+              )}
               <Input
                 label="Ghi chú bàn giao"
                 name="note"

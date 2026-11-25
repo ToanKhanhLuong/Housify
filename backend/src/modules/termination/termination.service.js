@@ -17,6 +17,15 @@ import { withTransaction } from '../../helpers/withTransaction.js';
 import { notify } from '../../helpers/notify.js';
 import { startOfVietnamDay } from '../../helpers/date.js';
 import { getRepresentativeRecipientEmail } from '../../helpers/representativeEmail.js';
+import {
+    cancelUpcomingContract,
+    cancelUpcomingOfRepresentative,
+    collectSuccessionKeys,
+    promoteReadyUpcomingContracts,
+} from '../../helpers/contractSuccession.js';
+
+// Hợp đồng còn nhận đơn chấm dứt: ACTIVE, hoặc UPCOMING (chỉ đơn thỏa thuận – xác nhận xong thì hủy hợp đồng)
+const isTerminableStatus = (status) => status === CONTRACT_STATUS.ACTIVE || status === CONTRACT_STATUS.UPCOMING;
 import TerminationRequest from '../../models/TerminationRequest.js';
 import Contract from '../../models/Contract.js';
 import Room from '../../models/Room.js';
@@ -142,9 +151,17 @@ const endContractByTerminationInSession = async ({
     session,
 }) => {
     const contract = await Contract.findById(contractId).session(session);
-    if (!contract || contract.status !== CONTRACT_STATUS.ACTIVE) {
+    if (!contract || !isTerminableStatus(contract.status)) {
         return false;
     }
+
+    // Hợp đồng sắp hiệu lực chưa từng giữ phòng: chỉ hủy, phòng và hợp đồng người trước không đổi (mất cọc)
+    if (contract.status === CONTRACT_STATUS.UPCOMING) {
+        await cancelUpcomingContract(contract, session);
+        return true;
+    }
+
+    const successionKeys = await collectSuccessionKeys(contract, session);
 
     contract.status = CONTRACT_STATUS.ENDED;
     await contract.save({ session });
@@ -169,6 +186,9 @@ const endContractByTerminationInSession = async ({
         },
         { session },
     );
+
+    // Hợp đồng nối tiếp đang chờ phòng này hoặc chờ khách trả phòng thì chuyển Đang hiệu lực luôn
+    await promoteReadyUpcomingContracts(successionKeys, session);
 
     return true;
 };
@@ -210,6 +230,14 @@ const sendUnilateralApprovedEmail = (to, roomNumber, buildingName, effectiveDate
   <li>Ngày hiệu lực chấm dứt: <b>${formatDateVn(effectiveDate)}</b></li>
 </ul>
 <p>Vui lòng liên hệ Quản lý tòa nhà để thực hiện bàn giao phòng trước hoặc vào ngày hiệu lực.</p>`,
+);
+
+const sendUpcomingCancelledByUnilateralEmail = (to, roomNumber) => sendMail(
+    to,
+    `[Housify] Hợp đồng sắp hiệu lực phòng ${roomNumber} đã bị hủy`,
+    `<p>Xin chào,</p>
+<p>Do hợp đồng hiện tại của bạn bị chấm dứt đơn phương, hợp đồng sắp hiệu lực thuê phòng <b>${escapeHtml(roomNumber)}</b> đã bị hủy.</p>
+<p>Tiền cọc của hợp đồng này sẽ được hoàn trả. Vui lòng liên hệ quản lý tòa nhà để nhận lại tiền cọc.</p>`,
 );
 
 const sendReminderEmail = (to, roomNumber, buildingName, effectiveDate, milestoneDay) => sendMail(
@@ -333,8 +361,18 @@ export const createTermination = async ({ managerId, contractId, data }) => {
 
     const { room, building } = await verifyManagerContractScope(managerId, contract);
 
-    if (contract.status !== CONTRACT_STATUS.ACTIVE) {
-        throw new AppError('Chỉ có thể tạo đơn chấm dứt cho hợp đồng đang hiệu lực', 400);
+    if (!isTerminableStatus(contract.status)) {
+        throw new AppError('Chỉ có thể tạo đơn chấm dứt cho hợp đồng đang hiệu lực hoặc sắp hiệu lực', 400);
+    }
+
+    const isUpcoming = contract.status === CONTRACT_STATUS.UPCOMING;
+    if (isUpcoming && data.type === TERMINATION_TYPE.UNILATERAL) {
+        throw new AppError('Hợp đồng sắp hiệu lực chỉ hủy được bằng đơn chấm dứt thỏa thuận', 400);
+    }
+    if (!isUpcoming && !data.effectiveDate) {
+        throw new AppError('Vui lòng chọn ngày hiệu lực chấm dứt hợp đồng', 422, [
+            { field: 'effectiveDate', message: 'Vui lòng chọn ngày hiệu lực chấm dứt hợp đồng' },
+        ]);
     }
 
     // Chặn khi hợp đồng đã có đơn PENDING, hoặc đã có đơn CONFIRMED chưa tới ngày hiệu lực
@@ -349,7 +387,8 @@ export const createTermination = async ({ managerId, contractId, data }) => {
 
     const type = data.type || TERMINATION_TYPE.MUTUAL;
     const cleanReason = data.reason.trim();
-    const effectiveDate = new Date(data.effectiveDate);
+    // Hợp đồng sắp hiệu lực: ngày hiệu lực = ngày tạo đơn, xác nhận xong thì hủy hợp đồng ngay
+    const effectiveDate = isUpcoming ? startOfVietnamDay(new Date()) : new Date(data.effectiveDate);
     const cleanNote = data.note?.trim() || undefined;
 
     // Kiểm tra ngày hiệu lực không được ở quá khứ và phải nằm trong thời hạn hợp đồng
@@ -358,17 +397,17 @@ export const createTermination = async ({ managerId, contractId, data }) => {
     const contractStartDay = startOfVietnamDay(contract.startDate);
     const contractEndDay = startOfVietnamDay(contract.endDate);
 
-    if (effectiveDay < todayStart) {
+    if (isUpcoming) {
+        // bỏ qua kiểm tra ngày hiệu lực theo thời hạn hợp đồng
+    } else if (effectiveDay < todayStart) {
         throw new AppError('Ngày hiệu lực không được ở quá khứ', 422, [
             { field: 'effectiveDate', message: 'Ngày hiệu lực không được ở quá khứ' },
         ]);
-    }
-    if (effectiveDay < contractStartDay) {
+    } else if (effectiveDay < contractStartDay) {
         throw new AppError('Ngày hiệu lực không được trước ngày bắt đầu hợp đồng', 422, [
             { field: 'effectiveDate', message: 'Ngày hiệu lực không được trước ngày bắt đầu hợp đồng' },
         ]);
-    }
-    if (effectiveDay > contractEndDay) {
+    } else if (effectiveDay > contractEndDay) {
         throw new AppError('Ngày hiệu lực không được vượt quá ngày kết thúc hợp đồng', 422, [
             { field: 'effectiveDate', message: 'Ngày hiệu lực không được vượt quá ngày kết thúc hợp đồng' },
         ]);
@@ -783,7 +822,7 @@ export const confirmTermination = async ({ customerId, terminationId, clientIp }
         throw new AppError('Đơn chấm dứt này không còn ở trạng thái chờ xác nhận', 400);
     }
 
-    if (contract.status !== CONTRACT_STATUS.ACTIVE) {
+    if (!isTerminableStatus(contract.status)) {
         throw new AppError('Hợp đồng không còn ở trạng thái đang hiệu lực', 400);
     }
 
@@ -808,7 +847,7 @@ export const confirmTermination = async ({ customerId, terminationId, clientIp }
 
     await withTransaction(async (session) => {
         const freshContract = await Contract.findById(contract._id).select('status').session(session).lean();
-        if (!freshContract || freshContract.status !== CONTRACT_STATUS.ACTIVE) {
+        if (!freshContract || !isTerminableStatus(freshContract.status)) {
             throw new AppError('Hợp đồng không còn ở trạng thái đang hiệu lực', 409);
         }
 
@@ -910,6 +949,7 @@ export const approveTermination = async ({ adminId, terminationId }) => {
     const shouldEndImmediately = startOfVietnamDay(termination.effectiveDate) <= startOfVietnamDay(now);
     let contractEndedImmediately = false;
     let updatedTermination = null;
+    let cancelledUpcomingContracts = [];
 
     await withTransaction(async (session) => {
         const freshContract = await Contract.findById(contract._id).select('status').session(session).lean();
@@ -941,6 +981,9 @@ export const approveTermination = async ({ adminId, terminationId }) => {
                 session,
             });
         }
+
+        // Khách bị chấm dứt đơn phương: hợp đồng sắp hiệu lực ở phòng khác bị hủy luôn (được hoàn cọc tiền mặt)
+        cancelledUpcomingContracts = await cancelUpcomingOfRepresentative(contract.representativeCccd, session);
 
         // Thông báo cho người đại diện (kèm lý do và ngày hiệu lực)
         if (repOccupant?.userId) {
@@ -982,6 +1025,11 @@ export const approveTermination = async ({ adminId, terminationId }) => {
         updatedTermination.effectiveDate,
         updatedTermination.reason,
     );
+
+    for (const upcoming of cancelledUpcomingContracts) {
+        const upcomingRoom = await Room.findById(upcoming.roomId).select('roomNumber').lean();
+        await sendUpcomingCancelledByUnilateralEmail(recipientEmail, upcomingRoom?.roomNumber || '');
+    }
 
     return {
         termination: updatedTermination,
@@ -1163,7 +1211,7 @@ export const runTerminationReminderJob = async (now = new Date()) => {
 
     for (const termination of pendingMutuals) {
         const contract = await Contract.findById(termination.contractId).lean();
-        if (!contract || contract.status !== CONTRACT_STATUS.ACTIVE) {
+        if (!contract || !isTerminableStatus(contract.status)) {
             continue;
         }
 
@@ -1316,7 +1364,7 @@ export const runTerminationEffectiveJob = async (now = new Date()) => {
         }
 
         const contract = await Contract.findById(termination.contractId).lean();
-        if (!contract || contract.status !== CONTRACT_STATUS.ACTIVE) {
+        if (!contract || !isTerminableStatus(contract.status)) {
             continue;
         }
 

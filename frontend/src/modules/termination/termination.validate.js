@@ -4,12 +4,15 @@ import { toDateInput } from '../../utils/format';
 const MAX_TEXT = 1000;
 
 // tạo đơn: loại, lý do (bắt buộc), ngày hiệu lực (bắt buộc, không ở quá khứ, nằm trong thời hạn hợp đồng), ghi chú bàn giao (tùy chọn)
-export const validateCreateTermination = ({ type, reason, effectiveDate, note }, contract = null) => {
+// hợp đồng sắp hiệu lực: không có ngày hiệu lực (BE tự đặt = ngày tạo đơn)
+export const validateCreateTermination = ({ type, reason, effectiveDate, note }, contract = null, isUpcoming = false) => {
   const errors = {};
   if (!type) errors.type = 'Vui lòng chọn loại đơn chấm dứt';
   if (!reason.trim()) errors.reason = 'Vui lòng nhập lý do chấm dứt hợp đồng';
   else if (reason.trim().length > MAX_TEXT) errors.reason = 'Lý do chấm dứt hợp đồng tối đa 1000 ký tự';
-  if (!effectiveDate) {
+  if (isUpcoming) {
+    // bỏ qua ngày hiệu lực
+  } else if (!effectiveDate) {
     errors.effectiveDate = 'Vui lòng chọn ngày hiệu lực chấm dứt hợp đồng';
   } else {
     const todayStr = toDateInput(new Date());

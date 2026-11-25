@@ -74,8 +74,8 @@ export const createTerminationSchema = Joi.object({
             'string.max': 'Lý do chấm dứt hợp đồng tối đa 1000 ký tự',
             'any.required': 'Vui lòng nhập lý do chấm dứt hợp đồng',
         }),
+    // hợp đồng sắp hiệu lực không cần ngày hiệu lực; hợp đồng đang hiệu lực bắt buộc (service kiểm)
     effectiveDate: Joi.date()
-        .required()
         .messages({
             'date.base': 'Ngày hiệu lực chấm dứt không hợp lệ',
             'any.required': 'Vui lòng chọn ngày hiệu lực chấm dứt hợp đồng',

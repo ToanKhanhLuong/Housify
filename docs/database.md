@@ -144,9 +144,9 @@ Mỗi tòa có riêng: danh sách phòng, giá dịch vụ (`service_prices`), n
 
 Đổi loại phòng (UC-17): loại mới phải có `capacity` ≥ số người đang ở của phòng.
 
-Đổi `status`: AVAILABLE ↔ MAINTENANCE do Admin (UC-17 A2), **không chuyển sang MAINTENANCE khi phòng đang có hợp đồng DRAFT** (Manager hủy nháp trước, UC-46). AVAILABLE ↔ OCCUPIED **chỉ hệ thống** đổi: kích hoạt hợp đồng (UC-06); hợp đồng kết thúc (UC-28/29/45). Admin không chọn được OCCUPIED, Manager không đổi được trạng thái (BR-052).
+Đổi `status`: AVAILABLE ↔ MAINTENANCE do Admin (UC-17 A2), **không chuyển sang MAINTENANCE khi phòng đang có hợp đồng DRAFT hoặc UPCOMING** (Manager hủy nháp trước, UC-46; UPCOMING thì hủy qua đơn thỏa thuận, UC-28). AVAILABLE ↔ OCCUPIED **chỉ hệ thống** đổi: kích hoạt hợp đồng (UC-06); hợp đồng kết thúc (UC-28/29/45). Admin không chọn được OCCUPIED, Manager không đổi được trạng thái (BR-052).
 
-Xóa phòng (UC-18): chặn khi còn hợp đồng ACTIVE **hoặc DRAFT**.
+Xóa phòng (UC-18): chặn khi còn hợp đồng ACTIVE, **DRAFT hoặc UPCOMING**.
 
 ### 9. room_types – loại phòng dùng chung toàn hệ thống
 
@@ -199,7 +199,7 @@ Lập hóa đơn → lấy bản ghi có `effectiveFrom` gần nhất và ≤ ng
 - `endDate`: Date – `startDate` + số tháng; gia hạn chỉ dời ngày này (BR-070)
 - `rentPrice`: Number – **snapshot** giá phòng lúc tạo (BR-062)
 - `deposit`: Number – **snapshot** tiền cọc lúc tạo
-- `status`: Enum `(CONTRACT_STATUS)` – DRAFT | ACTIVE | ENDED | CANCELLED
+- `status`: Enum `(CONTRACT_STATUS)` – DRAFT | UPCOMING | ACTIVE | ENDED | CANCELLED **(bổ sung UPCOMING)**
 - `activatedAt?`: Date – lúc khách tích "Đồng ý điều khoản" và kích hoạt – bằng chứng BR-014
 - `notes?`: String – ghi chú, điều khoản đặc biệt
 - `createdBy`: ObjectId → users – Manager tạo
@@ -212,10 +212,14 @@ Hợp đồng **không lưu họ tên người đại diện**. Manager và khá
 Vòng đời:
 
 - **DRAFT**: chưa có hồ sơ đại diện, chỉ có `representativeCccd` / `representativeEmail`. Gõ sai CCCD, email, ngày bắt đầu thì Manager sửa ở UC-26 rồi gửi lại lời mời (UC-46 A2).
-- **DRAFT → ACTIVE** (UC-06): 1 transaction – tạo / mở lại user, tạo occupant đại diện (họ tên khách tự nhập), hợp đồng ACTIVE, phòng OCCUPIED, token USED (BR-015).
+- **DRAFT → ACTIVE** (UC-06): 1 transaction – tạo / mở lại user, tạo occupant đại diện (họ tên khách tự nhập), hợp đồng ACTIVE, phòng OCCUPIED, token USED (BR-015). Chỉ khi phòng không còn hợp đồng ACTIVE của người khác và khách không còn hợp đồng ACTIVE ở phòng khác.
+- **DRAFT → UPCOMING** (UC-06, đặt thuê nối tiếp): như trên nhưng hợp đồng UPCOMING, **phòng giữ nguyên**. Occupant của hợp đồng UPCOMING lưu sẵn, chỉ tính là đang ở khi hợp đồng ACTIVE (giống người ở cùng nhập kèm trên DRAFT). Khách đang có tài khoản ACTIVE (đang thuê phòng khác) thì dùng lại tài khoản đó.
+- **UPCOMING → ACTIVE**: trong transaction kết thúc một hợp đồng ACTIVE (UC-28/29/45), hệ thống tìm hợp đồng UPCOMING của phòng đó và của người đại diện đó; hợp đồng nào không còn hợp đồng ACTIVE nào chặn (cả của phòng lẫn của chính khách) thì → ACTIVE, phòng → OCCUPIED.
+- **UPCOMING → CANCELLED**: (a) đơn chấm dứt MUTUAL trên chính hợp đồng UPCOMING được CONFIRMED (UC-28) – **mất cọc**; (b) đơn UNILATERAL trên hợp đồng ACTIVE khác của cùng người đại diện được Admin duyệt (UC-29) – hủy tự động cùng transaction, **được hoàn cọc** tiền mặt ngoài hệ thống. Cả hai: phòng và hợp đồng ACTIVE của người trước không đổi. Không lập UNILATERAL trên hợp đồng UPCOMING.
+- **Đặt thuê nối tiếp**: mỗi phòng tối đa 1 ACTIVE + 1 hợp đồng chờ (DRAFT hoặc UPCOMING), thời gian không chồng nhau. Phòng đang có ACTIVE chỉ nhận hợp đồng mới khi còn ≤ 1 tháng tới ngày rời đi (`effectiveDate` của đơn chấm dứt CONFIRMED, không có thì `endDate`). Một khách không có 2 hợp đồng ACTIVE cùng lúc. Chi tiết: `backend/src/modules/contract/contract.md`.
 - **Hủy DRAFT** (UC-46): 1 transaction – CANCELLED, token EXPIRED, người ở cùng đã nhập kèm → **LEFT (giữ lại)**, phòng giữ AVAILABLE; audit UPDATE_CONTRACT, lý do **tùy chọn**.
 - **Đang có đơn chấm dứt**: hợp đồng **vẫn ACTIVE** đến ngày hiệu lực (UC-28, UC-29). Không có trạng thái "chờ chấm dứt".
-- **ACTIVE → ENDED**: (a) đến `effectiveDate` của đơn chấm dứt CONFIRMED; (b) hết `endDate` mà không có đơn chấm dứt CONFIRMED (UC-45, job cuối ngày). Cả hai: 1 transaction – hợp đồng ENDED, phòng AVAILABLE, occupant STAYED → LEFT. Sau 24h tài khoản đại diện → INACTIVE (riêng đơn phương → LOCKED).
+- **ACTIVE → ENDED**: (a) đến `effectiveDate` của đơn chấm dứt CONFIRMED; (b) hết `endDate` mà không có đơn chấm dứt CONFIRMED (UC-45, job cuối ngày). Cả hai: 1 transaction – hợp đồng ENDED, phòng AVAILABLE, occupant STAYED → LEFT. Sau 24h tài khoản đại diện → INACTIVE (riêng đơn phương → LOCKED), trừ khi khách còn hợp đồng ACTIVE hoặc UPCOMING khác.
 - **Hoàn cọc**: chỉ hợp đồng ENDED do hết hạn (không có đơn chấm dứt CONFIRMED), chỉ 1 lần (BR-130, BR-131).
 
 ### 13. termination_requests – đơn chấm dứt hợp đồng
@@ -340,7 +344,7 @@ Ghi qua helper `audit()`, không tự `insert`.
 | `ACTIVATION_TYPE`    | CUSTOMER_INVITE, MANAGER_ACTIVATION      | `activation_tokens.type`                          |
 | `ROOM_STATUS`        | AVAILABLE, OCCUPIED, MAINTENANCE         | `rooms.status`                                    |
 | `CONTRACT_TYPE`      | SINGLE, GROUP                            | `contracts.contractType`                          |
-| `CONTRACT_STATUS`    | DRAFT, ACTIVE, ENDED, CANCELLED          | `contracts.status`                                |
+| `CONTRACT_STATUS`    | DRAFT, UPCOMING, ACTIVE, ENDED, CANCELLED | `contracts.status`                                |
 | `TERMINATION_TYPE`   | MUTUAL, UNILATERAL                       | `termination_requests.type`                       |
 | `TERMINATION_STATUS` | PENDING, CONFIRMED, REJECTED, CANCELLED  | `termination_requests.status`                     |
 | `INVOICE_ITEM_TYPE`  | RENT, METERED, FIXED, EXTRA              | `invoices.items.type`                             |

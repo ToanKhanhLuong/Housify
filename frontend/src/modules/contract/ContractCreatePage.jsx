@@ -1,4 +1,4 @@
-// UC-24: tạo hợp đồng thuê (Manager) – chọn phòng Trống của tòa (giá thuê, tiền cọc lấy từ phòng, chỉ xem),
+// UC-24: tạo hợp đồng thuê (Manager) – chọn phòng Trống, hoặc phòng đang thuê còn ≤ 1 tháng để đặt thuê nối tiếp (giá thuê, tiền cọc lấy từ phòng, chỉ xem),
 // ngày bắt đầu + số tháng (tự tính ngày kết thúc), CCCD + email người đại diện, Đơn / Nhóm, ghi chú
 // Người ở cùng (Nhóm): Manager CÓ THỂ nhập trước, không bắt buộc – khách tự thêm khi kích hoạt lần đầu, sau đó chỉ Manager thêm (UC-32)
 // Tạo xong: chuyển sang chi tiết, hiện thông báo đã gửi lời mời (kèm link thử khi chạy dev). Mở sẵn phòng: /contracts/new?roomId=
@@ -14,7 +14,7 @@ import MoneyText from '../../components/MoneyText';
 import PageHeader from '../../components/PageHeader';
 import SkeletonRows from '../../components/SkeletonRows';
 import { useAuth } from '../../context/AuthContext';
-import { CONTRACT_TYPE, ROOM_STATUS } from '../../constants/enums';
+import { CONTRACT_STATUS, CONTRACT_TYPE, ROOM_STATUS } from '../../constants/enums';
 import { CONTRACT_TYPE_LABEL } from '../../constants/statusLabels';
 import { formatDate, toDateInput } from '../../utils/format';
 import { hasErrors, toFieldErrors } from '../../utils/formErrors';
@@ -23,6 +23,19 @@ import { validateCreateContract } from './contract.validate';
 import { endDateOf } from './contractFormat';
 
 const TODAY = toDateInput(new Date()); // tính 1 lần khi nạp trang
+
+// phòng đang thuê chỉ nhận đặt nối tiếp khi hợp đồng hiện tại còn ≤ 1 tháng (BE kiểm lại theo ngày rời đi thực tế)
+const ONE_MONTH_LATER = (() => {
+  const date = new Date();
+  date.setMonth(date.getMonth() + 1);
+  return toDateInput(date);
+})();
+
+const dayAfter = (value) => {
+  const date = new Date(value);
+  date.setDate(date.getDate() + 1);
+  return toDateInput(date);
+};
 
 const newPerson = () => ({
   id: `${Date.now()}-${Math.random()}`, // khóa React, không gửi lên BE
@@ -39,8 +52,9 @@ const ContractCreatePage = () => {
   const { user } = useAuth();
   const buildingId = user.building?._id;
 
-  const [rooms, setRooms] = useState(null); // phòng Trống của tòa, null = đang tải
-  const [draftRoomIds, setDraftRoomIds] = useState([]); // phòng Trống nhưng đã có hợp đồng nháp
+  const [rooms, setRooms] = useState(null); // phòng Trống + đang thuê của tòa, null = đang tải
+  const [draftRoomIds, setDraftRoomIds] = useState([]); // phòng đã có hợp đồng chờ (nháp / sắp hiệu lực)
+  const [activeEndByRoomId, setActiveEndByRoomId] = useState({}); // phòng đang thuê → ngày kết thúc hợp đồng hiện tại
   const [loadError, setLoadError] = useState('');
   const [form, setForm] = useState({
     roomId: searchParams.get('roomId') ?? '',
@@ -56,18 +70,24 @@ const ContractCreatePage = () => {
   const [submitError, setSubmitError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // phòng Trống + hợp đồng nháp (phòng có nháp thì BE từ chối tạo thêm → làm mờ trong ô chọn)
+  // phòng Trống + đang thuê; phòng đã có hợp đồng chờ thì BE từ chối tạo thêm → làm mờ trong ô chọn
   useEffect(() => {
     if (!buildingId) return;
     Promise.all([
-      contractApi.rooms(buildingId, { status: ROOM_STATUS.AVAILABLE }),
-      contractApi.list({ status: 'DRAFT', limit: 50 }),
+      contractApi.rooms(buildingId, { status: `${ROOM_STATUS.AVAILABLE},${ROOM_STATUS.OCCUPIED}` }),
+      contractApi.list({ status: `${CONTRACT_STATUS.DRAFT},${CONTRACT_STATUS.UPCOMING}`, limit: 50 }),
+      contractApi.list({ status: CONTRACT_STATUS.ACTIVE, limit: 50 }),
     ])
-      .then(([roomsResponse, draftsResponse]) => {
+      .then(([roomsResponse, waitingResponse, activeResponse]) => {
         const list = Array.isArray(roomsResponse.data) ? roomsResponse.data : [];
         setRooms(list);
         setDraftRoomIds(
-          (draftsResponse.data?.items ?? []).map((contract) => String(contract.roomId)),
+          (waitingResponse.data?.items ?? []).map((contract) => String(contract.roomId)),
+        );
+        setActiveEndByRoomId(
+          Object.fromEntries(
+            (activeResponse.data?.items ?? []).map((contract) => [String(contract.roomId), contract.endDate]),
+          ),
         );
       })
       .catch((error) => {
@@ -77,6 +97,7 @@ const ContractCreatePage = () => {
   }, [buildingId]);
 
   const room = rooms?.find((item) => item._id === form.roomId) ?? null;
+  const currentEndDate = room ? activeEndByRoomId[String(room._id)] : null; // có = đặt thuê nối tiếp
   const capacity = room?.roomType?.capacity ?? null;
   const isGroup = form.contractType === CONTRACT_TYPE.GROUP;
   const endDate = endDateOf(form.startDate, form.durationMonths);
@@ -90,6 +111,15 @@ const ContractCreatePage = () => {
     }
   };
   const handleChange = (event) => setField(event.target.name, event.target.value);
+  // chọn phòng đang thuê: gợi ý ngày bắt đầu ngay sau ngày trả phòng (Manager vẫn tự lùi được để dọn phòng)
+  const handleRoomChange = (event) => {
+    const roomId = event.target.value;
+    setField('roomId', roomId);
+    const endOfCurrent = activeEndByRoomId[String(roomId)];
+    if (endOfCurrent && form.startDate <= toDateInput(endOfCurrent)) {
+      setField('startDate', dayAfter(endOfCurrent));
+    }
+  };
   const updatePerson = (index, field, value) => {
     setField(
       'coOccupants',
@@ -149,10 +179,10 @@ const ContractCreatePage = () => {
     );
   }
   if (loadError)
-    return <ErrorState message="Không tải được danh sách phòng trống" detail={loadError} />;
+    return <ErrorState message="Không tải được danh sách phòng" detail={loadError} />;
   if (rooms.length === 0) {
     return (
-      <EmptyState message="Tòa chưa có phòng Trống nào để tạo hợp đồng.">
+      <EmptyState message="Tòa chưa có phòng nào nhận hợp đồng mới.">
         <Button variant="secondary" onClick={() => navigate('/contracts')}>
           Về danh sách hợp đồng
         </Button>
@@ -204,18 +234,27 @@ const ContractCreatePage = () => {
               <Form.Select
                 name="roomId"
                 value={form.roomId}
-                onChange={handleChange}
+                onChange={handleRoomChange}
                 isInvalid={Boolean(errors.roomId)}
                 disabled={submitting}
               >
-                <option value="">-- Chọn phòng Trống --</option>
+                <option value="">-- Chọn phòng --</option>
                 {rooms.map((item) => {
-                  const hasDraft = draftRoomIds.includes(String(item._id));
+                  const hasWaiting = draftRoomIds.includes(String(item._id));
+                  const endOfCurrent = activeEndByRoomId[String(item._id)];
+                  const tooEarly = Boolean(endOfCurrent) && toDateInput(endOfCurrent) > ONE_MONTH_LATER;
+                  let note = '';
+                  if (hasWaiting) note = ' (đã có hợp đồng chờ)';
+                  else if (endOfCurrent) {
+                    note = tooEarly
+                      ? ` (đang thuê đến ${formatDate(endOfCurrent)}, chưa nhận đặt nối tiếp)`
+                      : ` (đang thuê đến ${formatDate(endOfCurrent)} – đặt thuê nối tiếp)`;
+                  }
                   return (
-                    <option key={item._id} value={item._id} disabled={hasDraft}>
+                    <option key={item._id} value={item._id} disabled={hasWaiting || tooEarly}>
                       Phòng {item.roomNumber} · Tầng {item.floorNumber} ·{' '}
                       {item.roomType?.name ?? '—'}
-                      {hasDraft ? ' (đang có hợp đồng nháp)' : ''}
+                      {note}
                     </option>
                   );
                 })}
@@ -298,6 +337,13 @@ const ContractCreatePage = () => {
             </div>
           </Col>
         </Row>
+        {currentEndDate && (
+          <Alert variant="info" className="mb-0 small">
+            Đặt thuê nối tiếp: phòng đang có hợp đồng đến ngày {formatDate(currentEndDate)}. Ngày bắt đầu phải sau
+            ngày trả phòng. Khách kích hoạt xong, hợp đồng ở trạng thái Sắp hiệu lực và tự chuyển Đang hiệu lực khi
+            hợp đồng hiện tại kết thúc.
+          </Alert>
+        )}
         {form.startDate && form.startDate < TODAY && (
           <Alert variant="warning" className="mb-0 small">
             Ngày bắt đầu đã ở quá khứ (hợp đồng hồi tố). Vẫn tạo được.

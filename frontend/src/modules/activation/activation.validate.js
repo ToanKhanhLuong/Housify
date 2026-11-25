@@ -77,7 +77,10 @@ export const validateActivateCustomer = (form, contract) => {
   if (!form.cccdFrontImage) errors.cccdFrontImage = 'Vui lòng tải lên ảnh CCCD mặt trước';
   if (!form.cccdBackImage) errors.cccdBackImage = 'Vui lòng tải lên ảnh CCCD mặt sau';
 
-  Object.assign(errors, validateActivateManager(form)); // mật khẩu + xác nhận: cùng luật với Manager
+  // khách đang có tài khoản hoạt động chọn giữ mật khẩu hiện tại thì bỏ qua 2 ô mật khẩu
+  if (!form.keepCurrentPassword) {
+    Object.assign(errors, validateActivateManager(form)); // mật khẩu + xác nhận: cùng luật với Manager
+  }
   Object.assign(errors, validateCoOccupants(form, contract));
   return errors;
 };

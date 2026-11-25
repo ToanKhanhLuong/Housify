@@ -10,7 +10,7 @@ import PageHeader from '../../components/PageHeader';
 import SkeletonRows from '../../components/SkeletonRows';
 import { CONTRACT_STATUS } from '../../constants/enums';
 import { useAutoRefresh } from '../../hooks/useAutoRefresh';
-import { formatDateTime } from '../../utils/format';
+import { formatDate, formatDateTime } from '../../utils/format';
 import contractApi from './contract.api';
 import ContractPaper from './components/ContractPaper';
 import ContractDocumentTab from './components/ContractDocumentTab';
@@ -53,7 +53,8 @@ const MyContractPage = () => {
           const items = response.data?.items ?? [];
           const totalContracts = response.data?.total ?? items.length;
           const activeContract = items.find((item) => item.status === CONTRACT_STATUS.ACTIVE);
-          const current = activeContract ?? items[0];
+          const upcomingContract = items.find((item) => item.status === CONTRACT_STATUS.UPCOMING);
+          const current = activeContract ?? upcomingContract ?? items[0];
           if (!current) {
             return setState({ status: 'empty', contract: null, hasActive: false, totalContracts: 0, error: '' });
           }
@@ -119,6 +120,7 @@ const MyContractPage = () => {
   }
 
   const isEnded = state.contract.status === CONTRACT_STATUS.ENDED;
+  const isUpcoming = state.contract.status === CONTRACT_STATUS.UPCOMING;
 
   return (
     <div className="flex flex-col gap-3">
@@ -158,6 +160,14 @@ const MyContractPage = () => {
           {state.contract.depositRefundedAt && (
             <> Thủ tục hoàn/quyết toán tiền cọc đã được ghi nhận lúc {formatDateTime(state.contract.depositRefundedAt)}.</>
           )}
+        </Alert>
+      )}
+
+      {isUpcoming && (
+        <Alert variant="info" className="mb-0 print:hidden">
+          Hợp đồng Sắp hiệu lực: bạn đã ký và đã cọc, ngày bắt đầu dự kiến {formatDate(state.contract.startDate)}.
+          Hợp đồng tự chuyển Đang hiệu lực khi phòng được bàn giao. Trong thời gian này bạn chỉ xem được thông tin,
+          chưa chỉnh sửa được. Muốn hủy, vui lòng liên hệ Manager (hủy theo thỏa thuận thì mất cọc).
         </Alert>
       )}
 

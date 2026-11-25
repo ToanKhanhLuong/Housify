@@ -11,6 +11,8 @@ import Contract from '../models/Contract.js';
 import Occupant from '../models/Occupant.js';
 import TerminationRequest from '../models/TerminationRequest.js';
 import User from '../models/User.js';
+import { startOfVietnamDay } from './date.js';
+import { getLeaveDate } from './contractSuccession.js';
 
 const withOptionalSession = (query, session) => (session ? query.session(session) : query);
 
@@ -198,9 +200,10 @@ export const getCustomerContractAccessState = async (userId) => {
 };
 
 /**
- * Kiểm tra số CCCD có đang cư trú (STAYED) trong một hợp đồng ACTIVE hay không (bỏ qua người ở cùng trên hợp đồng DRAFT)
+ * Kiểm tra số CCCD có đang cư trú (STAYED) trong một hợp đồng ACTIVE hoặc UPCOMING hay không (bỏ qua người ở cùng trên hợp đồng DRAFT).
+ * availableFrom: ngày bắt đầu hợp đồng mới – hợp đồng ACTIVE có ngày rời đi trước ngày này thì không tính là chồng (đặt thuê nối tiếp)
  */
-export const hasActiveStayingCccd = async (cccd, excludeContractId = null, session = null) => {
+export const hasActiveStayingCccd = async (cccd, excludeContractId = null, session = null, { availableFrom = null } = {}) => {
     const cleanCccd = String(cccd || '').trim();
     if (!cleanCccd) return false;
 
@@ -218,16 +221,21 @@ export const hasActiveStayingCccd = async (cccd, excludeContractId = null, sessi
     ).lean();
     if (stayedOccupants.length === 0) return false;
 
-    // Người ở cùng trên hợp đồng DRAFT cũng mang status STAYED, nên phải đối chiếu thêm Contract.status === ACTIVE để không khóa oan
-    const activeContract = await withOptionalSession(
-        Contract.exists({
+    // Người ở cùng trên hợp đồng DRAFT cũng mang status STAYED, nên phải đối chiếu thêm trạng thái hợp đồng để không khóa oan
+    const heldContracts = await withOptionalSession(
+        Contract.find({
             _id: { $in: stayedOccupants.map((item) => item.contractId) },
-            status: CONTRACT_STATUS.ACTIVE,
-        }),
+            status: { $in: [CONTRACT_STATUS.ACTIVE, CONTRACT_STATUS.UPCOMING] },
+        }).select('_id status endDate'),
         session,
-    );
+    ).lean();
 
-    return Boolean(activeContract);
+    for (const contract of heldContracts) {
+        if (contract.status === CONTRACT_STATUS.UPCOMING || !availableFrom) return true;
+        const leaveDate = await getLeaveDate(contract, session);
+        if (startOfVietnamDay(availableFrom) <= startOfVietnamDay(leaveDate)) return true;
+    }
+    return false;
 };
 
 /**
@@ -267,11 +275,11 @@ export const hasActiveStayingPhone = async (
     ).lean();
     if (matchedOccupants.length === 0) return false;
 
-    // Chỉ chặn SĐT khi cư dân giữ số đó thuộc hợp đồng đã kích hoạt (ACTIVE), bỏ qua bản nháp (DRAFT)
+    // Chỉ chặn SĐT khi cư dân giữ số đó thuộc hợp đồng đã kích hoạt (ACTIVE / UPCOMING), bỏ qua bản nháp (DRAFT)
     const activeContract = await withOptionalSession(
         Contract.exists({
             _id: { $in: matchedOccupants.map((item) => item.contractId) },
-            status: CONTRACT_STATUS.ACTIVE,
+            status: { $in: [CONTRACT_STATUS.ACTIVE, CONTRACT_STATUS.UPCOMING] },
         }),
         session,
     );
@@ -281,7 +289,7 @@ export const hasActiveStayingPhone = async (
 
 /**
  * Tính sức chứa tối thiểu cần đảm bảo của từng phòng theo hợp đồng đang mở (ACTIVE hoặc DRAFT)
- * - ACTIVE: số cư dân đang STAYED thực tế
+ * - ACTIVE / UPCOMING: số cư dân đang STAYED thực tế
  * - DRAFT: SINGLE = 1; GROUP = max(2, 1 + số người ở cùng đã nhập sẵn trên bản nháp)
  */
 export const getRequiredCapacityByRoom = async (roomIds = []) => {
@@ -290,7 +298,7 @@ export const getRequiredCapacityByRoom = async (roomIds = []) => {
 
     const openContracts = await Contract.find({
         roomId: { $in: roomIds },
-        status: { $in: [CONTRACT_STATUS.DRAFT, CONTRACT_STATUS.ACTIVE] },
+        status: { $in: [CONTRACT_STATUS.DRAFT, CONTRACT_STATUS.UPCOMING, CONTRACT_STATUS.ACTIVE] },
     })
         .select('_id roomId status contractType')
         .lean();
@@ -328,7 +336,7 @@ export const getRequiredCapacityByRoom = async (roomIds = []) => {
             coOccupantCount: 0,
         };
         const required =
-            contract.status === CONTRACT_STATUS.ACTIVE
+            contract.status !== CONTRACT_STATUS.DRAFT
                 ? stats.stayedCount
                 : contract.contractType === CONTRACT_TYPE.GROUP
                   ? Math.max(2, 1 + stats.coOccupantCount)

@@ -241,7 +241,7 @@ export const deleteBuilding = async (id) => {
       const roomIds = rooms.map((r) => r._id);
       const activeContracts = await Contract.find({
         roomId: { $in: roomIds },
-        status: { $in: [CONTRACT_STATUS.DRAFT, CONTRACT_STATUS.ACTIVE] },
+        status: { $in: [CONTRACT_STATUS.DRAFT, CONTRACT_STATUS.UPCOMING, CONTRACT_STATUS.ACTIVE] },
       }).session(session);
 
       if (activeContracts.length > 0) {

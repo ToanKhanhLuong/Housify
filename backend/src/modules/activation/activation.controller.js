@@ -20,10 +20,10 @@ export const getContractActivationInfo = asyncHandler(async (request, response) 
 
 export const activateCustomerContract = asyncHandler(async (request, response) => {
     // trả thêm activatedAt để FE in giờ xác nhận điện tử lên hợp đồng
-    const { activatedAt, warning } = await activationService.activateCustomerContract(request.body);
+    const { activatedAt, status, warning } = await activationService.activateCustomerContract(request.body);
     return ok(
         response,
-        { activatedAt, warning },
+        { activatedAt, status, warning },
         'Kích hoạt hợp đồng thành công. Vui lòng đăng nhập bằng số CCCD',
     );
 });

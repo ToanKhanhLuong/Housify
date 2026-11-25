@@ -59,8 +59,10 @@ export const ContractCard = ({ contract, now, basePath = '/contracts', showBuild
     contract.status === CONTRACT_STATUS.ENDED
       ? `${contract.totalOccupantCount ?? contract.occupantCount ?? 0} cư dân từng ở`
       : contract.status === CONTRACT_STATUS.CANCELLED
-        ? 'Đã hủy trước khi kích hoạt'
-        : `${contract.occupantCount ?? 0} người đang ở`;
+        ? 'Đã hủy'
+        : contract.status === CONTRACT_STATUS.UPCOMING
+          ? 'Chờ tới lượt vào ở'
+          : `${contract.occupantCount ?? 0} người đang ở`;
 
   return (
     <Link to={`${basePath}/${contract._id}`} className="hf-tcard no-underline gap-3">

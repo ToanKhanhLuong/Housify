@@ -26,6 +26,12 @@ import { escapeRegex } from '../../helpers/filter.js';
 import { startOfVietnamDay, endOfVietnamDay } from '../../helpers/date.js';
 import { getRepresentativeRecipientEmail } from '../../helpers/representativeEmail.js';
 import {
+    assertRoomAcceptsNewContract,
+    collectSuccessionKeys,
+    promoteAllReadyUpcomingContracts,
+    promoteReadyUpcomingContracts,
+} from '../../helpers/contractSuccession.js';
+import {
     findBlacklistedCccds,
     findDraftCccdConflict,
     findDraftEmailConflict,
@@ -119,9 +125,9 @@ const assertContractEndDateAfterToday = (endDate, now = new Date()) => {
 /**
  * Kiểm tra CCCD và Email của người đại diện khi tạo hoặc sửa hợp đồng nháp (UC-24, UC-26)
  */
-const validateRepresentativeCccdAndEmail = async (cleanRepCccd, cleanRepEmail, excludeContractId = null) => {
-    // 1. Chặn nếu CCCD đang ở phòng khác thuộc hợp đồng ACTIVE (không khóa cứng người ở cùng của hợp đồng DRAFT)
-    if (await hasActiveStayingCccd(cleanRepCccd, excludeContractId)) {
+const validateRepresentativeCccdAndEmail = async (cleanRepCccd, cleanRepEmail, excludeContractId = null, startDate = null) => {
+    // 1. Chặn nếu CCCD đang ở phòng khác (ACTIVE chồng ngày với hợp đồng mới, hoặc đã có UPCOMING) – không khóa cứng người ở cùng của hợp đồng DRAFT
+    if (await hasActiveStayingCccd(cleanRepCccd, excludeContractId, null, { availableFrom: startDate })) {
         throw fieldError(
             'representativeCccd',
             'Số CCCD này hiện đang thuê phòng khác',
@@ -250,18 +256,8 @@ export const createContract = async ({ managerId, data }) => {
         throw new AppError('Bạn không có quyền thực hiện thao tác này', 403);
     }
 
-    if (room.status !== ROOM_STATUS.AVAILABLE) {
-        throw new AppError('Phòng không còn trống để tạo hợp đồng', 400);
-    }
-
-    // Mỗi phòng tại một thời điểm chỉ có tối đa một hợp đồng Nháp hoặc Đang hiệu lực (BR-061)
-    const existingContract = await Contract.findOne({
-        roomId: room._id,
-        status: { $in: [CONTRACT_STATUS.DRAFT, CONTRACT_STATUS.ACTIVE] },
-    });
-    if (existingContract) {
-        throw new AppError('Phòng đã có hợp đồng nháp hoặc đang có hợp đồng hiệu lực', 400);
-    }
+    // Mỗi phòng tối đa 1 ACTIVE + 1 hợp đồng chờ; phòng đang thuê chỉ nhận đặt nối tiếp khi còn ≤ 1 tháng (BR-061)
+    await assertRoomAcceptsNewContract({ room, startDate: new Date(startDate) });
 
     // 2. Kiểm tra sức chứa theo loại phòng (BR-087)
     const roomType = await RoomType.findOne({ _id: room.roomTypeId, isDeleted: false });
@@ -309,7 +305,7 @@ export const createContract = async ({ managerId, data }) => {
     }
 
     // 3b & 3c. Kiểm tra CCCD và Email người đại diện
-    await validateRepresentativeCccdAndEmail(cleanRepCccd, cleanRepEmail);
+    await validateRepresentativeCccdAndEmail(cleanRepCccd, cleanRepEmail, null, parsedStartDate);
 
     // 3d. Kiểm tra người ở cùng trên toàn hệ thống
     const blacklistedCoCccds = await findBlacklistedCccds(coOccupants.map((co) => co.cccd));
@@ -326,7 +322,7 @@ export const createContract = async ({ managerId, data }) => {
             throw new AppError(`Người ở cùng mang CCCD ${coCccd} đang là người đại diện của một hợp đồng nháp khác`, 400);
         }
 
-        if (await hasActiveStayingCccd(coCccd)) {
+        if (await hasActiveStayingCccd(coCccd, null, null, { availableFrom: parsedStartDate })) {
             throw new AppError(`Người ở cùng mang CCCD ${coCccd} hiện đang ở phòng khác`, 400);
         }
 
@@ -627,7 +623,7 @@ export const getContracts = async ({ userId, roleId, query = {} }) => {
         const myContractIds = repOccupants.map((o) => o.contractId);
         filter._id = { $in: myContractIds };
 
-        const customerAllowedStatuses = [CONTRACT_STATUS.ACTIVE, CONTRACT_STATUS.ENDED];
+        const customerAllowedStatuses = [CONTRACT_STATUS.UPCOMING, CONTRACT_STATUS.ACTIVE, CONTRACT_STATUS.ENDED];
         if (statusList && statusList.length > 0) {
             const allowedRequested = statusList.filter((s) => customerAllowedStatuses.includes(s));
             if (allowedRequested.length === 0) {
@@ -791,7 +787,7 @@ export const getContractById = async ({ userId, roleId, contractId }) => {
             throw new AppError('Bạn không có quyền thực hiện thao tác này', 403);
         }
     } else if (roleId === ROLE.CUSTOMER) {
-        const isAllowedStatus = [CONTRACT_STATUS.ACTIVE, CONTRACT_STATUS.ENDED].includes(contract.status);
+        const isAllowedStatus = [CONTRACT_STATUS.UPCOMING, CONTRACT_STATUS.ACTIVE, CONTRACT_STATUS.ENDED].includes(contract.status);
         const isMyContract = isAllowedStatus && await Occupant.exists({
             contractId: contract._id,
             userId,
@@ -887,6 +883,10 @@ export const updateContract = async ({ managerId, contractId, data }) => {
         throw new AppError('Không thể chỉnh sửa hợp đồng đã kết thúc hoặc đã hủy', 400);
     }
 
+    if (contract.status === CONTRACT_STATUS.UPCOMING) {
+        throw new AppError('Hợp đồng sắp hiệu lực không được chỉnh sửa', 400);
+    }
+
     const sentKeys = Object.keys(data || {}).filter((key) => data[key] !== undefined);
     if (sentKeys.length === 0) {
         throw new AppError('Vui lòng cung cấp dữ liệu cần cập nhật', 422);
@@ -959,17 +959,23 @@ export const updateContract = async ({ managerId, contractId, data }) => {
         }
     }
 
-    // Kiểm tra CCCD và Email đại diện như lúc tạo (UC-24)
-    if (data.representativeCccd !== undefined || data.representativeEmail !== undefined) {
-        await validateRepresentativeCccdAndEmail(nextRepCccd, nextRepEmail, contract._id);
-    }
-
     const repChanged =
         nextRepCccd !== contract.representativeCccd ||
         nextRepEmail !== contract.representativeEmail;
 
     const currentDurationMonths = inferDurationMonths(contract.startDate, contract.endDate);
     const nextStartDate = data.startDate !== undefined ? new Date(data.startDate) : contract.startDate;
+
+    // Đổi ngày bắt đầu: kiểm lại quy tắc đặt thuê nối tiếp của phòng (UC-26)
+    if (data.startDate !== undefined) {
+        const room = await Room.findById(contract.roomId);
+        await assertRoomAcceptsNewContract({ room, startDate: nextStartDate, excludeContractId: contract._id });
+    }
+
+    // Kiểm tra CCCD và Email đại diện như lúc tạo (UC-24); đổi ngày bắt đầu cũng kiểm lại vì phòng cũ của khách tính theo ngày
+    if (data.representativeCccd !== undefined || data.representativeEmail !== undefined || data.startDate !== undefined) {
+        await validateRepresentativeCccdAndEmail(nextRepCccd, nextRepEmail, contract._id, nextStartDate);
+    }
     const nextDurationMonths = data.durationMonths !== undefined ? Number(data.durationMonths) : currentDurationMonths;
 
     let nextEndDate = contract.endDate;
@@ -1067,6 +1073,15 @@ export const renewContract = async ({ managerId, contractId, data = {} }) => {
         throw new AppError('Không thể gia hạn hợp đồng đang có đơn chấm dứt đang xử lý', 400);
     }
 
+    // Phòng đã có hợp đồng nối tiếp thì người thuê hiện tại không gia hạn được nữa
+    const successorContract = await Contract.findOne({
+        roomId: contract.roomId,
+        status: { $in: [CONTRACT_STATUS.DRAFT, CONTRACT_STATUS.UPCOMING] },
+    }).lean();
+    if (successorContract) {
+        throw new AppError(`Phòng đã có hợp đồng nối tiếp từ ngày ${formatDateVn(successorContract.startDate)}`, 400);
+    }
+
     const months = data.months !== undefined ? Number(data.months) : 12;
     if (!Number.isInteger(months) || months <= 0) {
         throw new AppError('Số tháng gia hạn phải là số nguyên lớn hơn 0', 422);
@@ -1084,6 +1099,20 @@ export const renewContract = async ({ managerId, contractId, data = {} }) => {
     if (startOfVietnamDay(newEndDate) <= startOfVietnamDay(new Date())) {
         throw new AppError(
             'Ngày kết thúc sau khi gia hạn vẫn nằm trong quá khứ, vui lòng tăng số tháng gia hạn',
+            400,
+        );
+    }
+
+    // Người đại diện đã đặt trước phòng khác bắt đầu không sau ngày kết thúc mới thì gia hạn sẽ bị chồng ngày
+    const ownNextContract = await Contract.findOne({
+        _id: { $ne: contract._id },
+        representativeCccd: contract.representativeCccd,
+        status: { $in: [CONTRACT_STATUS.DRAFT, CONTRACT_STATUS.UPCOMING] },
+        startDate: { $lte: newEndDate },
+    }).lean();
+    if (ownNextContract) {
+        throw new AppError(
+            `Người đại diện đã có hợp đồng phòng khác bắt đầu từ ngày ${formatDateVn(ownNextContract.startDate)}, không thể gia hạn quá ngày này`,
             400,
         );
     }
@@ -1658,6 +1687,8 @@ export const runContractExpiryJob = async (now = new Date()) => {
                 return;
             }
 
+            const successionKeys = await collectSuccessionKeys(freshContract, session);
+
             freshContract.status = CONTRACT_STATUS.ENDED;
             await freshContract.save({ session });
 
@@ -1672,6 +1703,9 @@ export const runContractExpiryJob = async (now = new Date()) => {
                 { status: OCCUPANT_STATUS.LEFT, exitDate: freshContract.endDate },
                 { session },
             );
+
+            // Hợp đồng nối tiếp đang chờ phòng này hoặc chờ khách trả phòng thì chuyển Đang hiệu lực luôn
+            await promoteReadyUpcomingContracts(successionKeys, session);
 
             // Nếu đang có đơn chấm dứt PENDING thì hủy đơn đó với lý do "Hợp đồng đã hết hạn"
             await TerminationRequest.updateMany(
@@ -1711,9 +1745,12 @@ export const runContractExpiryJob = async (now = new Date()) => {
         }
     }
 
+    const promotedUpcomingCount = await promoteAllReadyUpcomingContracts(withTransaction);
+
     return {
         processedCount: expiredContractIds.length,
         expiredContractIds,
+        promotedUpcomingCount,
     };
 };
 
@@ -1785,6 +1822,8 @@ export const runAccountAfterEndJob = async (now = new Date()) => {
     }
 
     const getContractEndTimestamp = (contract) => {
+        // Hợp đồng đại diện bị CANCELLED chỉ có thể là UPCOMING bị hủy: mốc là lúc hủy
+        if (contract.status === CONTRACT_STATUS.CANCELLED) return new Date(contract.updatedAt).getTime();
         const term = terminationByContractId.get(String(contract._id));
         const refDate = term ? new Date(term.effectiveDate) : new Date(contract.endDate);
         return refDate.getTime();
@@ -1796,15 +1835,17 @@ export const runAccountAfterEndJob = async (now = new Date()) => {
             continue;
         }
 
-        // Nếu khách vẫn còn hợp đồng ACTIVE khác thì không khóa / ngưng hoạt động
-        const hasActiveContract = contracts.some((c) => c.status === CONTRACT_STATUS.ACTIVE);
+        // Nếu khách vẫn còn hợp đồng ACTIVE hoặc UPCOMING khác thì không khóa / ngưng hoạt động
+        const hasActiveContract = contracts.some(
+            (c) => c.status === CONTRACT_STATUS.ACTIVE || c.status === CONTRACT_STATUS.UPCOMING,
+        );
         if (hasActiveContract) {
             continue;
         }
 
         // Sắp xếp theo mốc kết thúc thực tế (ngày hiệu lực đơn chấm dứt / ngày hết hạn hợp đồng), không dựa vào updatedAt (tránh hoàn cọc HĐ cũ làm lệch)
         const endedContracts = contracts
-            .filter((c) => c.status === CONTRACT_STATUS.ENDED)
+            .filter((c) => c.status === CONTRACT_STATUS.ENDED || c.status === CONTRACT_STATUS.CANCELLED)
             .sort((a, b) => {
                 const diff = getContractEndTimestamp(b) - getContractEndTimestamp(a);
                 if (diff !== 0) return diff;
@@ -1827,9 +1868,11 @@ export const runAccountAfterEndJob = async (now = new Date()) => {
             || terminationByContractId.get(String(targetContract._id))
             || null;
 
-        const referenceEndDate = confirmedTermination
-            ? new Date(confirmedTermination.effectiveDate)
-            : new Date(targetContract.endDate);
+        const referenceEndDate = targetContract.status === CONTRACT_STATUS.CANCELLED
+            ? new Date(targetContract.updatedAt)
+            : confirmedTermination
+                ? new Date(confirmedTermination.effectiveDate)
+                : new Date(targetContract.endDate);
         const updatedTime = new Date(targetContract.updatedAt);
 
         const elapsedFromRefMs = now.getTime() - referenceEndDate.getTime();

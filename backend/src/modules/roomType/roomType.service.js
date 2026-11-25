@@ -127,6 +127,8 @@ export const updateRoomType = async (id, data) => {
       const message =
         requirement.contractStatus === CONTRACT_STATUS.DRAFT
           ? `Sức chứa mới nhỏ hơn số người của hợp đồng nháp đang chờ ký tại phòng ${room.roomNumber} (${requirement.required} người)`
+          : requirement.contractStatus === CONTRACT_STATUS.UPCOMING
+          ? `Sức chứa mới nhỏ hơn số người của hợp đồng sắp hiệu lực tại phòng ${room.roomNumber} (${requirement.required} người)`
           : `Sức chứa mới nhỏ hơn số người đang ở của phòng ${room.roomNumber} (${requirement.required} người)`;
       throw new AppError(message, 400);
     }

@@ -58,13 +58,14 @@ Iter 2 (Customer)
 
 **Điều kiện trước**
 
-- Manager đã tạo hợp đồng nháp cho một phòng đang trống, đã nhập CCCD và email của khách (UC-24).
+- Manager đã tạo hợp đồng nháp cho phòng (phòng trống, hoặc đặt thuê nối tiếp), đã nhập CCCD và email của khách (UC-24). Manager đã thu cọc trước khi gửi link.
 - Link mời còn hiệu lực.
 
 **Màn hình gồm hai phần**
 
 - **Bên trái, chỉ xem:** thông tin hợp đồng gồm phòng, ngày bắt đầu, thời hạn, giá thuê, tiền cọc.
 - **Bên phải, khách nhập:** họ tên, số điện thoại, ngày sinh, địa chỉ, mật khẩu, xác nhận mật khẩu, ảnh CCCD mặt trước và mặt sau.
+- **Khách đang có tài khoản hoạt động** (đang thuê phòng khác, đặt trước để chuyển phòng): thay ô mật khẩu bằng lựa chọn **"Dùng mật khẩu hiện tại"** (mặc định) hoặc **"Đặt mật khẩu mới"**. Chọn đặt mới thì hiện thêm hai ô mật khẩu mới và xác nhận mật khẩu mới, lưu xong coi như khách đổi mật khẩu.
 
 **Luồng chính**
 
@@ -79,8 +80,9 @@ Iter 2 (Customer)
 
 - Tạo tài khoản khách, dùng **CCCD làm định danh đăng nhập**, email lấy theo email Manager đã nhập. Khách cũ có tài khoản đang ngưng hoạt động thì **mở lại tài khoản cũ** và đặt mật khẩu mới, không tạo tài khoản mới.
 - Tạo hồ sơ cư dân cho người đại diện, ngày vào ở là ngày bắt đầu hợp đồng.
-- Hợp đồng chuyển từ **Nháp** sang **Đang hiệu lực**, ghi lại thời điểm khách xác nhận.
-- Phòng chuyển từ **Trống** sang **Đang thuê**.
+- Ghi lại thời điểm khách xác nhận. Hợp đồng chuyển trạng thái theo một trong hai cách:
+  - Phòng không còn hợp đồng Đang hiệu lực của người khác **và** khách không còn hợp đồng Đang hiệu lực ở phòng khác: hợp đồng sang **Đang hiệu lực**, phòng chuyển từ **Trống** sang **Đang thuê**.
+  - Ngược lại: hợp đồng sang **Sắp hiệu lực**, phòng giữ nguyên. Hợp đồng tự chuyển Đang hiệu lực khi hợp đồng đang chặn kết thúc (xem mục "Đặt thuê nối tiếp" trong `contract.md`).
 - Link mời hết hiệu lực.
 
 Thành công cả năm việc hoặc không việc nào thay đổi. Lỗi giữa chừng thì quay lại như cũ, báo khách thử lại.
@@ -96,8 +98,10 @@ Thành công cả năm việc hoặc không việc nào thay đổi. Lỗi giữ
 - **Ảnh CCCD mờ hoặc sai định dạng:** bắt tải lại.
 - **Số CCCD trên ảnh khác số Manager đã nhập:** từ chối, khách liên hệ Manager kiểm tra lại.
 - **Số điện thoại đã thuộc về người khác:** từ chối, báo trùng.
-- **CCCD đang có tài khoản đang hoạt động (đang thuê phòng khác) hoặc bị khóa:** từ chối.
-- **Phòng không còn trống:** từ chối, khách liên hệ Manager.
+- **CCCD bị khóa:** từ chối.
+- **CCCD đang thuê phòng khác:** cho phép nếu ngày bắt đầu hợp đồng mới sau ngày rời đi của phòng cũ (khách đặt trước để chuyển phòng). Dùng lại tài khoản đang có, không tạo tài khoản mới. Bị chồng ngày thì từ chối.
+- **Phòng đang Bảo trì, hoặc đã có hợp đồng khác chồng ngày:** từ chối, khách liên hệ Manager.
+- **Email "Xác nhận thành công" với hợp đồng Sắp hiệu lực:** ghi rõ hợp đồng sắp hiệu lực và ngày bắt đầu dự kiến.
 
 **Quy tắc**
 

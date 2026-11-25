@@ -27,6 +27,7 @@ export const ROOM_STATUS_LABEL = {
 
 export const CONTRACT_STATUS_LABEL = {
     [CONTRACT_STATUS.DRAFT]: { label: 'Nháp', variant: 'warning' },
+    [CONTRACT_STATUS.UPCOMING]: { label: 'Sắp hiệu lực', variant: 'info' },
     [CONTRACT_STATUS.ACTIVE]: { label: 'Đang hiệu lực', variant: 'success' },
     [CONTRACT_STATUS.ENDED]: { label: 'Đã kết thúc', variant: 'secondary' },
     [CONTRACT_STATUS.CANCELLED]: { label: 'Đã hủy', variant: 'danger' },

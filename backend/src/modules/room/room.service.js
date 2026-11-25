@@ -75,12 +75,14 @@ const ensureFloorInBuilding = (floorNumber, building) => {
   }
 };
 
-// Hợp đồng DRAFT hoặc ACTIVE của phòng (BR-061: tối đa 1 hợp đồng)
-const findOpenContract = (roomId) =>
-  Contract.findOne({
+// Hợp đồng còn mở của phòng (BR-061: tối đa 1 ACTIVE + 1 hợp đồng chờ DRAFT / UPCOMING), ưu tiên trả ACTIVE
+const findOpenContract = async (roomId) => {
+  const contracts = await Contract.find({
     roomId,
-    status: { $in: [CONTRACT_STATUS.DRAFT, CONTRACT_STATUS.ACTIVE] },
+    status: { $in: [CONTRACT_STATUS.DRAFT, CONTRACT_STATUS.UPCOMING, CONTRACT_STATUS.ACTIVE] },
   });
+  return contracts.find((item) => item.status === CONTRACT_STATUS.ACTIVE) || contracts[0] || null;
+};
 
 // Đếm số cư dân đang ở (STAYED thuộc hợp đồng ACTIVE) theo danh sách phòng chỉ với 2 truy vấn gộp
 const countStayingOccupantsByRoom = async (roomIds) => {
@@ -290,6 +292,8 @@ export const updateRoom = async (id, data, user) => {
         const message =
           requirement.contractStatus === CONTRACT_STATUS.DRAFT
             ? `Loại phòng mới không đủ sức chứa cho hợp đồng nháp đang chờ ký (${requirement.required} người)`
+            : requirement.contractStatus === CONTRACT_STATUS.UPCOMING
+            ? `Loại phòng mới không đủ sức chứa cho hợp đồng sắp hiệu lực (${requirement.required} người)`
             : `Loại phòng mới không đủ chỗ cho số người đang ở (${requirement.required} người)`;
         throw new AppError(message, 400);
       }
@@ -303,8 +307,16 @@ export const updateRoom = async (id, data, user) => {
       throw new AppError('Phòng đang thuê, không thể đổi trạng thái', 400);
     }
 
-    // UC-17 A2: phòng còn hợp đồng nháp thì không chuyển sang Bảo trì
+    // UC-17 A2: phòng còn hợp đồng nháp hoặc đã giữ chỗ cho hợp đồng sắp hiệu lực thì không chuyển sang Bảo trì
     if (data.status === ROOM_STATUS.MAINTENANCE) {
+      const upcomingContract = await Contract.exists({
+        roomId: room._id,
+        status: CONTRACT_STATUS.UPCOMING,
+      });
+      if (upcomingContract) {
+        throw new AppError('Phòng đang được giữ chỗ cho hợp đồng sắp hiệu lực, không thể chuyển sang Bảo trì', 400);
+      }
+
       const draftContract = await Contract.findOne({
         roomId: room._id,
         status: CONTRACT_STATUS.DRAFT,
@@ -358,6 +370,10 @@ export const deleteRoom = async (id, user) => {
       'Phòng đang có hợp đồng chờ kích hoạt, Manager cần hủy hợp đồng nháp trước khi xóa',
       400,
     );
+  }
+
+  if (contract?.status === CONTRACT_STATUS.UPCOMING) {
+    throw new AppError('Phòng đang có hợp đồng sắp hiệu lực, không thể xóa', 400);
   }
 
   room.isDeleted = true;

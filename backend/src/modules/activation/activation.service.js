@@ -13,6 +13,7 @@ import {
     hasActiveStayingCccd,
     hasActiveStayingPhone,
 } from '../../helpers/customerRestriction.js';
+import { isContractReadyToActivate, formatDateVn } from '../../helpers/contractSuccession.js';
 import {
     ROLE,
     ACTIVATION_TYPE,
@@ -181,7 +182,7 @@ const validateCustomerContractActivationToken = async (token) => {
         throw new AppError('Link không còn hiệu lực', 404);
     }
 
-    if (contract.status === CONTRACT_STATUS.ACTIVE) {
+    if (contract.status === CONTRACT_STATUS.ACTIVE || contract.status === CONTRACT_STATUS.UPCOMING) {
         throw new AppError('Hợp đồng đã được kích hoạt. Vui lòng đăng nhập', 400);
     }
 
@@ -214,6 +215,19 @@ export const getContractActivationInfo = async (token) => {
         .select('name phone address dateOfBirth')
         .lean();
 
+    // Khách đang có tài khoản hoạt động (đặt trước để chuyển phòng) thì FE cho chọn giữ mật khẩu hiện tại
+    const existingRepAccount = await Occupant.findOne({
+        cccd: contract.representativeCccd,
+        isRepresentative: true,
+        userId: { $ne: null },
+    })
+        .select('userId')
+        .lean();
+    const hasActiveAccount = Boolean(
+        existingRepAccount
+        && await User.exists({ _id: existingRepAccount.userId, status: USER_STATUS.ACTIVE }),
+    );
+
     return {
         building: {
             name: building?.name || '',
@@ -245,6 +259,7 @@ export const getContractActivationInfo = async (token) => {
         notes: contract.notes || '',
         representativeEmail: contract.representativeEmail,
         representativeCccd: contract.representativeCccd,
+        hasActiveAccount,
         coOccupants: coOccupants.map((co) => ({
             name: co.name,
             cccd: co.cccd,
@@ -265,6 +280,7 @@ export const activateCustomerContract = async ({
     dateOfBirth,
     address,
     password,
+    keepCurrentPassword = false,
     agreed,
     cccdFrontImage,
     cccdBackImage,
@@ -282,11 +298,12 @@ export const activateCustomerContract = async ({
         );
     }
 
-    // 1. Kiểm tra phòng còn trống
+    // 1. Kiểm tra phòng (phòng đang thuê vẫn kích hoạt được nếu là hợp đồng nối tiếp – khi đó hợp đồng thành UPCOMING)
     const room = await Room.findById(contract.roomId);
-    if (!room || room.status !== ROOM_STATUS.AVAILABLE) {
+    if (!room || room.status === ROOM_STATUS.MAINTENANCE) {
         throw new AppError('Phòng không còn trống, vui lòng liên hệ quản lý', 400);
     }
+    const availableFrom = contract.startDate;
 
     const building = await Building.findById(room.buildingId);
 
@@ -385,7 +402,7 @@ export const activateCustomerContract = async ({
         if (draftRepConflict) {
             throw new AppError(`Người ở cùng mang CCCD ${co.cccd} đang là người đại diện của một hợp đồng nháp khác`, 400);
         }
-        if (await hasActiveStayingCccd(co.cccd, contract._id)) {
+        if (await hasActiveStayingCccd(co.cccd, contract._id, null, { availableFrom })) {
             throw new AppError(`Người ở cùng mang CCCD ${co.cccd} hiện đang ở phòng khác`, 400);
         }
         if (await Manager.exists({ phone: co.phone })) {
@@ -402,6 +419,7 @@ export const activateCustomerContract = async ({
     }
 
     let customerUserId = null;
+    let activatedStatus = CONTRACT_STATUS.ACTIVE;
 
     // 3. Thực hiện trong 1 MongoDB Transaction duy nhất (BR-015)
     await withTransaction(async (session) => {
@@ -419,7 +437,7 @@ export const activateCustomerContract = async ({
         }
 
         // Chặn nếu CCCD hoặc SĐT đại diện vừa phát sinh xung đột trên hợp đồng ACTIVE khác
-        if (await hasActiveStayingCccd(contract.representativeCccd, contract._id, session)) {
+        if (await hasActiveStayingCccd(contract.representativeCccd, contract._id, session, { availableFrom })) {
             throw new AppError('Số CCCD này hiện đang thuê hoặc cư trú ở phòng khác', 400);
         }
         if (await Manager.exists({ phone: cleanPhone }).session(session)) {
@@ -443,7 +461,7 @@ export const activateCustomerContract = async ({
                     400,
                 );
             }
-            if (await hasActiveStayingCccd(co.cccd, contract._id, session)) {
+            if (await hasActiveStayingCccd(co.cccd, contract._id, session, { availableFrom })) {
                 throw new AppError(`Người ở cùng mang CCCD ${co.cccd} hiện đang ở phòng khác`, 400);
             }
             if (await Manager.exists({ phone: co.phone }).session(session)) {
@@ -526,22 +544,16 @@ export const activateCustomerContract = async ({
                 }
             }
 
-            const stayedRepContractIds = pastRepOccupants
-                .filter((o) => o.status === OCCUPANT_STATUS.STAYED && String(o.contractId) !== String(contract._id))
-                .map((o) => o.contractId);
-            if (user.status === USER_STATUS.ACTIVE && stayedRepContractIds.length > 0) {
-                const hasOtherActiveRepContract = await Contract.exists({
-                    _id: { $in: stayedRepContractIds },
-                    status: CONTRACT_STATUS.ACTIVE,
-                }).session(session);
-                if (hasOtherActiveRepContract) {
-                    throw new AppError('Tài khoản của bạn đang hoạt động ở phòng khác', 400);
-                }
-            }
-
-            // Khách cũ thuê lại (INACTIVE hoặc vừa kết thúc hợp đồng chưa qua 24h): cập nhật mật khẩu và mở lại tài khoản
+            // Khách đang thuê phòng khác đã được kiểm chồng ngày ở hasActiveStayingCccd phía trên (đặt trước để chuyển phòng)
+            // Khách cũ thuê lại (INACTIVE hoặc vừa kết thúc hợp đồng chưa qua 24h): mở lại tài khoản; tài khoản đang hoạt động được giữ mật khẩu cũ
             const wasInactive = user.status === USER_STATUS.INACTIVE;
-            user.password = await bcrypt.hash(password, 10);
+            const keepPassword = keepCurrentPassword && user.status === USER_STATUS.ACTIVE;
+            if (!keepPassword) {
+                if (!password) {
+                    throw new AppError('Vui lòng đặt mật khẩu', 422, [{ field: 'password', message: 'Vui lòng đặt mật khẩu' }]);
+                }
+                user.password = await bcrypt.hash(password, 10);
+            }
             user.status = USER_STATUS.ACTIVE;
             user.email = contract.representativeEmail;
             await user.save({ session });
@@ -560,6 +572,9 @@ export const activateCustomerContract = async ({
             }
         } else {
             // Tạo tài khoản mới cho khách
+            if (!password) {
+                throw new AppError('Vui lòng đặt mật khẩu', 422, [{ field: 'password', message: 'Vui lòng đặt mật khẩu' }]);
+            }
             const hashedPassword = await bcrypt.hash(password, 10);
             const [newUser] = await User.create(
                 [
@@ -616,11 +631,16 @@ export const activateCustomerContract = async ({
             );
         }
 
-        // Chuyển hợp đồng sang ACTIVE và lưu thời điểm activatedAt (bằng chứng xác nhận điện tử BR-014)
+        // Phòng còn hợp đồng người trước, hoặc khách / người ở cùng còn ở phòng khác -> UPCOMING (đặt thuê nối tiếp)
+        activatedStatus = (await isContractReadyToActivate(contract, session))
+            ? CONTRACT_STATUS.ACTIVE
+            : CONTRACT_STATUS.UPCOMING;
+
+        // Lưu thời điểm activatedAt (bằng chứng xác nhận điện tử BR-014)
         const contractUpdate = await Contract.updateOne(
             { _id: contract._id, status: CONTRACT_STATUS.DRAFT },
             {
-                status: CONTRACT_STATUS.ACTIVE,
+                status: activatedStatus,
                 activatedAt,
                 depositReceiverId: contract.createdBy,
             },
@@ -631,15 +651,17 @@ export const activateCustomerContract = async ({
             throw new AppError('Hợp đồng đã được kích hoạt hoặc không còn ở trạng thái nháp', 400);
         }
 
-        // Chuyển trạng thái phòng sang OCCUPIED (BR-052)
-        const roomUpdate = await Room.updateOne(
-            { _id: room._id, status: ROOM_STATUS.AVAILABLE },
-            { status: ROOM_STATUS.OCCUPIED },
-            { session },
-        );
+        // Chỉ hợp đồng ACTIVE mới giữ phòng: chuyển phòng sang OCCUPIED (BR-052)
+        if (activatedStatus === CONTRACT_STATUS.ACTIVE) {
+            const roomUpdate = await Room.updateOne(
+                { _id: room._id, status: ROOM_STATUS.AVAILABLE },
+                { status: ROOM_STATUS.OCCUPIED },
+                { session },
+            );
 
-        if (roomUpdate.matchedCount === 0) {
-            throw new AppError('Phòng không còn ở trạng thái sẵn sàng để thuê', 400);
+            if (roomUpdate.matchedCount === 0) {
+                throw new AppError('Phòng không còn ở trạng thái sẵn sàng để thuê', 400);
+            }
         }
 
         // Đánh dấu token đã dùng (USED)
@@ -664,7 +686,10 @@ export const activateCustomerContract = async ({
         `[Housify] Xác nhận kích hoạt hợp đồng phòng ${room.roomNumber} thành công`,
         `<p>Xin chào ${escapeHtml(name)},</p>
 <p>Bạn đã xác nhận hợp đồng điện tử và kích hoạt tài khoản thành công cho phòng <b>${escapeHtml(room.roomNumber)}</b> tại <b>${escapeHtml(building?.name || '')}</b>.</p>
-<p>Từ bây giờ bạn có thể đăng nhập vào hệ thống bằng <b>Số CCCD (${escapeHtml(contract.representativeCccd)})</b> và mật khẩu bạn vừa đặt.</p>
+${activatedStatus === CONTRACT_STATUS.UPCOMING
+        ? `<p>Hợp đồng đang ở trạng thái <b>Sắp hiệu lực</b>, ngày bắt đầu dự kiến <b>${formatDateVn(contract.startDate)}</b>. Hợp đồng tự chuyển Đang hiệu lực khi phòng được bàn giao.</p>`
+        : ''}
+<p>Từ bây giờ bạn có thể đăng nhập vào hệ thống bằng <b>Số CCCD (${escapeHtml(contract.representativeCccd)})</b> và mật khẩu của bạn.</p>
 <p>Chúc bạn có trải nghiệm lưu trú tuyệt vời tại Housify!</p>`,
     );
 
@@ -684,6 +709,7 @@ export const activateCustomerContract = async ({
 
     return {
         activatedAt,
+        status: activatedStatus,
         warning: mailSent ? undefined : 'Gửi email xác nhận thất bại',
     };
 };

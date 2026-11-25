@@ -40,12 +40,22 @@ export const activateCustomerContractSchema = Joi.object({
         'any.required': 'Vui lòng nhập ngày sinh',
     }),
     address: Joi.string().trim().allow('').max(255),
-    password: Joi.string().pattern(PASSWORD_REGEX).required().messages({
+    // khách đang có tài khoản hoạt động được giữ mật khẩu hiện tại (service kiểm lại tài khoản có thật đang hoạt động)
+    keepCurrentPassword: Joi.boolean().default(false),
+    password: Joi.when('keepCurrentPassword', {
+        is: true,
+        then: Joi.any().strip(),
+        otherwise: Joi.string().pattern(PASSWORD_REGEX).required(),
+    }).messages({
         'string.empty': 'Vui lòng nhập mật khẩu',
         'string.pattern.base': 'Mật khẩu tối thiểu 6 ký tự, có chữ và số',
         'any.required': 'Vui lòng nhập mật khẩu',
     }),
-    confirmPassword: Joi.string().empty('').valid(Joi.ref('password')).required().messages({
+    confirmPassword: Joi.when('keepCurrentPassword', {
+        is: true,
+        then: Joi.any().strip(),
+        otherwise: Joi.string().empty('').valid(Joi.ref('password')).required(),
+    }).messages({
         'string.empty': 'Vui lòng xác nhận mật khẩu',
         'any.only': 'Xác nhận mật khẩu không khớp',
         'any.required': 'Vui lòng xác nhận mật khẩu',

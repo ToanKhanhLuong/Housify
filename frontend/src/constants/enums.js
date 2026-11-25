@@ -63,6 +63,7 @@ export const CONTRACT_TYPE = Object.freeze({
 // Trạng thái hợp đồng – contracts.status (có đơn chấm dứt thì vẫn ACTIVE)
 export const CONTRACT_STATUS = Object.freeze({
     DRAFT: 'DRAFT', // nháp, chờ khách kích hoạt
+    UPCOMING: 'UPCOMING', // đã kích hoạt, chờ hợp đồng trước của phòng / của khách kết thúc
     ACTIVE: 'ACTIVE', // đang hiệu lực
     ENDED: 'ENDED', // đã kết thúc
     CANCELLED: 'CANCELLED', // hủy khi còn nháp
