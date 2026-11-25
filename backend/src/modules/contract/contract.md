@@ -47,6 +47,9 @@
 - Mỗi phòng có tối đa **một** hợp đồng Đang hiệu lực và **một** hợp đồng đang chờ (Nháp hoặc Sắp hiệu lực). Thời gian các hợp đồng của một phòng **không được chồng lên nhau**.
 - Phòng đang có người thuê chỉ nhận hợp đồng nối tiếp khi hợp đồng hiện tại còn **không quá 1 tháng** tới ngày rời đi, và ngày bắt đầu của hợp đồng mới phải **sau** ngày rời đi.
 - Không bắt buộc khoảng đệm giữa hai hợp đồng: Manager tự chọn ngày bắt đầu (ngay hôm sau, hoặc lùi vài ngày để dọn phòng).
+- **Chống giữ chỗ lâu (áp dụng mọi hợp đồng mới, kể cả khách mới thuê phòng trống):**
+  - Khách đang ở phòng khác chỉ ký được hợp đồng mới trong **tháng cuối** của hợp đồng hiện tại (tính tới ngày rời đi).
+  - Ngày bắt đầu không quá **1 tháng** sau *mốc vào ở* = ngày muộn nhất trong: hôm nay, ngày sau ngày trả phòng của người trước, ngày sau ngày trả phòng cũ của khách. Ví dụ phòng trống, khách mới: ngày bắt đầu tối đa hôm nay + 1 tháng; X ở phòng cũ đến 31/12 thì chọn trong 01/01 – 01/02.
 - Người thuê hiện tại muốn ở tiếp thì phải gia hạn **trước** khi phòng có hợp đồng nối tiếp. Phòng đã có hợp đồng nối tiếp thì không gia hạn được nữa.
 - Một khách đang thuê phòng khác vẫn được đặt trước phòng mới, miễn ngày bắt đầu phòng mới sau ngày rời đi của phòng cũ. **Một khách không bao giờ có hai hợp đồng Đang hiệu lực cùng lúc.**
 - **Sắp hiệu lực → Đang hiệu lực:** mỗi khi một hợp đồng kết thúc (UC-45, UC-28, UC-29), ngay trong giao dịch kết thúc đó hệ thống kiểm tra hai hướng: phòng vừa trả có hợp đồng Sắp hiệu lực đang chờ không, và người đại diện vừa trả phòng có hợp đồng Sắp hiệu lực ở phòng khác không. Hợp đồng nào đã hết cả hai điều kiện chờ thì chuyển Đang hiệu lực, phòng chuyển Đang thuê, cư dân được tính là đang ở. Gửi thông báo cho người đại diện.
@@ -91,6 +94,8 @@
 - **Phòng đang Bảo trì, đã có hợp đồng Nháp / Sắp hiệu lực, hoặc hợp đồng hiện tại còn hơn 1 tháng tới ngày rời đi:** từ chối, báo "Phòng chưa nhận hợp đồng mới". Đã có hợp đồng nối tiếp thì báo "Phòng đã có hợp đồng nối tiếp từ ngày [ngày bắt đầu]".
 - **Ngày bắt đầu không sau ngày rời đi của hợp đồng hiện tại (thời gian bị chồng lên):** từ chối, báo "Ngày bắt đầu phải sau ngày [ngày rời đi] (ngày trả phòng của hợp đồng hiện tại)".
 - **CCCD người đại diện hoặc người ở cùng đang cư trú ở phòng khác và thời gian bị chồng lên:** từ chối, báo khách đang thuê hoặc đang ở phòng khác. Nếu hợp đồng mới bắt đầu sau ngày rời đi của phòng cũ thì cho phép (khách đặt trước để chuyển phòng).
+- **Khách đang ở phòng khác còn hơn 1 tháng:** từ chối, báo "Khách đang thuê phòng khác đến ngày [X], chỉ ký được hợp đồng mới từ ngày [Y] (tháng cuối của hợp đồng hiện tại)".
+- **Ngày bắt đầu quá 1 tháng sau mốc vào ở:** từ chối, báo "Ngày bắt đầu không được quá 1 tháng sau ngày [mốc] (chọn từ [mốc] đến [mốc + 1 tháng])".
 - **CCCD hoặc email gắn với tài khoản đã bị khóa do vi phạm:** từ chối, không cho phép tạo hợp đồng mới.
 - **Email thuộc về tài khoản quản trị/quản lý hoặc đã gắn với khách hàng khác:** từ chối.
 - **Số điện thoại người ở cùng bị trùng lặp hoặc đã thuộc về người khác trong hệ thống:** từ chối.

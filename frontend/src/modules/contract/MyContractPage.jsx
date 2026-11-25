@@ -66,6 +66,8 @@ const MyContractPage = () => {
                 contract: detail.data,
                 hasActive: Boolean(activeContract),
                 totalContracts,
+                // đang ở phòng hiện tại nhưng đã ký trước phòng khác → nhắc ở đầu trang
+                nextUpcoming: activeContract ? upcomingContract ?? null : null,
                 error: '',
               }),
             );
@@ -160,6 +162,24 @@ const MyContractPage = () => {
           {state.contract.depositRefundedAt && (
             <> Thủ tục hoàn/quyết toán tiền cọc đã được ghi nhận lúc {formatDateTime(state.contract.depositRefundedAt)}.</>
           )}
+        </Alert>
+      )}
+
+      {!id && state.nextUpcoming && (
+        <Alert variant="info" className="mb-0 print:hidden flex flex-wrap items-center justify-between gap-2">
+          <span>
+            Bạn có hợp đồng sắp hiệu lực phòng {state.nextUpcoming.room?.roomNumber ?? ''}, bắt đầu từ{' '}
+            {formatDate(state.nextUpcoming.startDate)}. Hợp đồng tự chuyển Đang hiệu lực khi hợp đồng hiện tại kết thúc.
+          </span>
+          <Button
+            as={Link}
+            to={`/my-contract/${state.nextUpcoming._id}`}
+            variant="secondary"
+            size="sm"
+            className="no-underline"
+          >
+            Xem hợp đồng
+          </Button>
         </Alert>
       )}
 

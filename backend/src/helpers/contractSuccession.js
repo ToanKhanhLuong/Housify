@@ -23,16 +23,18 @@ export const formatDateVn = (date) => {
     return `${day}/${month}/${vietnamTime.getUTCFullYear()}`;
 };
 
-// Lùi một số tháng, giữ ngày không vượt quá cuối tháng (31/03 lùi 1 tháng -> 28 hoặc 29/02)
-const subtractMonths = (date, months) => {
+// Cộng / lùi số tháng, giữ ngày không vượt quá cuối tháng (31/03 lùi 1 tháng -> 28 hoặc 29/02)
+const shiftMonths = (date, months) => {
     const result = new Date(date);
     const day = result.getDate();
     result.setDate(1);
-    result.setMonth(result.getMonth() - months);
+    result.setMonth(result.getMonth() + months);
     const lastDay = new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate();
     result.setDate(Math.min(day, lastDay));
     return result;
 };
+const subtractMonths = (date, months) => shiftMonths(date, -months);
+const nextDay = (date) => new Date(startOfVietnamDay(date).getTime() + 24 * 60 * 60 * 1000);
 
 /**
  * Ngày rời đi của hợp đồng ACTIVE: ngày hiệu lực đơn chấm dứt CONFIRMED nếu có, không thì endDate
@@ -92,6 +94,61 @@ export const assertRoomAcceptsNewContract = async ({ room, startDate, excludeCon
             400,
             [{ field: 'startDate', message: `Ngày bắt đầu phải sau ngày ${formatDateVn(leaveDate)}` }],
         );
+    }
+};
+
+/**
+ * Khung ngày bắt đầu hợp lệ (UC-24, UC-26), chống giữ chỗ lâu:
+ * - Khách đang ở phòng khác chỉ ký hợp đồng mới trong tháng cuối của hợp đồng hiện tại
+ * - Ngày bắt đầu không quá 1 tháng sau mốc vào ở = muộn nhất (hôm nay, ngày sau trả phòng của người trước, ngày sau trả phòng cũ của khách)
+ */
+export const assertStartDateWithinSigningWindow = async ({
+    room,
+    representativeCccd,
+    startDate,
+    excludeContractId = null,
+    now = new Date(),
+}) => {
+    let moveInFrom = startOfVietnamDay(now);
+
+    const roomActive = await Contract.findOne({
+        roomId: room._id,
+        status: CONTRACT_STATUS.ACTIVE,
+        ...(excludeContractId ? { _id: { $ne: excludeContractId } } : {}),
+    }).lean();
+    if (roomActive) {
+        const roomFree = nextDay(await getLeaveDate(roomActive));
+        if (roomFree > moveInFrom) moveInFrom = roomFree;
+    }
+
+    // hợp đồng ACTIVE khách đang ở (đại diện hoặc ở cùng) ở phòng khác
+    const stays = await Occupant.find({
+        cccd: representativeCccd,
+        status: OCCUPANT_STATUS.STAYED,
+        ...(excludeContractId ? { contractId: { $ne: excludeContractId } } : {}),
+    }).select('contractId').lean();
+    const ownActive = stays.length > 0
+        ? await Contract.findOne({
+            _id: { $in: stays.map((item) => item.contractId) },
+            roomId: { $ne: room._id },
+            status: CONTRACT_STATUS.ACTIVE,
+        }).lean()
+        : null;
+    if (ownActive) {
+        const ownLeave = await getLeaveDate(ownActive);
+        const canSignFrom = startOfVietnamDay(subtractMonths(ownLeave, 1));
+        if (startOfVietnamDay(now) < canSignFrom) {
+            const message = `Khách đang thuê phòng khác đến ngày ${formatDateVn(ownLeave)}, chỉ ký được hợp đồng mới từ ngày ${formatDateVn(canSignFrom)} (tháng cuối của hợp đồng hiện tại)`;
+            throw new AppError(message, 400, [{ field: 'representativeCccd', message }]);
+        }
+        const ownFree = nextDay(ownLeave);
+        if (ownFree > moveInFrom) moveInFrom = ownFree;
+    }
+
+    const latestStart = shiftMonths(moveInFrom, 1);
+    if (startOfVietnamDay(startDate) > startOfVietnamDay(latestStart)) {
+        const message = `Ngày bắt đầu không được quá 1 tháng sau ngày ${formatDateVn(moveInFrom)} (chọn từ ${formatDateVn(moveInFrom)} đến ${formatDateVn(latestStart)})`;
+        throw new AppError(message, 400, [{ field: 'startDate', message }]);
     }
 };
 

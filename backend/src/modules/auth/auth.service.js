@@ -298,13 +298,21 @@ export const resetPassword = async ({ email, otp, newPassword }) => {
     await otpDoc.save();
 };
 
-// Hồ sơ của chính người đăng nhập: Manager ở managers, Customer ở bản ghi đại diện mới nhất (giống getMe)
+// Hồ sơ của chính người đăng nhập: Manager ở managers; Customer ở bản ghi đại diện của hợp đồng đang ở (ACTIVE),
+// không có thì bản ghi mới nhất. Khách đặt trước phòng khác (UPCOMING) có bản ghi mới hơn nhưng chưa vào ở
 const findProfile = async (user) => {
     let profile = null;
     if (user.roleId === ROLE.MANAGER) {
         profile = await Manager.findOne({ userId: user._id });
     } else if (user.roleId === ROLE.CUSTOMER) {
-        profile = await Occupant.findOne({ userId: user._id, isRepresentative: true }).sort({ createdAt: -1 });
+        const repOccupants = await Occupant.find({ userId: user._id, isRepresentative: true }).sort({ createdAt: -1 });
+        const activeContract = await Contract.findOne({
+            _id: { $in: repOccupants.map((item) => item.contractId) },
+            status: CONTRACT_STATUS.ACTIVE,
+        }).select('_id').lean();
+        profile = (activeContract && repOccupants.find((item) => String(item.contractId) === String(activeContract._id)))
+            || repOccupants[0]
+            || null;
     }
 
     if (!profile) {
@@ -361,16 +369,20 @@ export const getProfile = async (userId) => {
     if (user.roleId === ROLE.CUSTOMER) {
         const {
             hasActiveContract,
+            hasUpcomingContract,
             hasConfirmedUnilateral,
             canChangeEmail,
             emailDisabledReason,
         } = await getCustomerContractAccessState(user._id);
         const canEdit = hasActiveContract && !hasConfirmedUnilateral;
-        const editDisabledReason = hasConfirmedUnilateral
-            ? 'Hợp đồng đã chấm dứt đơn phương do vi phạm — hồ sơ đang ở chế độ chỉ xem.'
-            : !hasActiveContract
-                ? 'Hợp đồng thuê phòng đã kết thúc — hồ sơ đang ở chế độ chỉ xem.'
-                : null;
+        let editDisabledReason = null;
+        if (hasConfirmedUnilateral) {
+            editDisabledReason = 'Hợp đồng đã chấm dứt đơn phương do vi phạm — hồ sơ đang ở chế độ chỉ xem.';
+        } else if (!hasActiveContract && hasUpcomingContract) {
+            editDisabledReason = 'Hợp đồng đang ở trạng thái Sắp hiệu lực — hồ sơ chỉ xem cho tới khi hợp đồng có hiệu lực.';
+        } else if (!hasActiveContract) {
+            editDisabledReason = 'Hợp đồng thuê phòng đã kết thúc — hồ sơ đang ở chế độ chỉ xem.';
+        }
         return buildProfile(user, profile, {
             canEdit,
             editDisabledReason,
@@ -486,6 +498,21 @@ export const updateProfile = async (userId, body) => {
         if (Object.keys(changes).length > 0) {
             Object.assign(profile, changes);
             await profile.save({ session });
+
+            // Cùng một người: hồ sơ đại diện trên hợp đồng sắp hiệu lực (đặt trước phòng khác) cũng nhận thông tin mới
+            if (user.roleId === ROLE.CUSTOMER) {
+                const upcomingContractIds = await Contract.find({
+                    representativeCccd: profile.cccd,
+                    status: CONTRACT_STATUS.UPCOMING,
+                }).distinct('_id').session(session);
+                if (upcomingContractIds.length > 0) {
+                    await Occupant.updateMany(
+                        { userId: user._id, isRepresentative: true, contractId: { $in: upcomingContractIds } },
+                        { $set: changes },
+                        { session },
+                    );
+                }
+            }
         }
     });
 

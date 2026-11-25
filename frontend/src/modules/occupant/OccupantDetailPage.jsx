@@ -15,7 +15,7 @@ import { CONTRACT_STATUS, OCCUPANT_STATUS } from '../../constants/enums';
 import {
   CONTRACT_STATUS_LABEL,
   CONTRACT_TYPE_LABEL,
-  OCCUPANT_STATUS_LABEL,
+  occupantStatusLabelOf,
   USER_STATUS_LABEL,
 } from '../../constants/statusLabels';
 import { formatDate } from '../../utils/format';
@@ -141,7 +141,10 @@ const OccupantDetailPage = () => {
               <span className={`hf-badge ${occupant.isRepresentative ? 'hf-b-plum' : 'hf-b-gray'}`}>
                 {occupant.roleLabel}
               </span>
-              <StatusBadge map={OCCUPANT_STATUS_LABEL} value={occupant.status} />
+              <StatusBadge
+                map={{ [occupant.status]: occupantStatusLabelOf(occupant.status, contractStatus) }}
+                value={occupant.status}
+              />
               {occupant.isRepresentative && occupant.userStatus && (
                 <span className="inline-flex items-center gap-1 small text-secondary">
                   · Tài khoản:

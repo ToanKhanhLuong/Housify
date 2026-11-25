@@ -8,6 +8,7 @@ import { withTransaction } from '../src/helpers/withTransaction.js';
 import { hasActiveStayingCccd } from '../src/helpers/customerRestriction.js';
 import {
     assertRoomAcceptsNewContract,
+    assertStartDateWithinSigningWindow,
     cancelUpcomingOfRepresentative,
     collectSuccessionKeys,
     isContractReadyToActivate,
@@ -211,4 +212,66 @@ test('8. Khách bị đơn phương ở phòng cũ: hợp đồng UPCOMING bị 
     assert.equal((await Contract.findById(upcomingB._id)).status, CONTRACT_STATUS.CANCELLED);
     assert.equal(await Occupant.countDocuments({ contractId: upcomingB._id, status: OCCUPANT_STATUS.STAYED }), 0);
     assert.equal((await Room.findById(room._id)).status, ROOM_STATUS.OCCUPIED);
+});
+
+test('9. Khách đang ở phòng khác còn hơn 1 tháng thì chưa ký được hợp đồng mới', async () => {
+    const cccd = randomCccd();
+    const oldRoom = await createRoom(ROOM_STATUS.OCCUPIED);
+    const emptyRoom = await createRoom();
+    const current = await createContract({
+        room: oldRoom, status: CONTRACT_STATUS.ACTIVE, startDate: daysFromNow(-30), endDate: daysFromNow(330), representativeCccd: cccd,
+    });
+
+    await assert.rejects(
+        () => assertStartDateWithinSigningWindow({
+            room: emptyRoom, representativeCccd: cccd, startDate: new Date(current.endDate.getTime() + DAY_MS),
+        }),
+        /chỉ ký được hợp đồng mới từ ngày/,
+    );
+});
+
+test('10. Khách trong tháng cuối: ngày bắt đầu phòng mới chỉ trong 1 tháng sau ngày trả phòng cũ', async () => {
+    const cccd = randomCccd();
+    const oldRoom = await createRoom(ROOM_STATUS.OCCUPIED);
+    const emptyRoom = await createRoom();
+    const current = await createContract({
+        room: oldRoom, status: CONTRACT_STATUS.ACTIVE, startDate: daysFromNow(-300), endDate: daysFromNow(10), representativeCccd: cccd,
+    });
+
+    await assertStartDateWithinSigningWindow({
+        room: emptyRoom, representativeCccd: cccd, startDate: new Date(current.endDate.getTime() + 5 * DAY_MS),
+    });
+    await assert.rejects(
+        () => assertStartDateWithinSigningWindow({
+            room: emptyRoom, representativeCccd: cccd, startDate: new Date(current.endDate.getTime() + 60 * DAY_MS),
+        }),
+        /không được quá 1 tháng sau ngày/,
+    );
+});
+
+test('11. Khách mới thuê phòng trống: ngày bắt đầu tối đa 1 tháng kể từ hôm nay', async () => {
+    const emptyRoom = await createRoom();
+
+    await assertStartDateWithinSigningWindow({ room: emptyRoom, representativeCccd: randomCccd(), startDate: daysFromNow(20) });
+    await assert.rejects(
+        () => assertStartDateWithinSigningWindow({ room: emptyRoom, representativeCccd: randomCccd(), startDate: daysFromNow(45) }),
+        /không được quá 1 tháng sau ngày/,
+    );
+});
+
+test('12. Đặt nối tiếp phòng đang thuê: ngày bắt đầu chỉ trong 1 tháng sau ngày người trước trả phòng', async () => {
+    const room = await createRoom(ROOM_STATUS.OCCUPIED);
+    const current = await createContract({
+        room, status: CONTRACT_STATUS.ACTIVE, startDate: daysFromNow(-300), endDate: daysFromNow(20),
+    });
+
+    await assertStartDateWithinSigningWindow({
+        room, representativeCccd: randomCccd(), startDate: new Date(current.endDate.getTime() + 25 * DAY_MS),
+    });
+    await assert.rejects(
+        () => assertStartDateWithinSigningWindow({
+            room, representativeCccd: randomCccd(), startDate: new Date(current.endDate.getTime() + 40 * DAY_MS),
+        }),
+        /không được quá 1 tháng sau ngày/,
+    );
 });

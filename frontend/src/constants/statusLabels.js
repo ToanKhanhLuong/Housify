@@ -43,6 +43,14 @@ export const OCCUPANT_STATUS_LABEL = {
     [OCCUPANT_STATUS.LEFT]: { label: 'Đã chuyển đi', variant: 'secondary' },
 };
 
+// Cư dân lưu sẵn trên hợp đồng Nháp / Sắp hiệu lực vẫn mang STAYED trong DB nhưng chưa thật sự vào ở
+export const WAITING_OCCUPANT_LABEL = { label: 'Chờ vào ở', variant: 'info' };
+export const occupantStatusLabelOf = (occupantStatus, contractStatus) =>
+    occupantStatus === OCCUPANT_STATUS.STAYED
+    && (contractStatus === CONTRACT_STATUS.DRAFT || contractStatus === CONTRACT_STATUS.UPCOMING)
+        ? WAITING_OCCUPANT_LABEL
+        : OCCUPANT_STATUS_LABEL[occupantStatus];
+
 // icon: bắt tay = hai bên thỏa thuận, giấy + bút ký = đơn phương (hiện ở badge, menu con, thẻ chọn loại đơn)
 export const TERMINATION_TYPE_LABEL = {
     [TERMINATION_TYPE.MUTUAL]: { label: 'Hai bên thỏa thuận', variant: 'secondary', icon: LuHandshake },

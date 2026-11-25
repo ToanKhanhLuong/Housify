@@ -153,7 +153,7 @@ export const getCustomerContractAccessState = async (userId) => {
         .map((item) => item.contractId)
         .filter(Boolean);
 
-    const [activeContracts, hasConfirmedUnilateral] = await Promise.all([
+    const [activeContracts, hasConfirmedUnilateral, hasUpcomingContract] = await Promise.all([
         stayedContractIds.length > 0
             ? Contract.find({ _id: { $in: stayedContractIds }, status: CONTRACT_STATUS.ACTIVE })
                   .select('_id')
@@ -165,6 +165,9 @@ export const getCustomerContractAccessState = async (userId) => {
                   type: TERMINATION_TYPE.UNILATERAL,
                   status: TERMINATION_STATUS.CONFIRMED,
               })
+            : false,
+        allContractIds.length > 0
+            ? Contract.exists({ _id: { $in: allContractIds }, status: CONTRACT_STATUS.UPCOMING })
             : false,
     ]);
 
@@ -193,6 +196,7 @@ export const getCustomerContractAccessState = async (userId) => {
 
     return {
         hasActiveContract,
+        hasUpcomingContract: Boolean(hasUpcomingContract),
         hasConfirmedUnilateral: confirmedUnilateral,
         canChangeEmail: hasActiveContract && !confirmedUnilateral && !emailLockedTermination,
         emailDisabledReason,

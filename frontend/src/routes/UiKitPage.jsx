@@ -444,6 +444,14 @@ const UiKitPage = () => {
                                 />
                             </div>
                             <div>
+                                <div className="small text-secondary mb-1">Hợp đồng đặt thuê nối tiếp: Nháp › Sắp hiệu lực › Đang hiệu lực › Đã kết thúc</div>
+                                <StatusSteps
+                                    map={CONTRACT_STATUS_LABEL}
+                                    current={CONTRACT_STATUS.UPCOMING}
+                                    steps={[CONTRACT_STATUS.DRAFT, CONTRACT_STATUS.UPCOMING, CONTRACT_STATUS.ACTIVE, CONTRACT_STATUS.ENDED]}
+                                />
+                            </div>
+                            <div>
                                 <div className="small text-secondary mb-1">Trạng thái ngoài luồng (Đã hủy) tự thêm vào cuối:</div>
                                 <StatusSteps
                                     map={CONTRACT_STATUS_LABEL}

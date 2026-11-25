@@ -11,7 +11,7 @@ import { CONTRACT_STATUS, OCCUPANT_STATUS } from '../../../constants/enums';
 import {
   CONTRACT_STATUS_LABEL,
   CONTRACT_TYPE_LABEL,
-  OCCUPANT_STATUS_LABEL,
+  occupantStatusLabelOf,
 } from '../../../constants/statusLabels';
 import { formatDate, formatDateTime } from '../../../utils/format';
 import { initialsOf, monthsOf, termOf } from '../contractFormat';
@@ -218,7 +218,10 @@ const ContractPaper = ({ contract, onOccupantClick }) => {
                       <td>{formatDate(occupant.dateOfBirth)}</td>
                       <td>{formatDate(occupant.joinDate)}</td>
                       <td className="pe-3">
-                        <StatusBadge map={OCCUPANT_STATUS_LABEL} value={occupant.status} />
+                        <StatusBadge
+                          map={{ [occupant.status]: occupantStatusLabelOf(occupant.status, contract.status) }}
+                          value={occupant.status}
+                        />
                         {occupant.exitDate && (
                           <span className="small text-secondary ms-1">{formatDate(occupant.exitDate)}</span>
                         )}

@@ -185,7 +185,7 @@ Class trùng tên với Bootstrap (`bg-transparent`, `opacity-0`, `text-white`�
 | File                          | Có gì                                                                                                          |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `constants/enums.js`        | `ROLE`, `USER_STATUS`, `ROOM_STATUS`, `CONTRACT_STATUS`… **Chép y hệt từ BE, không sửa tay** |
-| `constants/statusLabels.js` | `ROLE_LABEL`, `<ENUM>_LABEL` (chữ tiếng Việt + màu), `toOptions()`                                     |
+| `constants/statusLabels.js` | `ROLE_LABEL`, `<ENUM>_LABEL` (chữ tiếng Việt + màu), `toOptions()`, `occupantStatusLabelOf(occupantStatus, contractStatus)` (cư dân của hợp đồng Nháp / Sắp hiệu lực hiện "Chờ vào ở") |
 | `constants/menus.js`        | `MENUS`, `HOME_PATH`, `NO_BUILDING_PATHS`                                                                  |
 | `constants/regex.js`        | `PHONE_REGEX`, `CCCD_REGEX`, `EMAIL_REGEX`, `PASSWORD_REGEX` (giống BE)                                 |
 | `utils/format.js`           | `formatMoney`, `formatDate`, `formatDateTime`, `formatPeriod`, `toDateInput`                           |

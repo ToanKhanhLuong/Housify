@@ -27,6 +27,7 @@ import { startOfVietnamDay, endOfVietnamDay } from '../../helpers/date.js';
 import { getRepresentativeRecipientEmail } from '../../helpers/representativeEmail.js';
 import {
     assertRoomAcceptsNewContract,
+    assertStartDateWithinSigningWindow,
     collectSuccessionKeys,
     promoteAllReadyUpcomingContracts,
     promoteReadyUpcomingContracts,
@@ -306,6 +307,9 @@ export const createContract = async ({ managerId, data }) => {
 
     // 3b & 3c. Kiểm tra CCCD và Email người đại diện
     await validateRepresentativeCccdAndEmail(cleanRepCccd, cleanRepEmail, null, parsedStartDate);
+
+    // Chống giữ chỗ lâu: khách đang ở phòng khác chỉ ký trong tháng cuối, ngày bắt đầu ≤ 1 tháng sau mốc vào ở
+    await assertStartDateWithinSigningWindow({ room, representativeCccd: cleanRepCccd, startDate: parsedStartDate });
 
     // 3d. Kiểm tra người ở cùng trên toàn hệ thống
     const blacklistedCoCccds = await findBlacklistedCccds(coOccupants.map((co) => co.cccd));
@@ -975,6 +979,17 @@ export const updateContract = async ({ managerId, contractId, data }) => {
     // Kiểm tra CCCD và Email đại diện như lúc tạo (UC-24); đổi ngày bắt đầu cũng kiểm lại vì phòng cũ của khách tính theo ngày
     if (data.representativeCccd !== undefined || data.representativeEmail !== undefined || data.startDate !== undefined) {
         await validateRepresentativeCccdAndEmail(nextRepCccd, nextRepEmail, contract._id, nextStartDate);
+    }
+
+    // Đổi ngày bắt đầu hoặc đổi người đại diện: kiểm lại khung ngày chống giữ chỗ lâu
+    if (data.representativeCccd !== undefined || data.startDate !== undefined) {
+        const room = await Room.findById(contract.roomId);
+        await assertStartDateWithinSigningWindow({
+            room,
+            representativeCccd: nextRepCccd,
+            startDate: nextStartDate,
+            excludeContractId: contract._id,
+        });
     }
     const nextDurationMonths = data.durationMonths !== undefined ? Number(data.durationMonths) : currentDurationMonths;
 
