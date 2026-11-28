@@ -1,6 +1,6 @@
 // UC-01: đăng nhập. Một ô định danh chung: email (Admin, Manager) hoặc số CCCD (Customer), BE tự nhận biết
 import { useState } from 'react';
-import { Alert, Button, Card, Form, Spinner } from 'react-bootstrap';
+import { Button, Card, Form, Spinner } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import Input from '../../components/Input';
@@ -49,11 +49,11 @@ const LoginPage = () => {
 
   return (
     // html đặt 14px nên rem của Tailwind nhỏ hơn mặc định: max-w-xl = 36rem ≈ 504px
-    <Card className="w-full max-w-xl">
+    <Card className="w-full max-w-xl rounded-4 shadow">
       <Card.Body className="p-4 p-sm-5">
         <div className="text-center mb-4">
           <h1 className="h3 fw-bold mb-1">Đăng nhập Housify</h1>
-          <div className="text-secondary">Hệ thống quản lý nhà trọ cho thuê</div>
+          <div className="text-secondary">Hệ thống quản lý chung cư mini</div>
         </div>
 
         <Form onSubmit={handleSubmit} noValidate>
@@ -105,12 +105,6 @@ const LoginPage = () => {
             Đăng nhập
           </Button>
         </Form>
-
-        {/* ô Tài khoản dùng chung cho 3 role nên ghi rõ cách đăng nhập (UC-01) */}
-        <Alert variant="info" className="mt-4 mb-0">
-          Admin và Quản lý đăng nhập bằng <strong>email</strong>. Khách thuê đăng nhập bằng{' '}
-          <strong>số CCCD</strong> và mật khẩu đã đặt khi kích hoạt hợp đồng.
-        </Alert>
       </Card.Body>
     </Card>
   );

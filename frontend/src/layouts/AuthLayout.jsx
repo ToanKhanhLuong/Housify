@@ -5,7 +5,7 @@ import Brand from './Brand';
 
 const AuthLayout = () => (
     <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-body-tertiary p-3">
-        <Brand />
+        <Brand logoClass="w-24 h-24" />
         <div className="w-full flex justify-center">
             <Outlet />
         </div>
